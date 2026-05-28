@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useAuthQuery, ApiError } from "./useAuthQuery";
 
 type CnaeMcc = {
   id: number;
@@ -10,21 +10,24 @@ type CnaeMcc = {
 async function fetchCnaeMcc(): Promise<CnaeMcc[]> {
   const token = localStorage.getItem("token");
 
-  const res = await fetch("http://localhost:8000/api/cnae-mcc/", {
-    headers: {
-      Authorization: `Bearer ${token}`,
+  const res = await fetch(
+    `${import.meta.env.VITE_API_BASE_URL}/api/cnae-mcc/`,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
     },
-  });
+  );
 
   if (!res.ok) {
-    throw new Error("Failed to fetch CNAE-MCC data.");
+    throw new ApiError(res.status, "Failed to fetch CNAE-MCC data.");
   }
 
   return res.json() as Promise<CnaeMcc[]>;
 }
 
 export function useCnaeMcc() {
-  return useQuery({
+  return useAuthQuery<CnaeMcc[]>({
     queryKey: ["cnae-mcc"],
     queryFn: fetchCnaeMcc,
   });

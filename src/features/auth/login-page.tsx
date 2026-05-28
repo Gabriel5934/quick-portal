@@ -5,11 +5,11 @@ import type { LoginFormValues } from "./types";
 import Typography from "@mui/material/Typography";
 import { Link as RouterLink, useNavigate } from "@tanstack/react-router";
 import Link from "@mui/material/Link";
-import { useToken } from "../../hooks/useToken";
+import { useLogin } from "../../hooks/useToken";
 
 export function LoginPage() {
   const [serverError, setServerError] = useState<string | null>(null);
-  const tokenMutation = useToken();
+  const tokenMutation = useLogin();
   const navigate = useNavigate();
 
   const handleLogin = useCallback(
@@ -17,9 +17,7 @@ export function LoginPage() {
       setServerError(null);
 
       try {
-        const tokens = await tokenMutation.mutateAsync(data);
-        localStorage.setItem("token", tokens.access);
-        localStorage.setItem("refreshToken", tokens.token);
+        await tokenMutation.mutateAsync(data);
         await navigate({ to: "/home" });
       } catch (error) {
         const message =

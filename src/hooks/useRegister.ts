@@ -14,13 +14,16 @@ type RegisterResponse = {
 async function fetchRegister(
   payload: RegisterRequest,
 ): Promise<RegisterResponse> {
-  const res = await fetch("http://localhost:8000/users/register/", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
+  const res = await fetch(
+    `${import.meta.env.VITE_API_BASE_URL}/users/register/`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
     },
-    body: JSON.stringify(payload),
-  });
+  );
 
   const data = (await res.json().catch(() => null)) as
     | (Partial<RegisterResponse> & { refresh?: string; detail?: string })

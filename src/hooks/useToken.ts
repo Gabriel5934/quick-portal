@@ -1,27 +1,26 @@
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { getRefreshToken, setTokens, setRefreshToken } from "./auth/storage";
 import type { ValidationErrors } from "./types";
 
-type TokenRequest = {
+type LoginRequest = {
   email: string;
   password: string;
 };
 
-type TokenResponse = {
+type LoginResponse = {
   access: string;
   token: string;
 };
 
-async function fetchToken(payload: TokenRequest): Promise<TokenResponse> {
-  const res = await fetch("http://localhost:8000/api/token/", {
+async function fetchLogin(payload: LoginRequest): Promise<LoginResponse> {
+  const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/token/`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
 
   const data = (await res.json().catch(() => null)) as
-    | (Partial<TokenResponse> & { refresh?: string; detail?: string })
+    | (Partial<LoginResponse> & { refresh?: string; detail?: string })
     | null;
 
   if (!res.ok) {
@@ -40,8 +39,38 @@ async function fetchToken(payload: TokenRequest): Promise<TokenResponse> {
   return { access, token };
 }
 
-export function useToken() {
+export function useLogin() {
   return useMutation({
-    mutationFn: fetchToken,
+    mutationFn: fetchLogin,
+    onSuccess(data) {
+      setTokens(data.access, data.token);
+    },
+  });
+}
+
+export function useToken() {
+  return useQuery({
+    queryKey: ["access_token"],
+    queryFn: async () => {
+      const refresh = getRefreshToken()!;
+      const res = await fetch(
+        `${import.meta.env.VITE_API_BASE_URL}/api/token/refresh/`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ refresh }),
+        },
+      );
+
+      if (!res.ok) throw new Error("Failed to refresh access token.");
+
+      const data = (await res.json()) as { access: string };
+      setRefreshToken(refresh);
+      localStorage.setItem("token", data.access);
+      return data.access;
+    },
+    staleTime: 4 * 60 * 1000, // 1 min less than the actual token expiration
+    retry: false,
+    enabled: !!getRefreshToken(),
   });
 }

@@ -1,9 +1,11 @@
 import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
 import { AppLayout } from "../../layout/app";
+import { getRefreshToken } from "../../hooks/auth/storage";
+import { useToken } from "../../hooks/useToken";
 
 export const Route = createFileRoute("/_authRoutes")({
   beforeLoad: async ({ location }) => {
-    if (!localStorage.getItem("token")) {
+    if (!getRefreshToken()) {
       throw redirect({
         to: "/",
         search: {
@@ -19,6 +21,8 @@ export const Route = createFileRoute("/_authRoutes")({
 });
 
 function RouteComponent() {
+  useToken();
+
   return (
     <AppLayout>
       <Outlet />
