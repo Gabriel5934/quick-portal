@@ -8,7 +8,23 @@ function validateCnpj(_cnpj: string): boolean {
   return true;
 }
 
-export const step1Schema = z.object({
+function refineDocument(
+  data: { documentType: "CNPJ" | "CPF"; document: string },
+  ctx: z.RefinementCtx,
+) {
+  const digits = data.document.replace(/\D/g, "");
+  if (data.documentType === "CPF") {
+    if (digits.length < 11 || !validateCpf(data.document)) {
+      ctx.addIssue({ code: "custom", message: "CPF inválido", path: ["document"] });
+    }
+  } else {
+    if (digits.length < 14 || !validateCnpj(data.document)) {
+      ctx.addIssue({ code: "custom", message: "CNPJ inválido", path: ["document"] });
+    }
+  }
+}
+
+const step1BaseSchema = z.object({
   documentType: z.enum(["CNPJ", "CPF"]),
   document: z.string(),
   razaoSocial: z.string().min(1, "Nome / Razão Social é obrigatório"),
@@ -23,8 +39,10 @@ export const step1Schema = z.object({
     ),
 });
 
-export const step1Fields = Object.keys(step1Schema.shape) as (keyof z.infer<
-  typeof step1Schema
+export const step1Schema = step1BaseSchema.superRefine(refineDocument);
+
+export const step1Fields = Object.keys(step1BaseSchema.shape) as (keyof z.infer<
+  typeof step1BaseSchema
 >)[];
 
 export const step2Schema = z.object({
@@ -48,37 +66,6 @@ export const step2Fields = Object.keys(step2Schema.shape) as (keyof z.infer<
   typeof step2Schema
 >)[];
 
-export const newBusinessSchema = step1Schema
+export const newBusinessSchema = step1BaseSchema
   .extend(step2Schema.shape)
-  .superRefine((data, ctx) => {
-    const digits = data.document.replace(/\D/g, "");
-    if (data.documentType === "CPF") {
-      if (digits.length < 11) {
-        ctx.addIssue({
-          code: "custom",
-          message: "CPF inválido",
-          path: ["document"],
-        });
-      } else if (!validateCpf(data.document)) {
-        ctx.addIssue({
-          code: "custom",
-          message: "CPF inválido",
-          path: ["document"],
-        });
-      }
-    } else {
-      if (digits.length < 14) {
-        ctx.addIssue({
-          code: "custom",
-          message: "CNPJ inválido",
-          path: ["document"],
-        });
-      } else if (!validateCnpj(data.document)) {
-        ctx.addIssue({
-          code: "custom",
-          message: "CNPJ inválido",
-          path: ["document"],
-        });
-      }
-    }
-  });
+  .superRefine(refineDocument);

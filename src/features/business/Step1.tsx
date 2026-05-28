@@ -107,7 +107,9 @@ export function Step1() {
                 `${option.cod_mcc} — ${option.desc_cnae}`
               }
               isOptionEqualToValue={(option, val) => option.cod_mcc === val.id}
-              value={mccOptions.find((o) => String(o.id) === value) ?? null}
+              value={
+                mccOptions.find((o) => String(o.cod_mcc) === value) ?? null
+              }
               getOptionKey={(option) => option.id}
               onChange={(_, selected) =>
                 onChange(selected ? String(selected.id) : "")

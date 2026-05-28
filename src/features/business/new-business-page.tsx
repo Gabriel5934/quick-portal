@@ -5,9 +5,9 @@ import Button from "@mui/material/Button";
 import Link from "@mui/material/Link";
 import Typography from "@mui/material/Typography";
 import { Link as RouterLink } from "@tanstack/react-router";
-import { useState } from "react";
-import { FormProvider, useForm } from "react-hook-form";
-import { newBusinessSchema, step1Fields, step2Fields } from "./schemas";
+import { useCallback, useRef, useState } from "react";
+import { FormProvider, useForm, type Resolver } from "react-hook-form";
+import { newBusinessSchema, step1Schema, step1Fields } from "./schemas";
 import { Step1 } from "./Step1";
 import { Step2 } from "./Step2";
 import type { NewBusinessFormValues } from "./types";
@@ -17,8 +17,23 @@ const TOTAL_STEPS = 2;
 export function NewBusiness() {
   const [step, setStep] = useState(1);
 
+  // Keeps the resolver scoped to step 1 fields until the user attempts to
+  // submit. This prevents _updateValid (fired when new step Controller fields
+  // register) from running the full schema and pre-populating errors.
+  const submittedRef = useRef(false);
+
+  const resolver = useCallback<Resolver<NewBusinessFormValues>>(
+    async (values, context, options) => {
+      const schema = submittedRef.current ? newBusinessSchema : step1Schema;
+      return (
+        zodResolver(schema) as unknown as Resolver<NewBusinessFormValues>
+      )(values, context, options);
+    },
+    [],
+  );
+
   const methods = useForm<NewBusinessFormValues>({
-    resolver: zodResolver(newBusinessSchema),
+    resolver,
     defaultValues: {
       documentType: "CNPJ",
       document: "",
@@ -35,18 +50,29 @@ export function NewBusiness() {
     },
   });
 
-  async function handleNext() {
-    let fieldsToValidate: (keyof NewBusinessFormValues)[] = [];
-    if (step === 1) fieldsToValidate = step1Fields;
-    if (step === 2) fieldsToValidate = step2Fields;
-
-    // TODO fields are validating right as step loads
-    const ok = await methods.trigger(fieldsToValidate);
-    if (ok) setStep((s) => s + 1);
+  function handleNext() {
+    const values = methods.getValues();
+    const result = step1Schema.safeParse(values);
+    if (!result.success) {
+      result.error.issues.forEach((issue) => {
+        methods.setError(issue.path[0] as keyof NewBusinessFormValues, {
+          type: "manual",
+          message: issue.message,
+        });
+      });
+      return;
+    }
+    methods.clearErrors(step1Fields);
+    setStep((s) => s + 1);
   }
 
   function onSubmit(data: NewBusinessFormValues) {
     console.log(data);
+  }
+
+  function handleSave() {
+    submittedRef.current = true;
+    void methods.handleSubmit(onSubmit)();
   }
 
   const isLastStep = step === TOTAL_STEPS;
@@ -88,12 +114,8 @@ export function NewBusiness() {
         </Box>
 
         <Box
-          id="new-business-form"
           sx={{ display: "flex", flexDirection: "column", gap: 2 }}
           component="form"
-          onSubmit={(e) => {
-            void methods.handleSubmit(onSubmit)(e);
-          }}
           noValidate
         >
           {step === 1 && <Step1 />}
@@ -116,11 +138,11 @@ export function NewBusiness() {
           </Box>
 
           {isLastStep ? (
-            <Button variant="contained" type="submit" form="new-business-form">
+            <Button variant="contained" onClick={handleSave}>
               Salvar
             </Button>
           ) : (
-            <Button variant="contained" onClick={() => void handleNext()}>
+            <Button variant="contained" onClick={handleNext}>
               Próximo
             </Button>
           )}
