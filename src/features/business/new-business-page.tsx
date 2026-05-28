@@ -7,12 +7,19 @@ import Typography from "@mui/material/Typography";
 import { Link as RouterLink } from "@tanstack/react-router";
 import { useCallback, useRef, useState } from "react";
 import { FormProvider, useForm, type Resolver } from "react-hook-form";
-import { newBusinessSchema, step1Schema, step1Fields } from "./schemas";
+import {
+  newBusinessSchema,
+  step1Schema,
+  step1Fields,
+  step2Schema,
+  step2Fields,
+} from "./schemas";
 import { Step1 } from "./Step1";
 import { Step2 } from "./Step2";
+import { Step3 } from "./Step3";
 import type { NewBusinessFormValues } from "./types";
 
-const TOTAL_STEPS = 2;
+const TOTAL_STEPS = 3;
 
 export function NewBusiness() {
   const [step, setStep] = useState(1);
@@ -29,6 +36,7 @@ export function NewBusiness() {
         zodResolver(schema) as unknown as Resolver<NewBusinessFormValues>
       )(values, context, options);
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
   );
 
@@ -36,23 +44,14 @@ export function NewBusiness() {
     resolver,
     defaultValues: {
       documentType: "CNPJ",
-      document: "",
-      razaoSocial: "",
-      nomeFantasia: "",
-      mcc: "",
-      email: "",
-      celular: "",
-      bankCode: "",
-      branch: "",
-      branchDigit: "",
-      account: "",
-      accountDigit: "",
     },
   });
 
   function handleNext() {
     const values = methods.getValues();
-    const result = step1Schema.safeParse(values);
+    const schema = step === 1 ? step1Schema : step2Schema;
+    const fields = step === 1 ? step1Fields : step2Fields;
+    const result = schema.safeParse(values);
     if (!result.success) {
       result.error.issues.forEach((issue) => {
         methods.setError(issue.path[0] as keyof NewBusinessFormValues, {
@@ -62,7 +61,7 @@ export function NewBusiness() {
       });
       return;
     }
-    methods.clearErrors(step1Fields);
+    methods.clearErrors(fields);
     setStep((s) => s + 1);
   }
 
@@ -72,6 +71,17 @@ export function NewBusiness() {
 
   function handleSave() {
     submittedRef.current = true;
+    const values = methods.getValues();
+    const result = newBusinessSchema.safeParse(values);
+    if (!result.success) {
+      result.error.issues.forEach((issue) => {
+        methods.setError(issue.path[0] as keyof NewBusinessFormValues, {
+          type: "manual",
+          message: issue.message,
+        });
+      });
+      return;
+    }
     void methods.handleSubmit(onSubmit)();
   }
 
@@ -120,6 +130,7 @@ export function NewBusiness() {
         >
           {step === 1 && <Step1 />}
           {step === 2 && <Step2 />}
+          {step === 3 && <Step3 />}
         </Box>
 
         <Box sx={{ display: "flex", justifyContent: "space-between" }}>

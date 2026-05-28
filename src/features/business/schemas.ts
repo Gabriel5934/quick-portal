@@ -66,6 +66,22 @@ export const step2Fields = Object.keys(step2Schema.shape) as (keyof z.infer<
   typeof step2Schema
 >)[];
 
+export const step3Schema = z.object({
+  postalCode: z
+    .string()
+    .refine((v) => v.replace(/\D/g, "").length === 8, "CEP inválido"),
+  state: z.string().min(1, "Estado é obrigatório"),
+  city: z.string().min(1, "Cidade é obrigatória"),
+  neighborhood: z.string().min(1, "Bairro é obrigatório"),
+  street: z.string().min(1, "Rua é obrigatória"),
+  number: z.string().min(1, "Número é obrigatório"),
+});
+
+export const step3Fields = Object.keys(step3Schema.shape) as (keyof z.infer<
+  typeof step3Schema
+>)[];
+
 export const newBusinessSchema = step1BaseSchema
   .extend(step2Schema.shape)
+  .extend(step3Schema.shape)
   .superRefine(refineDocument);
