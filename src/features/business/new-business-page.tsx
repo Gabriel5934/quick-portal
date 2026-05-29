@@ -13,13 +13,16 @@ import {
   step1Fields,
   step2Schema,
   step2Fields,
+  step3Schema,
+  step3Fields,
 } from "./schemas";
 import { Step1 } from "./Step1";
 import { Step2 } from "./Step2";
 import { Step3 } from "./Step3";
+import { Step4 } from "./Step4";
 import type { NewBusinessFormValues } from "./types";
 
-const TOTAL_STEPS = 3;
+const TOTAL_STEPS = 4;
 
 export function NewBusiness() {
   const [step, setStep] = useState(1);
@@ -43,14 +46,34 @@ export function NewBusiness() {
   const methods = useForm<NewBusinessFormValues>({
     resolver,
     defaultValues: {
-      documentType: "CNPJ",
+      documentType: "CPF",
+      document: "528-097-868-01",
+      razaoSocial: "Gabriel",
+      nomeFantasia: "Gabriel",
+      mcc: "4814",
+      email: "gabriel@gmail.com",
+      celular: "51999999999",
+      bankCode: "102",
+      branch: "1234",
+      branchDigit: "5",
+      account: "123456",
+      accountDigit: "7",
+      postalCode: "12244867",
+      state: "",
+      city: "",
+      neighborhood: "",
+      street: "",
+      number: "82",
+      posDevices: [{ model: "", serialNumber: "" }],
     },
   });
 
   function handleNext() {
     const values = methods.getValues();
-    const schema = step === 1 ? step1Schema : step2Schema;
-    const fields = step === 1 ? step1Fields : step2Fields;
+    const schema =
+      step === 1 ? step1Schema : step === 2 ? step2Schema : step3Schema;
+    const fields =
+      step === 1 ? step1Fields : step === 2 ? step2Fields : step3Fields;
     const result = schema.safeParse(values);
     if (!result.success) {
       result.error.issues.forEach((issue) => {
@@ -75,10 +98,10 @@ export function NewBusiness() {
     const result = newBusinessSchema.safeParse(values);
     if (!result.success) {
       result.error.issues.forEach((issue) => {
-        methods.setError(issue.path[0] as keyof NewBusinessFormValues, {
-          type: "manual",
-          message: issue.message,
-        });
+        methods.setError(
+          issue.path.join(".") as Parameters<typeof methods.setError>[0],
+          { type: "manual", message: issue.message },
+        );
       });
       return;
     }
@@ -131,6 +154,7 @@ export function NewBusiness() {
           {step === 1 && <Step1 />}
           {step === 2 && <Step2 />}
           {step === 3 && <Step3 />}
+          {step === 4 && <Step4 />}
         </Box>
 
         <Box sx={{ display: "flex", justifyContent: "space-between" }}>

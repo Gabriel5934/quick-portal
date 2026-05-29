@@ -81,7 +81,29 @@ export const step3Fields = Object.keys(step3Schema.shape) as (keyof z.infer<
   typeof step3Schema
 >)[];
 
+const posDeviceItem = z.object({
+  model: z.string().min(1, "Modelo é obrigatório"),
+  serialNumber: z.string().min(1, "Serial é obrigatório"),
+});
+
+export const step4Schema = z.object({
+  posDevices: z
+    .array(z.object({ model: z.string(), serialNumber: z.string() }))
+    .transform((devices) => {
+      const filled = devices.filter((d) => d.model !== "" || d.serialNumber !== "");
+      return filled.length > 0 ? filled : devices.slice(0, 1);
+    })
+    .pipe(
+      z.array(posDeviceItem).min(1, "Adicione pelo menos um dispositivo"),
+    ),
+});
+
+export const step4Fields = Object.keys(step4Schema.shape) as (keyof z.infer<
+  typeof step4Schema
+>)[];
+
 export const newBusinessSchema = step1BaseSchema
   .extend(step2Schema.shape)
   .extend(step3Schema.shape)
+  .extend(step4Schema.shape)
   .superRefine(refineDocument);
