@@ -112,7 +112,7 @@ export function Step1() {
               }
               getOptionKey={(option) => option.id}
               onChange={(_, selected) =>
-                onChange(selected ? String(selected.id) : "")
+                onChange(selected ? String(selected.cod_mcc) : "")
               }
               sx={fieldSx}
               renderInput={(params) => (

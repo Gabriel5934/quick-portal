@@ -5,7 +5,7 @@ import { Controller, useFormContext } from "react-hook-form";
 import { PatternFormat } from "react-number-format";
 import { useBanks } from "../../hooks/useBanks";
 import { FormPaper } from "./FormPaper";
-import type { NewBusinessFormValues } from "./types";
+import type { CompleteBusinessFormValues } from "./types";
 
 const fieldSx = { flexGrow: 1, flexShrink: 1, flexBasis: "360px" };
 
@@ -14,7 +14,7 @@ export function Step2() {
   const {
     control,
     formState: { errors },
-  } = useFormContext<NewBusinessFormValues>();
+  } = useFormContext<CompleteBusinessFormValues>();
 
   return (
     <FormPaper

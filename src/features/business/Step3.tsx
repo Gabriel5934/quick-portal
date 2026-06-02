@@ -5,7 +5,7 @@ import { PatternFormat } from "react-number-format";
 import { useEffect } from "react";
 import { useCep, CepValidationError } from "../../hooks/useCep";
 import { FormPaper } from "./FormPaper";
-import type { NewBusinessFormValues } from "./types";
+import type { CompleteBusinessFormValues } from "./types";
 
 const fieldSx = { flexGrow: 1, flexShrink: 1, flexBasis: "360px" };
 
@@ -17,7 +17,7 @@ export function Step3() {
     setError,
     clearErrors,
     formState: { errors },
-  } = useFormContext<NewBusinessFormValues>();
+  } = useFormContext<CompleteBusinessFormValues>();
 
   const postalCode = watch("postalCode") ?? "";
   const { data: cepData, error: cepError } = useCep(postalCode);

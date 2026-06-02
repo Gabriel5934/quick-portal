@@ -107,3 +107,7 @@ export const newBusinessSchema = step1BaseSchema
   .extend(step3Schema.shape)
   .extend(step4Schema.shape)
   .superRefine(refineDocument);
+
+export const completeBusinessSchema = step2Schema
+  .extend(step3Schema.shape)
+  .extend(step4Schema.shape);

@@ -9,14 +9,14 @@ import TextField from "@mui/material/TextField";
 import { Controller, useFieldArray, useFormContext } from "react-hook-form";
 import { usePosModels } from "../../hooks/usePosModels";
 import { FormPaper } from "./FormPaper";
-import type { NewBusinessFormValues } from "./types";
+import type { CompleteBusinessFormValues } from "./types";
 
 export function Step4() {
   const { data: posModels = [] } = usePosModels();
   const {
     control,
     formState: { errors },
-  } = useFormContext<NewBusinessFormValues>();
+  } = useFormContext<CompleteBusinessFormValues>();
 
   const { fields, append, remove } = useFieldArray({
     control,

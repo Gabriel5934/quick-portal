@@ -14,6 +14,7 @@ import { Route as AuthRoutesRouteRouteImport } from './routes/_authRoutes/route'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthRoutesNovoEcRouteImport } from './routes/_authRoutes/novo-ec'
 import { Route as AuthRoutesHomeRouteImport } from './routes/_authRoutes/home'
+import { Route as AuthRoutesCompletarEcRouteImport } from './routes/_authRoutes/completar-ec'
 
 const SignupRoute = SignupRouteImport.update({
   id: '/signup',
@@ -39,16 +40,23 @@ const AuthRoutesHomeRoute = AuthRoutesHomeRouteImport.update({
   path: '/home',
   getParentRoute: () => AuthRoutesRouteRoute,
 } as any)
+const AuthRoutesCompletarEcRoute = AuthRoutesCompletarEcRouteImport.update({
+  id: '/completar-ec',
+  path: '/completar-ec',
+  getParentRoute: () => AuthRoutesRouteRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/signup': typeof SignupRoute
+  '/completar-ec': typeof AuthRoutesCompletarEcRoute
   '/home': typeof AuthRoutesHomeRoute
   '/novo-ec': typeof AuthRoutesNovoEcRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/signup': typeof SignupRoute
+  '/completar-ec': typeof AuthRoutesCompletarEcRoute
   '/home': typeof AuthRoutesHomeRoute
   '/novo-ec': typeof AuthRoutesNovoEcRoute
 }
@@ -57,19 +65,21 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_authRoutes': typeof AuthRoutesRouteRouteWithChildren
   '/signup': typeof SignupRoute
+  '/_authRoutes/completar-ec': typeof AuthRoutesCompletarEcRoute
   '/_authRoutes/home': typeof AuthRoutesHomeRoute
   '/_authRoutes/novo-ec': typeof AuthRoutesNovoEcRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/signup' | '/home' | '/novo-ec'
+  fullPaths: '/' | '/signup' | '/completar-ec' | '/home' | '/novo-ec'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/signup' | '/home' | '/novo-ec'
+  to: '/' | '/signup' | '/completar-ec' | '/home' | '/novo-ec'
   id:
     | '__root__'
     | '/'
     | '/_authRoutes'
     | '/signup'
+    | '/_authRoutes/completar-ec'
     | '/_authRoutes/home'
     | '/_authRoutes/novo-ec'
   fileRoutesById: FileRoutesById
@@ -117,15 +127,24 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthRoutesHomeRouteImport
       parentRoute: typeof AuthRoutesRouteRoute
     }
+    '/_authRoutes/completar-ec': {
+      id: '/_authRoutes/completar-ec'
+      path: '/completar-ec'
+      fullPath: '/completar-ec'
+      preLoaderRoute: typeof AuthRoutesCompletarEcRouteImport
+      parentRoute: typeof AuthRoutesRouteRoute
+    }
   }
 }
 
 interface AuthRoutesRouteRouteChildren {
+  AuthRoutesCompletarEcRoute: typeof AuthRoutesCompletarEcRoute
   AuthRoutesHomeRoute: typeof AuthRoutesHomeRoute
   AuthRoutesNovoEcRoute: typeof AuthRoutesNovoEcRoute
 }
 
 const AuthRoutesRouteRouteChildren: AuthRoutesRouteRouteChildren = {
+  AuthRoutesCompletarEcRoute: AuthRoutesCompletarEcRoute,
   AuthRoutesHomeRoute: AuthRoutesHomeRoute,
   AuthRoutesNovoEcRoute: AuthRoutesNovoEcRoute,
 }
