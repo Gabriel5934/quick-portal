@@ -1,7 +1,7 @@
 import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
 import { AppLayout } from "../../layout/app";
-import { getRefreshToken } from "../../hooks/auth/storage";
-import { useToken } from "../../hooks/useToken";
+import { getRefreshToken } from "#hooks/storage";
+import { useToken } from "#hooks/auth/useToken";
 
 export const Route = createFileRoute("/_authRoutes")({
   beforeLoad: async ({ location }) => {

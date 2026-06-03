@@ -3,7 +3,7 @@ import TextField from "@mui/material/TextField";
 import AccountBalanceIcon from "@mui/icons-material/AccountBalance";
 import { Controller, useFormContext } from "react-hook-form";
 import { PatternFormat } from "react-number-format";
-import { useBanks } from "../../hooks/useBanks";
+import { useBanks } from "#hooks/brasilApi/useBanks";
 import { FormPaper } from "./FormPaper";
 import type { CompleteBusinessFormValues } from "./types";
 

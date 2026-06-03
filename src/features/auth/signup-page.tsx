@@ -5,7 +5,7 @@ import { useCallback, useState } from "react";
 import { AuthLayout } from "../../layout/auth";
 import { SignupForm } from "./SignupForm";
 import type { SignupFormValues } from "./types";
-import { useRegister } from "../../hooks/useRegister";
+import { useRegister } from "#hooks/auth/useRegister";
 
 export function SignupPage() {
   const [serverError, setServerError] = useState<string | null>(null);

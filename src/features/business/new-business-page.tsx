@@ -6,7 +6,7 @@ import Link from "@mui/material/Link";
 import Typography from "@mui/material/Typography";
 import { Link as RouterLink, useNavigate } from "@tanstack/react-router";
 import { FormProvider, useForm } from "react-hook-form";
-import { useCreateBusiness } from "../../hooks/useCreateBusiness";
+import { useCreateBusiness } from "#hooks/quickApi/useCreateBusiness";
 import { step1Schema } from "./schemas";
 import { Step1 } from "./Step1";
 import type { NewBusinessFormValues } from "./types";

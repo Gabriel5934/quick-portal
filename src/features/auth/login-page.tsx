@@ -5,7 +5,7 @@ import type { LoginFormValues } from "./types";
 import Typography from "@mui/material/Typography";
 import { Link as RouterLink, useNavigate } from "@tanstack/react-router";
 import Link from "@mui/material/Link";
-import { useLogin } from "../../hooks/useToken";
+import { useLogin } from "#hooks/auth/useToken";
 
 export function LoginPage() {
   const [serverError, setServerError] = useState<string | null>(null);

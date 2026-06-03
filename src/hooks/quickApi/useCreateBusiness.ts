@@ -1,7 +1,7 @@
 import { useMutation } from "@tanstack/react-query";
 import type { z } from "zod";
-import type { step1Schema } from "../features/business/schemas";
-import type { ValidationErrors } from "./types";
+import type { step1Schema } from "#features/business/schemas";
+import type { ValidationErrors } from "#hooks/types";
 
 type Step1Data = z.infer<typeof step1Schema>;
 type CreateBusinessResponse = { id: number };

@@ -7,7 +7,7 @@ import Button from "@mui/material/Button";
 import IconButton from "@mui/material/IconButton";
 import TextField from "@mui/material/TextField";
 import { Controller, useFieldArray, useFormContext } from "react-hook-form";
-import { usePosModels } from "../../hooks/usePosModels";
+import { usePosModels } from "#hooks/quickApi/usePosModels";
 import { FormPaper } from "./FormPaper";
 import type { CompleteBusinessFormValues } from "./types";
 

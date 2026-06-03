@@ -3,7 +3,7 @@ import LocationOnIcon from "@mui/icons-material/LocationOn";
 import { Controller, useFormContext } from "react-hook-form";
 import { PatternFormat } from "react-number-format";
 import { useEffect } from "react";
-import { useCep, CepValidationError } from "../../hooks/useCep";
+import { useCep, CepValidationError } from "#hooks/brasilApi/useCep";
 import { FormPaper } from "./FormPaper";
 import type { CompleteBusinessFormValues } from "./types";
 

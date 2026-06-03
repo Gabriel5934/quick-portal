@@ -1,6 +1,6 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { getRefreshToken, setTokens, setRefreshToken } from "./auth/storage";
-import type { ValidationErrors } from "./types";
+import { getRefreshToken, setTokens, setRefreshToken } from "#hooks/storage";
+import type { ValidationErrors } from "#hooks/types";
 
 type LoginRequest = {
   email: string;

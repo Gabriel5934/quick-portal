@@ -9,7 +9,7 @@ import BadgeIcon from "@mui/icons-material/Badge";
 import MailIcon from "@mui/icons-material/Mail";
 import { Controller, useFormContext } from "react-hook-form";
 import { PatternFormat } from "react-number-format";
-import { useCnaeMcc } from "../../hooks/useCnaeMcc";
+import { useCnaeMcc } from "#hooks/quickApi/useCnaeMcc";
 import { FormPaper } from "./FormPaper";
 import type { NewBusinessFormValues } from "./types";
 

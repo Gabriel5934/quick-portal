@@ -7,7 +7,7 @@ import Typography from "@mui/material/Typography";
 import { Link as RouterLink, useNavigate } from "@tanstack/react-router";
 import { useCallback, useRef, useState } from "react";
 import { FormProvider, useForm, type Resolver } from "react-hook-form";
-import { useCompleteBusiness } from "../../hooks/useCompleteBusiness";
+import { useCompleteBusiness } from "#hooks/quickApi/useCompleteBusiness";
 import {
   completeBusinessSchema,
   step2Schema,
@@ -31,7 +31,9 @@ export function CompleteBusiness({ id }: { id?: number }) {
 
   const resolver = useCallback<Resolver<CompleteBusinessFormValues>>(
     async (values, context, options) => {
-      const schema = submittedRef.current ? completeBusinessSchema : step2Schema;
+      const schema = submittedRef.current
+        ? completeBusinessSchema
+        : step2Schema;
       return (
         zodResolver(schema) as unknown as Resolver<CompleteBusinessFormValues>
       )(values, context, options);
@@ -81,8 +83,7 @@ export function CompleteBusiness({ id }: { id?: number }) {
       { id: id ?? 0, ...data },
       {
         onSuccess: () => void navigate({ to: "/home" }),
-        onError: (err) =>
-          methods.setError("root", { message: err.message }),
+        onError: (err) => methods.setError("root", { message: err.message }),
       },
     );
   }

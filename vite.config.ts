@@ -1,6 +1,7 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { tanstackRouter } from "@tanstack/router-plugin/vite";
+import { fileURLToPath } from "node:url";
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -15,4 +16,10 @@ export default defineConfig({
     }),
     react(),
   ],
+  resolve: {
+    alias: {
+      "#features": fileURLToPath(new URL("./src/features", import.meta.url)),
+      "#hooks": fileURLToPath(new URL("./src/hooks", import.meta.url)),
+    },
+  },
 });

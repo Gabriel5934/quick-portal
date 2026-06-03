@@ -25,7 +25,7 @@ import {
   SearchOutlined,
 } from "@mui/icons-material";
 import { useNavigate } from "@tanstack/react-router";
-import { useBusinesses } from "../../hooks/useBusinesses";
+import { useBusinesses } from "#hooks/quickApi/useBusinesses";
 
 interface StatCardProps {
   icon: React.ReactNode;
@@ -261,7 +261,9 @@ export function Home() {
         {error ? (
           <Box sx={{ display: "flex", justifyContent: "center", py: 6 }}>
             <Typography color="error">
-              {error instanceof Error ? error.message : "Erro ao carregar estabelecimentos."}
+              {error instanceof Error
+                ? error.message
+                : "Erro ao carregar estabelecimentos."}
             </Typography>
           </Box>
         ) : isLoading ? (

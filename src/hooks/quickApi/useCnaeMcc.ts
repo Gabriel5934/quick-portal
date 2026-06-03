@@ -1,4 +1,4 @@
-import { useAuthQuery, ApiError } from "./useAuthQuery";
+import { useAuthQuery, ApiError } from "../auth/useAuthQuery";
 
 type CnaeMcc = {
   id: number;

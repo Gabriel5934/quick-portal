@@ -1,5 +1,5 @@
 import { useMutation } from "@tanstack/react-query";
-import type { ValidationErrors } from "./types";
+import type { ValidationErrors } from "#hooks/types";
 
 type RegisterRequest = {
   email: string;

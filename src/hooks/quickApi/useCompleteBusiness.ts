@@ -1,6 +1,6 @@
 import { useMutation } from "@tanstack/react-query";
-import type { CompleteBusinessFormValues } from "../features/business/types";
-import type { ValidationErrors } from "./types";
+import type { CompleteBusinessFormValues } from "#features/business/types";
+import type { ValidationErrors } from "#hooks/types";
 
 type Payload = CompleteBusinessFormValues & { id: number };
 
@@ -35,7 +35,9 @@ async function fetchCompleteBusiness({ id, ...data }: Payload): Promise<void> {
   );
 
   if (!res.ok) {
-    const body = (await res.json().catch(() => null)) as ValidationErrors | null;
+    const body = (await res
+      .json()
+      .catch(() => null)) as ValidationErrors | null;
     const keys = Object.keys(body ?? {});
     throw new Error(
       keys.length && (body as ValidationErrors)[keys[0]]?.[0]

@@ -1,4 +1,4 @@
-import { useAuthQuery, ApiError } from "./useAuthQuery";
+import { useAuthQuery, ApiError } from "#hooks/auth/useAuthQuery";
 
 type PosModel = {
   id: number;

@@ -1,6 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { clearTokens, getRefreshToken } from "./auth/storage";
+import { clearTokens, getRefreshToken } from "#hooks/storage";
 
 export function useLogout() {
   const queryClient = useQueryClient();

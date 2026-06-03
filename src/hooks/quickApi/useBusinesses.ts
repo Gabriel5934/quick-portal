@@ -1,5 +1,5 @@
 import { keepPreviousData } from "@tanstack/react-query";
-import { useAuthQuery } from "./useAuthQuery";
+import { useAuthQuery } from "../auth/useAuthQuery";
 
 export interface Business {
   id: number;

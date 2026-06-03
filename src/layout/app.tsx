@@ -18,7 +18,7 @@ import ListItemButton from "@mui/material/ListItemButton";
 import ListItemText from "@mui/material/ListItemText";
 import Divider from "@mui/material/Divider";
 import LogoutIcon from "@mui/icons-material/Logout";
-import { useLogout } from "../hooks/useLogout";
+import { useLogout } from "#hooks/auth/useLogout";
 import { Link } from "@tanstack/react-router";
 
 const DRAWER_WIDTH = 240;
