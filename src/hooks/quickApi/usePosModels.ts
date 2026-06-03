@@ -1,12 +1,12 @@
 import { useAuthQuery, ApiError } from "#hooks/auth/useAuthQuery";
+import { useToken } from "#hooks/auth/useToken";
 
 type PosModel = {
   id: number;
   model: string;
 };
 
-async function fetchPosModels(): Promise<PosModel[]> {
-  const token = localStorage.getItem("token");
+async function fetchPosModels(token: string): Promise<PosModel[]> {
   const res = await fetch(
     `${import.meta.env.VITE_API_BASE_URL}/api/pos-models/`,
     {
@@ -18,8 +18,10 @@ async function fetchPosModels(): Promise<PosModel[]> {
 }
 
 export function usePosModels() {
+  const { data: token } = useToken();
   return useAuthQuery<PosModel[]>({
     queryKey: ["pos-models"],
-    queryFn: fetchPosModels,
+    queryFn: () => fetchPosModels(token!),
+    enabled: !!token,
   });
 }

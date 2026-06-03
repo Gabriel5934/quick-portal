@@ -1,11 +1,11 @@
 import { useMutation } from "@tanstack/react-query";
 import type { CompleteBusinessFormValues } from "#features/business/types";
 import type { ValidationErrors } from "#hooks/types";
+import { useToken } from "#hooks/auth/useToken";
 
 type Payload = CompleteBusinessFormValues & { id: number };
 
-async function fetchCompleteBusiness({ id, ...data }: Payload): Promise<void> {
-  const token = localStorage.getItem("token");
+async function fetchCompleteBusiness({ id, ...data }: Payload, token: string): Promise<void> {
   const res = await fetch(
     `${import.meta.env.VITE_API_BASE_URL}/api/businesses/${id}/complete/`,
     {
@@ -48,5 +48,6 @@ async function fetchCompleteBusiness({ id, ...data }: Payload): Promise<void> {
 }
 
 export function useCompleteBusiness() {
-  return useMutation({ mutationFn: fetchCompleteBusiness });
+  const { data: token } = useToken();
+  return useMutation({ mutationFn: (payload: Payload) => fetchCompleteBusiness(payload, token!) });
 }

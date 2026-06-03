@@ -1,5 +1,6 @@
 import { keepPreviousData } from "@tanstack/react-query";
 import { useAuthQuery } from "../auth/useAuthQuery";
+import { useToken } from "#hooks/auth/useToken";
 
 export interface Business {
   id: number;
@@ -36,8 +37,8 @@ interface BusinessQuery {
 
 async function fetchBusinesses(
   query: BusinessQuery,
+  token: string,
 ): Promise<BusinessesResponse> {
-  const token = localStorage.getItem("token");
   const params = new URLSearchParams();
   if (query.document) params.set("document", query.document);
   if (query.legal_name) params.set("legal_name", query.legal_name);
@@ -58,9 +59,11 @@ async function fetchBusinesses(
 }
 
 export function useBusinesses(query: BusinessQuery = {}) {
+  const { data: token } = useToken();
   return useAuthQuery<BusinessesResponse>({
     queryKey: ["businesses", query],
-    queryFn: () => fetchBusinesses(query),
+    queryFn: () => fetchBusinesses(query, token!),
     placeholderData: keepPreviousData,
+    enabled: !!token,
   });
 }

@@ -2,14 +2,15 @@ import { useMutation } from "@tanstack/react-query";
 import type { z } from "zod";
 import type { step1Schema } from "#features/business/schemas";
 import type { ValidationErrors } from "#hooks/types";
+import { useToken } from "#hooks/auth/useToken";
 
 type Step1Data = z.infer<typeof step1Schema>;
 type CreateBusinessResponse = { id: number };
 
 async function fetchCreateBusiness(
   payload: Step1Data,
+  token: string,
 ): Promise<CreateBusinessResponse> {
-  const token = localStorage.getItem("token");
   const res = await fetch(
     `${import.meta.env.VITE_API_BASE_URL}/api/businesses/`,
     {
@@ -50,5 +51,6 @@ async function fetchCreateBusiness(
 }
 
 export function useCreateBusiness() {
-  return useMutation({ mutationFn: fetchCreateBusiness });
+  const { data: token } = useToken();
+  return useMutation({ mutationFn: (payload: Step1Data) => fetchCreateBusiness(payload, token!) });
 }

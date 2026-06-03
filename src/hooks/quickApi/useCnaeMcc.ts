@@ -1,4 +1,5 @@
 import { useAuthQuery, ApiError } from "../auth/useAuthQuery";
+import { useToken } from "#hooks/auth/useToken";
 
 type CnaeMcc = {
   id: number;
@@ -7,9 +8,7 @@ type CnaeMcc = {
   cod_mcc: number;
 };
 
-async function fetchCnaeMcc(): Promise<CnaeMcc[]> {
-  const token = localStorage.getItem("token");
-
+async function fetchCnaeMcc(token: string): Promise<CnaeMcc[]> {
   const res = await fetch(
     `${import.meta.env.VITE_API_BASE_URL}/api/cnae-mcc/`,
     {
@@ -27,8 +26,10 @@ async function fetchCnaeMcc(): Promise<CnaeMcc[]> {
 }
 
 export function useCnaeMcc() {
+  const { data: token } = useToken();
   return useAuthQuery<CnaeMcc[]>({
     queryKey: ["cnae-mcc"],
-    queryFn: fetchCnaeMcc,
+    queryFn: () => fetchCnaeMcc(token!),
+    enabled: !!token,
   });
 }
