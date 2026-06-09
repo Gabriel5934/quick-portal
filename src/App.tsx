@@ -19,6 +19,17 @@ const theme = createTheme({
       }),
     },
   },
+  palette: {
+    primary: {
+      main: "#0F62FE",
+    },
+  },
+  shape: {
+    borderRadius: 8,
+  },
+  typography: {
+    fontFamily: "Inter",
+  },
 });
 
 const queryClient = new QueryClient();
