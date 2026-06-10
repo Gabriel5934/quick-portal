@@ -12,6 +12,8 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as AuthRoutesRouteRouteImport } from './routes/_authRoutes/route'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AuthRoutesPlanosETaxasRouteImport } from './routes/_authRoutes/planos-e-taxas'
+import { Route as AuthRoutesNovoPlanoRouteImport } from './routes/_authRoutes/novo-plano'
 import { Route as AuthRoutesNovoEcRouteImport } from './routes/_authRoutes/novo-ec'
 import { Route as AuthRoutesHomeRouteImport } from './routes/_authRoutes/home'
 import { Route as AuthRoutesCompletarEcRouteImport } from './routes/_authRoutes/completar-ec'
@@ -29,6 +31,16 @@ const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
+} as any)
+const AuthRoutesPlanosETaxasRoute = AuthRoutesPlanosETaxasRouteImport.update({
+  id: '/planos-e-taxas',
+  path: '/planos-e-taxas',
+  getParentRoute: () => AuthRoutesRouteRoute,
+} as any)
+const AuthRoutesNovoPlanoRoute = AuthRoutesNovoPlanoRouteImport.update({
+  id: '/novo-plano',
+  path: '/novo-plano',
+  getParentRoute: () => AuthRoutesRouteRoute,
 } as any)
 const AuthRoutesNovoEcRoute = AuthRoutesNovoEcRouteImport.update({
   id: '/novo-ec',
@@ -52,6 +64,8 @@ export interface FileRoutesByFullPath {
   '/completar-ec': typeof AuthRoutesCompletarEcRoute
   '/home': typeof AuthRoutesHomeRoute
   '/novo-ec': typeof AuthRoutesNovoEcRoute
+  '/novo-plano': typeof AuthRoutesNovoPlanoRoute
+  '/planos-e-taxas': typeof AuthRoutesPlanosETaxasRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -59,6 +73,8 @@ export interface FileRoutesByTo {
   '/completar-ec': typeof AuthRoutesCompletarEcRoute
   '/home': typeof AuthRoutesHomeRoute
   '/novo-ec': typeof AuthRoutesNovoEcRoute
+  '/novo-plano': typeof AuthRoutesNovoPlanoRoute
+  '/planos-e-taxas': typeof AuthRoutesPlanosETaxasRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -68,12 +84,28 @@ export interface FileRoutesById {
   '/_authRoutes/completar-ec': typeof AuthRoutesCompletarEcRoute
   '/_authRoutes/home': typeof AuthRoutesHomeRoute
   '/_authRoutes/novo-ec': typeof AuthRoutesNovoEcRoute
+  '/_authRoutes/novo-plano': typeof AuthRoutesNovoPlanoRoute
+  '/_authRoutes/planos-e-taxas': typeof AuthRoutesPlanosETaxasRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/signup' | '/completar-ec' | '/home' | '/novo-ec'
+  fullPaths:
+    | '/'
+    | '/signup'
+    | '/completar-ec'
+    | '/home'
+    | '/novo-ec'
+    | '/novo-plano'
+    | '/planos-e-taxas'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/signup' | '/completar-ec' | '/home' | '/novo-ec'
+  to:
+    | '/'
+    | '/signup'
+    | '/completar-ec'
+    | '/home'
+    | '/novo-ec'
+    | '/novo-plano'
+    | '/planos-e-taxas'
   id:
     | '__root__'
     | '/'
@@ -82,6 +114,8 @@ export interface FileRouteTypes {
     | '/_authRoutes/completar-ec'
     | '/_authRoutes/home'
     | '/_authRoutes/novo-ec'
+    | '/_authRoutes/novo-plano'
+    | '/_authRoutes/planos-e-taxas'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -113,6 +147,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authRoutes/planos-e-taxas': {
+      id: '/_authRoutes/planos-e-taxas'
+      path: '/planos-e-taxas'
+      fullPath: '/planos-e-taxas'
+      preLoaderRoute: typeof AuthRoutesPlanosETaxasRouteImport
+      parentRoute: typeof AuthRoutesRouteRoute
+    }
+    '/_authRoutes/novo-plano': {
+      id: '/_authRoutes/novo-plano'
+      path: '/novo-plano'
+      fullPath: '/novo-plano'
+      preLoaderRoute: typeof AuthRoutesNovoPlanoRouteImport
+      parentRoute: typeof AuthRoutesRouteRoute
+    }
     '/_authRoutes/novo-ec': {
       id: '/_authRoutes/novo-ec'
       path: '/novo-ec'
@@ -141,12 +189,16 @@ interface AuthRoutesRouteRouteChildren {
   AuthRoutesCompletarEcRoute: typeof AuthRoutesCompletarEcRoute
   AuthRoutesHomeRoute: typeof AuthRoutesHomeRoute
   AuthRoutesNovoEcRoute: typeof AuthRoutesNovoEcRoute
+  AuthRoutesNovoPlanoRoute: typeof AuthRoutesNovoPlanoRoute
+  AuthRoutesPlanosETaxasRoute: typeof AuthRoutesPlanosETaxasRoute
 }
 
 const AuthRoutesRouteRouteChildren: AuthRoutesRouteRouteChildren = {
   AuthRoutesCompletarEcRoute: AuthRoutesCompletarEcRoute,
   AuthRoutesHomeRoute: AuthRoutesHomeRoute,
   AuthRoutesNovoEcRoute: AuthRoutesNovoEcRoute,
+  AuthRoutesNovoPlanoRoute: AuthRoutesNovoPlanoRoute,
+  AuthRoutesPlanosETaxasRoute: AuthRoutesPlanosETaxasRoute,
 }
 
 const AuthRoutesRouteRouteWithChildren = AuthRoutesRouteRoute._addFileChildren(

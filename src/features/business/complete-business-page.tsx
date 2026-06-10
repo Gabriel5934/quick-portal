@@ -1,13 +1,11 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import Box from "@mui/material/Box";
-import Breadcrumbs from "@mui/material/Breadcrumbs";
 import Button from "@mui/material/Button";
-import Link from "@mui/material/Link";
-import Typography from "@mui/material/Typography";
-import { Link as RouterLink, useNavigate } from "@tanstack/react-router";
+import { useNavigate } from "@tanstack/react-router";
 import { useCallback, useRef, useState } from "react";
 import { FormProvider, useForm, type Resolver } from "react-hook-form";
 import { useCompleteBusiness } from "#hooks/quickApi/useCompleteBusiness";
+import { FormPage } from "../../layout/form-page";
 import {
   completeBusinessSchema,
   step2Schema,
@@ -117,40 +115,13 @@ export function CompleteBusiness({ id }: { id?: number }) {
 
   return (
     <FormProvider {...methods}>
-      <Box
-        sx={{
-          display: "flex",
-          flexDirection: "column",
-          gap: 2,
-          height: "100%",
-          justifyContent: "space-between",
-        }}
+      <FormPage
+        breadcrumbs={[{ to: "/home", label: "Início" }]}
+        currentLabel="Completar EC"
+        title="Completar Cadastro do EC"
+        subtitle="Complete as informações do estabelecimento comercial para finalizar o credenciamento."
+        step={{ current: step, total: TOTAL_STEPS }}
       >
-        <Box>
-          <Breadcrumbs aria-label="breadcrumb">
-            <Link
-              component={RouterLink}
-              to="/home"
-              underline="hover"
-              color="inherit"
-            >
-              Início
-            </Link>
-            <Typography color="text.primary" aria-current="page">
-              Completar EC
-            </Typography>
-          </Breadcrumbs>
-
-          <Typography variant="h5">Completar Cadastro do EC</Typography>
-          <Typography variant="subtitle1">
-            Complete as informações do estabelecimento comercial para finalizar
-            o credenciamento.
-          </Typography>
-          <Typography variant="subtitle2">
-            Etapa {step} de {TOTAL_STEPS}
-          </Typography>
-        </Box>
-
         <Box
           sx={{ display: "flex", flexDirection: "column", gap: 2 }}
           component="form"
@@ -190,7 +161,7 @@ export function CompleteBusiness({ id }: { id?: number }) {
             </Button>
           )}
         </Box>
-      </Box>
+      </FormPage>
     </FormProvider>
   );
 }

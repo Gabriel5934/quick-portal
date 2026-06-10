@@ -1,12 +1,11 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import Box from "@mui/material/Box";
-import Breadcrumbs from "@mui/material/Breadcrumbs";
 import Button from "@mui/material/Button";
-import Link from "@mui/material/Link";
 import Typography from "@mui/material/Typography";
-import { Link as RouterLink, useNavigate } from "@tanstack/react-router";
+import { useNavigate } from "@tanstack/react-router";
 import { FormProvider, useForm } from "react-hook-form";
 import { useCreateBusiness } from "#hooks/quickApi/useCreateBusiness";
+import { FormPage } from "../../layout/form-page";
 import { step1Schema } from "./schemas";
 import { Step1 } from "./Step1";
 import type { NewBusinessFormValues } from "./types";
@@ -41,37 +40,12 @@ export function NewBusiness() {
 
   return (
     <FormProvider {...methods}>
-      <Box
-        sx={{
-          display: "flex",
-          flexDirection: "column",
-          gap: 2,
-          height: "100%",
-          justifyContent: "space-between",
-        }}
+      <FormPage
+        breadcrumbs={[{ to: "/home", label: "Início" }]}
+        currentLabel="Cadastro de EC"
+        title="Novo Estabelecimento Comercial"
+        subtitle="Preencha os dados iniciais para criar o cadastro do EC. Após salvar, você poderá completar o credenciamento."
       >
-        <Box>
-          <Breadcrumbs aria-label="breadcrumb">
-            <Link
-              component={RouterLink}
-              to="/home"
-              underline="hover"
-              color="inherit"
-            >
-              Início
-            </Link>
-            <Typography color="text.primary" aria-current="page">
-              Cadastro de EC
-            </Typography>
-          </Breadcrumbs>
-
-          <Typography variant="h5">Novo Estabelecimento Comercial</Typography>
-          <Typography variant="subtitle1">
-            Preencha os dados iniciais para criar o cadastro do EC. Após salvar,
-            você poderá completar o credenciamento.
-          </Typography>
-        </Box>
-
         <Box
           sx={{ display: "flex", flexDirection: "column", gap: 2 }}
           component="form"
@@ -101,7 +75,7 @@ export function NewBusiness() {
             Salvar
           </Button>
         </Box>
-      </Box>
+      </FormPage>
     </FormProvider>
   );
 }

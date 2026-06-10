@@ -7,6 +7,7 @@ import Drawer from "@mui/material/Drawer";
 import MenuIcon from "@mui/icons-material/Menu";
 import HomeIcon from "@mui/icons-material/Home";
 import AddIcon from "@mui/icons-material/Add";
+import RequestQuoteIcon from "@mui/icons-material/RequestQuote";
 import useMediaQuery from "@mui/material/useMediaQuery";
 import { useTheme } from "@mui/material/styles";
 import { useState } from "react";
@@ -57,6 +58,20 @@ export function AppLayout({ children }: AppLayoutProps) {
                 <AddIcon />
               </ListItemIcon>
               <ListItemText primary="Cadastro de EC" />
+            </ListItemButton>
+          </ListItem>
+        </Link>
+
+        <Link
+          to="/planos-e-taxas"
+          style={{ textDecoration: "none", color: "inherit" }}
+        >
+          <ListItem key="planos-e-taxas" disablePadding>
+            <ListItemButton>
+              <ListItemIcon>
+                <RequestQuoteIcon />
+              </ListItemIcon>
+              <ListItemText primary="Planos e Taxas" />
             </ListItemButton>
           </ListItem>
         </Link>
