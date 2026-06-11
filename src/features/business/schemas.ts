@@ -102,6 +102,27 @@ export const step4Fields = Object.keys(step4Schema.shape) as (keyof z.infer<
   typeof step4Schema
 >)[];
 
+export const step5Schema = z.object({
+  planMcc: z
+    .number({ message: "MCC é obrigatório" })
+    .int()
+    .positive("MCC é obrigatório"),
+  planId: z
+    .number({ message: "Plano é obrigatório" })
+    .int()
+    .positive("Plano é obrigatório"),
+  expectedRevenue: z.string().min(1, "Receita esperada é obrigatória"),
+  commitedRevenue: z.string().min(1, "Receita comprometida é obrigatória"),
+  quantityPos: z
+    .number({ message: "Quantidade de POS é obrigatória" })
+    .int()
+    .positive("Quantidade deve ser maior que zero"),
+});
+
+export const step5Fields = Object.keys(step5Schema.shape) as (keyof z.infer<
+  typeof step5Schema
+>)[];
+
 export const newBusinessSchema = step1BaseSchema
   .extend(step2Schema.shape)
   .extend(step3Schema.shape)
@@ -110,4 +131,5 @@ export const newBusinessSchema = step1BaseSchema
 
 export const completeBusinessSchema = step2Schema
   .extend(step3Schema.shape)
-  .extend(step4Schema.shape);
+  .extend(step4Schema.shape)
+  .extend(step5Schema.shape);

@@ -12,13 +12,16 @@ import {
   step2Fields,
   step3Schema,
   step3Fields,
+  step4Schema,
+  step4Fields,
 } from "./schemas";
 import { Step2 } from "./Step2";
 import { Step3 } from "./Step3";
 import { Step4 } from "./Step4";
+import { Step5 } from "./Step5";
 import type { CompleteBusinessFormValues } from "./types";
 
-const TOTAL_STEPS = 3;
+const TOTAL_STEPS = 4;
 
 export function CompleteBusiness({ id }: { id?: number }) {
   const navigate = useNavigate();
@@ -55,13 +58,20 @@ export function CompleteBusiness({ id }: { id?: number }) {
       street: "",
       number: "",
       posDevices: [{ model: "", serialNumber: "" }],
+      planMcc: undefined,
+      planId: undefined,
+      expectedRevenue: "",
+      commitedRevenue: "",
+      quantityPos: undefined,
     },
   });
 
   function handleNext() {
     const values = methods.getValues();
-    const schema = step === 1 ? step2Schema : step3Schema;
-    const fields = step === 1 ? step2Fields : step3Fields;
+    const schema =
+      step === 1 ? step2Schema : step === 2 ? step3Schema : step4Schema;
+    const fields =
+      step === 1 ? step2Fields : step === 2 ? step3Fields : step4Fields;
     const result = schema.safeParse(values);
     if (!result.success) {
       result.error.issues.forEach((issue) => {
@@ -100,7 +110,8 @@ export function CompleteBusiness({ id }: { id?: number }) {
       const stepForField = (field: string) => {
         if ((step2Fields as string[]).includes(field)) return 1;
         if ((step3Fields as string[]).includes(field)) return 2;
-        return 3;
+        if ((step4Fields as string[]).includes(field)) return 3;
+        return 4;
       };
       const earliest = Math.min(
         ...result.error.issues.map((i) => stepForField(String(i.path[0]))),
@@ -130,6 +141,7 @@ export function CompleteBusiness({ id }: { id?: number }) {
           {step === 1 && <Step2 />}
           {step === 2 && <Step3 />}
           {step === 3 && <Step4 />}
+          {step === 4 && <Step5 />}
         </Box>
 
         <Box sx={{ display: "flex", justifyContent: "space-between" }}>

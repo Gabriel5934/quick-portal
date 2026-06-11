@@ -5,6 +5,12 @@ import { useToken } from "#hooks/auth/useToken";
 
 type Payload = CompleteBusinessFormValues & { id: number };
 
+function parseBrl(value: string): number {
+  const digits = value.replace(/[^\d,-]/g, "").replace(/\./g, "");
+  const n = Number(digits.replace(",", "."));
+  return Number.isNaN(n) ? 0 : n;
+}
+
 async function fetchCompleteBusiness({ id, ...data }: Payload, token: string): Promise<void> {
   const res = await fetch(
     `${import.meta.env.VITE_API_BASE_URL}/api/businesses/${id}/complete/`,
@@ -30,6 +36,11 @@ async function fetchCompleteBusiness({ id, ...data }: Payload, token: string): P
           model: d.model,
           serial_number: d.serialNumber,
         })),
+        mcc_id: data.planMcc,
+        plan_id: data.planId,
+        expected_revenue: parseBrl(data.expectedRevenue),
+        commited_revenue: parseBrl(data.commitedRevenue),
+        quantity_pos: data.quantityPos,
       }),
     },
   );
