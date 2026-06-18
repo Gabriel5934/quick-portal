@@ -25,6 +25,10 @@ import { Controller, useFormContext } from "react-hook-form";
 import type { FieldPath } from "react-hook-form";
 import { useMccFee } from "#hooks/quickApi/useMccFee";
 import { useMccs } from "#hooks/quickApi/useMccs";
+import eloLogo from "../../assets/elo.svg";
+import mastercardLogo from "../../assets/mastercard.svg";
+import pixLogo from "../../assets/pix.svg";
+import visaLogo from "../../assets/visa.svg";
 import { FormPaper } from "../business/FormPaper";
 import { INSTALLMENT_TYPES, NETWORKS, installmentLevel } from "./schemas";
 import type { CardNetwork, Network, NewPlanFormValues } from "./schemas";
@@ -32,7 +36,14 @@ import type { CardNetwork, Network, NewPlanFormValues } from "./schemas";
 const FILL_MODES = ["manual", "range", "single", "multiplier"] as const;
 type FillMode = (typeof FILL_MODES)[number];
 
-const NETWORK_LABEL: Record<Network, string> = {
+const NETWORK_LOGO: Record<Network, string> = {
+  mastercard: mastercardLogo,
+  visa: visaLogo,
+  elo: eloLogo,
+  pix: pixLogo,
+};
+
+const NETWORK_NAME: Record<Network, string> = {
   mastercard: "Mastercard",
   visa: "Visa",
   elo: "Elo",
@@ -215,7 +226,18 @@ export function Fees() {
           scrollButtons="auto"
         >
           {NETWORKS.map((n) => (
-            <Tab key={n} value={n} label={NETWORK_LABEL[n]} />
+            <Tab
+              key={n}
+              value={n}
+              label={
+                <Box
+                  component="img"
+                  src={NETWORK_LOGO[n]}
+                  alt={NETWORK_NAME[n]}
+                  sx={{ height: 28, width: "auto", display: "block" }}
+                />
+              }
+            />
           ))}
         </Tabs>
       </Box>
