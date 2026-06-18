@@ -7,7 +7,6 @@ export interface PlanFee {
   network: PlanNetwork;
   payment_type: string;
   commission: string;
-  anticipation_fee: string | null;
 }
 
 export interface Plan {
@@ -16,6 +15,7 @@ export interface Plan {
   description: string;
   split: boolean;
   anticipation: boolean;
+  anticipation_fee: string | null;
   mcc: { id: number; mcc: string };
   fees: PlanFee[];
   created_at: string;

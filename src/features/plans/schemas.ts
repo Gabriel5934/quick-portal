@@ -23,7 +23,6 @@ export function installmentLevel(
 
 const feeRowSchema = z.object({
   commission: z.string().min(1, "Obrigatório"),
-  anticipation_fee: z.string(),
 });
 
 const cardNetworkFeesSchema = z.object({
@@ -48,6 +47,7 @@ export const basicInfoSchema = z.object({
   description: z.string(),
   split: z.boolean(),
   anticipation: z.boolean(),
+  anticipation_fee: z.string(),
   mccId: z
     .number({ message: "MCC é obrigatório" })
     .int()
@@ -64,7 +64,7 @@ export type NewPlanFormValues = z.infer<typeof newPlanSchema>;
 export type FeeRowValues = z.infer<typeof feeRowSchema>;
 
 export function makeBlankRow(): FeeRowValues {
-  return { commission: "", anticipation_fee: "" };
+  return { commission: "" };
 }
 
 export function makeBlankFees(): NewPlanFormValues["fees"] {

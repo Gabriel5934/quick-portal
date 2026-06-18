@@ -1,4 +1,3 @@
-import Alert from "@mui/material/Alert";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import Switch from "@mui/material/Switch";
 import TextField from "@mui/material/TextField";
@@ -13,11 +12,8 @@ export function BasicInfo() {
   const {
     register,
     control,
-    watch,
     formState: { errors },
   } = useFormContext<NewPlanFormValues>();
-
-  const anticipation = watch("anticipation");
 
   return (
     <FormPaper
@@ -61,33 +57,6 @@ export function BasicInfo() {
           />
         )}
       />
-
-      <Controller
-        name="anticipation"
-        control={control}
-        render={({ field: { value, onChange, ref } }) => (
-          <FormControlLabel
-            control={
-              <Switch
-                checked={value}
-                onChange={(e) => onChange(e.target.checked)}
-                ref={ref}
-              />
-            }
-            label="Antecipação"
-            sx={{ flexBasis: "200px" }}
-          />
-        )}
-      />
-
-      <Alert
-        severity={anticipation ? "success" : "info"}
-        sx={{ flexBasis: "100%" }}
-      >
-        {anticipation
-          ? "Com antecipação ativa, os pagamentos são processados em 1 dia útil."
-          : "Sem antecipação, os pagamentos são processados em 30 dias."}
-      </Alert>
     </FormPaper>
   );
 }

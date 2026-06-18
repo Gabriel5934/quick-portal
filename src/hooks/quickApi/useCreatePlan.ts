@@ -7,12 +7,12 @@ export interface CreatePlanPayload {
   description: string;
   split: boolean;
   anticipation: boolean;
+  anticipation_fee: string | null;
   mcc_id: number;
   fees: {
     network: string;
     payment_type: string;
     commission: string;
-    anticipation_fee: string | null;
   }[];
 }
 

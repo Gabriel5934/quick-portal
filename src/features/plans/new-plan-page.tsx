@@ -3,6 +3,7 @@ import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Typography from "@mui/material/Typography";
 import { useNavigate } from "@tanstack/react-router";
+import type { FieldErrors } from "react-hook-form";
 import { FormProvider, useForm } from "react-hook-form";
 import { useCreatePlan } from "#hooks/quickApi/useCreatePlan";
 import type { CreatePlanPayload } from "#hooks/quickApi/useCreatePlan";
@@ -27,12 +28,11 @@ function buildFeesPayload(
   values: NewPlanFormValues,
 ): CreatePlanPayload["fees"] {
   const fees: CreatePlanPayload["fees"] = [];
-  const anticipation = values.anticipation;
 
   for (const network of CARD_NETWORKS) {
     const networkFees = values.fees[network] as Record<
       string,
-      { commission: string; anticipation_fee: string }
+      { commission: string }
     >;
     for (const paymentType of ["debit", "credit", ...INSTALLMENT_TYPES]) {
       const row = networkFees[paymentType];
@@ -40,9 +40,6 @@ function buildFeesPayload(
         network,
         payment_type: paymentType,
         commission: percentToDecimal(row.commission),
-        anticipation_fee: anticipation
-          ? percentToDecimal(row.anticipation_fee || "0")
-          : null,
       });
     }
   }
@@ -52,9 +49,6 @@ function buildFeesPayload(
     network: "pix",
     payment_type: "pix",
     commission: percentToDecimal(pixRow.commission),
-    anticipation_fee: anticipation
-      ? percentToDecimal(pixRow.anticipation_fee || "0")
-      : null,
   });
 
   return fees;
@@ -71,6 +65,7 @@ export function NewPlan() {
       description: "",
       split: false,
       anticipation: false,
+      anticipation_fee: "",
       mccId: undefined,
       fees: makeBlankFees(),
     },
@@ -82,6 +77,9 @@ export function NewPlan() {
       description: data.description,
       split: data.split,
       anticipation: data.anticipation,
+      anticipation_fee: data.anticipation
+        ? percentToDecimal(data.anticipation_fee || "0")
+        : null,
       mcc_id: data.mccId,
       fees: buildFeesPayload(data),
     };
@@ -89,6 +87,27 @@ export function NewPlan() {
     createPlan(payload, {
       onSuccess: () => void navigate({ to: "/planos-e-taxas" }),
       onError: (err) => methods.setError("root", { message: err.message }),
+    });
+  }
+
+  function onInvalid(errors: FieldErrors<NewPlanFormValues>) {
+    const missing: string[] = [];
+    if (errors.name) missing.push("Nome");
+    if (errors.mccId) missing.push("MCC");
+    if (errors.anticipation_fee) missing.push("Taxa de antecipação");
+    if (errors.fees) {
+      const networks = Object.keys(errors.fees) as Array<
+        keyof NonNullable<typeof errors.fees>
+      >;
+      for (const n of networks) {
+        if (errors.fees[n]) missing.push(`Comissões de ${n}`);
+      }
+    }
+    const detail = missing.length
+      ? ` Verifique: ${missing.join(", ")}.`
+      : "";
+    methods.setError("root", {
+      message: `Preencha todos os campos obrigatórios.${detail}`,
     });
   }
 
@@ -125,7 +144,7 @@ export function NewPlan() {
           <Button
             variant="contained"
             loading={isPending}
-            onClick={methods.handleSubmit(onSubmit)}
+            onClick={methods.handleSubmit(onSubmit, onInvalid)}
           >
             Salvar
           </Button>
