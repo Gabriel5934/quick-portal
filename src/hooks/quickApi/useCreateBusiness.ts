@@ -27,6 +27,7 @@ async function fetchCreateBusiness(
         cod_mcc: payload.mcc,
         email: payload.email,
         phone_number: payload.celular.replace(/\D/g, ""),
+        landline_number: payload.telefone.replace(/\D/g, ""),
       }),
     },
   );

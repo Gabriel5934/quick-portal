@@ -37,6 +37,12 @@ const step1BaseSchema = z.object({
       (v) => v.replace(/\D/g, "").length >= 11,
       "Insira um celular válido",
     ),
+  telefone: z
+    .string()
+    .refine(
+      (v) => v.replace(/\D/g, "").length === 10,
+      "Insira um telefone válido",
+    ),
 });
 
 export const step1Schema = step1BaseSchema.superRefine(refineDocument);
@@ -75,6 +81,7 @@ export const step3Schema = z.object({
   neighborhood: z.string().min(1, "Bairro é obrigatório"),
   street: z.string().min(1, "Rua é obrigatória"),
   number: z.string().min(1, "Número é obrigatório"),
+  complement: z.string().optional(),
 });
 
 export const step3Fields = Object.keys(step3Schema.shape) as (keyof z.infer<

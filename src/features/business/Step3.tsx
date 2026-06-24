@@ -155,6 +155,21 @@ export function Step3() {
           />
         )}
       />
+
+      <Controller
+        name="complement"
+        control={control}
+        render={({ field }) => (
+          <TextField
+            {...field}
+            value={field.value ?? ""}
+            label="Complemento"
+            error={Boolean(errors.complement)}
+            helperText={errors.complement?.message}
+            sx={fieldSx}
+          />
+        )}
+      />
     </FormPaper>
   );
 }

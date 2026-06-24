@@ -32,6 +32,7 @@ async function fetchCompleteBusiness({ id, ...data }: Payload, token: string): P
         neighborhood: data.neighborhood,
         street: data.street,
         number: data.number,
+        complement: data.complement ?? "",
         pos_devices: data.posDevices.map((d) => ({
           model: d.model,
           serial_number: d.serialNumber,

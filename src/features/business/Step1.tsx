@@ -164,6 +164,26 @@ export function Step1() {
             />
           )}
         />
+
+        <Controller
+          name="telefone"
+          control={control}
+          render={({ field: { ref, onChange, value, ...restField } }) => (
+            <PatternFormat
+              {...restField}
+              value={value}
+              format="(##) ####-####"
+              onValueChange={(values) => onChange(values.formattedValue)}
+              customInput={TextField}
+              getInputRef={ref}
+              label="Telefone"
+              required
+              error={Boolean(errors.telefone)}
+              helperText={errors.telefone?.message}
+              sx={fieldSx}
+            />
+          )}
+        />
       </FormPaper>
     </>
   );

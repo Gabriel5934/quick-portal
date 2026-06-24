@@ -24,6 +24,7 @@ export function NewBusiness() {
       mcc: "",
       email: "",
       celular: "",
+      telefone: "",
     },
   });
 

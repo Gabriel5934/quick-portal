@@ -57,6 +57,7 @@ export function CompleteBusiness({ id }: { id?: number }) {
       neighborhood: "",
       street: "",
       number: "",
+      complement: "",
       posDevices: [{ model: "", serialNumber: "" }],
       planMcc: undefined,
       planId: undefined,
