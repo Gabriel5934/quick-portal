@@ -9,7 +9,9 @@ import BadgeIcon from "@mui/icons-material/Badge";
 import MailIcon from "@mui/icons-material/Mail";
 import { Controller, useFormContext } from "react-hook-form";
 import { PatternFormat } from "react-number-format";
+import { useEffect } from "react";
 import { useCnaeMcc } from "#hooks/quickApi/useCnaeMcc";
+import { useCnpj } from "#hooks/brasilApi/useCnpj";
 import { FormPaper } from "./FormPaper";
 import type { NewBusinessFormValues } from "./types";
 
@@ -21,16 +23,49 @@ export function Step1() {
     register,
     control,
     watch,
+    setValue,
+    setError,
+    clearErrors,
     formState: { errors },
   } = useFormContext<NewBusinessFormValues>();
 
   const documentType = watch("documentType");
+  const document = watch("document") ?? "";
+  const isCnpj = documentType === "CNPJ";
 
-  // TODO figure out how to clear only on change, not on mount so
-  // it does not clear when navigating back to step 1
-  // useEffect(() => {
-  //   setValue("document", "");
-  // }, [documentType, setValue]);
+  const { data: cnpjData, error: cnpjError } = useCnpj(document, isCnpj);
+
+  useEffect(() => {
+    if (!cnpjData) return;
+    setValue("razaoSocial", cnpjData.razao_social, { shouldValidate: true });
+    setValue("nomeFantasia", cnpjData.nome_fantasia, { shouldValidate: true });
+    const match = mccOptions.find(
+      (o) => o.cod_cnae.replace(/\D/g, "") === String(cnpjData.cnae_fiscal),
+    );
+    setValue("mcc", match ? String(match.cod_mcc) : "", {
+      shouldValidate: true,
+    });
+    clearErrors("document");
+  }, [cnpjData, mccOptions, setValue, clearErrors]);
+
+  useEffect(() => {
+    if (cnpjError) {
+      setError("document", { type: "manual", message: cnpjError.message });
+    }
+  }, [cnpjError, setError]);
+
+  const handleDocumentTypeChange = (
+    fieldOnChange: (...event: unknown[]) => void,
+  ) => {
+    return (e: React.ChangeEvent<HTMLInputElement>) => {
+      fieldOnChange(e);
+      setValue("document", "");
+      setValue("razaoSocial", "");
+      setValue("nomeFantasia", "");
+      setValue("mcc", "");
+      clearErrors(["document", "razaoSocial", "nomeFantasia", "mcc"]);
+    };
+  };
 
   return (
     <>
@@ -44,8 +79,12 @@ export function Step1() {
           <Controller
             name="documentType"
             control={control}
-            render={({ field }) => (
-              <RadioGroup {...field} row>
+            render={({ field: { onChange, ...field } }) => (
+              <RadioGroup
+                {...field}
+                row
+                onChange={handleDocumentTypeChange(onChange)}
+              >
                 <FormControlLabel
                   value="CNPJ"
                   control={<Radio />}
@@ -83,6 +122,8 @@ export function Step1() {
           {...register("razaoSocial")}
           label="Nome / Razão Social"
           required
+          disabled={isCnpj}
+          slotProps={{ inputLabel: { shrink: isCnpj || undefined } }}
           error={Boolean(errors.razaoSocial)}
           helperText={errors.razaoSocial?.message}
           sx={fieldSx}
@@ -91,7 +132,8 @@ export function Step1() {
         <TextField
           {...register("nomeFantasia")}
           label="Nome Fantasia"
-          required
+          disabled={isCnpj}
+          slotProps={{ inputLabel: { shrink: isCnpj || undefined } }}
           error={Boolean(errors.nomeFantasia)}
           helperText={errors.nomeFantasia?.message}
           sx={fieldSx}
@@ -103,6 +145,7 @@ export function Step1() {
           render={({ field: { onChange, value, ref } }) => (
             <Autocomplete
               options={mccOptions}
+              disabled={isCnpj}
               getOptionLabel={(option) =>
                 `${option.cod_mcc} — ${option.desc_cnae}`
               }

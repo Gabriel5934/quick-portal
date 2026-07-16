@@ -28,7 +28,7 @@ const step1BaseSchema = z.object({
   documentType: z.enum(["CNPJ", "CPF"]),
   document: z.string(),
   razaoSocial: z.string().min(1, "Nome / Razão Social é obrigatório"),
-  nomeFantasia: z.string().min(1, "Nome Fantasia é obrigatório"),
+  nomeFantasia: z.string().optional(),
   mcc: z.string().min(1, "MCC é obrigatório"),
   email: z.string().email("Insira um email válido"),
   celular: z
