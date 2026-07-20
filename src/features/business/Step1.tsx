@@ -56,10 +56,18 @@ export function Step1() {
   }, [cnpjData, mccOptions, reset, getValues, clearErrors]);
 
   useEffect(() => {
-    if (cnpjError) {
-      setError("document", { type: "manual", message: cnpjError.message });
-    }
-  }, [cnpjError, setError]);
+    if (!cnpjError) return;
+    setError("document", { type: "manual", message: cnpjError.message });
+    reset(
+      {
+        ...getValues(),
+        name: "",
+        nomeFantasia: "",
+        codCnae: "",
+      },
+      { keepErrors: true },
+    );
+  }, [cnpjError, setError, reset, getValues]);
 
   const handleDocumentTypeChange = (
     fieldOnChange: (...event: unknown[]) => void,
@@ -240,7 +248,6 @@ export function Step1() {
               customInput={TextField}
               getInputRef={ref}
               label="Telefone"
-              required
               error={Boolean(errors.telefone)}
               helperText={errors.telefone?.message}
               sx={fieldSx}

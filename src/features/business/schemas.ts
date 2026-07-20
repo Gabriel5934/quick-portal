@@ -59,12 +59,7 @@ const step1BaseSchema = z.object({
       (v) => v.replace(/\D/g, "").length >= 11,
       "Insira um celular válido",
     ),
-  telefone: z
-    .string()
-    .refine(
-      (v) => v.replace(/\D/g, "").length === 10,
-      "Insira um telefone válido",
-    ),
+  telefone: z.string(),
 });
 
 export const step1Schema = step1BaseSchema.superRefine(refineDocument);
