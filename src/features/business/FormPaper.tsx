@@ -8,10 +8,17 @@ type FormPaperProps = {
   title: string;
   subtitle: string;
   Icon: SvgIconComponent;
+  action?: ReactNode;
   children: ReactNode;
 };
 
-export function FormPaper({ children, title, subtitle, Icon }: FormPaperProps) {
+export function FormPaper({
+  children,
+  title,
+  subtitle,
+  Icon,
+  action,
+}: FormPaperProps) {
   return (
     <Paper
       sx={{
@@ -21,12 +28,22 @@ export function FormPaper({ children, title, subtitle, Icon }: FormPaperProps) {
         padding: 2,
       }}
     >
-      <Box>
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-          <Icon color="action" />
-          <Typography variant="h6">{title}</Typography>
+      <Box
+        sx={{
+          display: "flex",
+          alignItems: "flex-start",
+          justifyContent: "space-between",
+          gap: 2,
+        }}
+      >
+        <Box>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+            <Icon color="action" />
+            <Typography variant="h6">{title}</Typography>
+          </Box>
+          <Typography variant="subtitle1">{subtitle}</Typography>
         </Box>
-        <Typography variant="subtitle1">{subtitle}</Typography>
+        {action}
       </Box>
 
       <Box

@@ -19,9 +19,9 @@ export function NewBusiness() {
     defaultValues: {
       documentType: "CPF",
       document: "",
-      razaoSocial: "",
+      name: "",
       nomeFantasia: "",
-      mcc: "",
+      codCnae: "",
       email: "",
       celular: "",
       telefone: "",

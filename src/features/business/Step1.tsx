@@ -26,27 +26,34 @@ export function Step1() {
     setValue,
     setError,
     clearErrors,
+    getValues,
+    reset,
     formState: { errors },
   } = useFormContext<NewBusinessFormValues>();
 
   const documentType = watch("documentType");
   const document = watch("document") ?? "";
   const isCnpj = documentType === "CNPJ";
+  const isCpf = documentType === "CPF";
 
   const { data: cnpjData, error: cnpjError } = useCnpj(document, isCnpj);
 
   useEffect(() => {
     if (!cnpjData) return;
-    setValue("razaoSocial", cnpjData.razao_social, { shouldValidate: true });
-    setValue("nomeFantasia", cnpjData.nome_fantasia, { shouldValidate: true });
-    const match = mccOptions.find(
+    const mmcMatch = mccOptions.find(
       (o) => o.cod_cnae.replace(/\D/g, "") === String(cnpjData.cnae_fiscal),
     );
-    setValue("mcc", match ? String(match.cod_mcc) : "", {
-      shouldValidate: true,
-    });
+    reset(
+      {
+        ...getValues(),
+        name: cnpjData.razao_social,
+        nomeFantasia: cnpjData.nome_fantasia,
+        codCnae: mmcMatch ? String(mmcMatch.cod_mcc) : "",
+      },
+      { keepErrors: true },
+    );
     clearErrors("document");
-  }, [cnpjData, mccOptions, setValue, clearErrors]);
+  }, [cnpjData, mccOptions, reset, getValues, clearErrors]);
 
   useEffect(() => {
     if (cnpjError) {
@@ -60,10 +67,10 @@ export function Step1() {
     return (e: React.ChangeEvent<HTMLInputElement>) => {
       fieldOnChange(e);
       setValue("document", "");
-      setValue("razaoSocial", "");
+      setValue("name", "");
       setValue("nomeFantasia", "");
-      setValue("mcc", "");
-      clearErrors(["document", "razaoSocial", "nomeFantasia", "mcc"]);
+      setValue("codCnae", "");
+      clearErrors(["document", "name", "nomeFantasia", "codCnae"]);
     };
   };
 
@@ -118,29 +125,42 @@ export function Step1() {
           )}
         />
 
-        <TextField
-          {...register("razaoSocial")}
-          label="Nome / Razão Social"
-          required
-          disabled={isCnpj}
-          slotProps={{ inputLabel: { shrink: isCnpj || undefined } }}
-          error={Boolean(errors.razaoSocial)}
-          helperText={errors.razaoSocial?.message}
-          sx={fieldSx}
-        />
+        {isCpf ? (
+          <TextField
+            {...register("name")}
+            label="Nome Completo"
+            required
+            error={Boolean(errors.name)}
+            helperText={errors.name?.message}
+            sx={fieldSx}
+          />
+        ) : (
+          <>
+            <TextField
+              {...register("name")}
+              label="Razão Social"
+              required
+              disabled={isCnpj}
+              slotProps={{ inputLabel: { shrink: isCnpj || undefined } }}
+              error={Boolean(errors.name)}
+              helperText={errors.name?.message}
+              sx={fieldSx}
+            />
 
-        <TextField
-          {...register("nomeFantasia")}
-          label="Nome Fantasia"
-          disabled={isCnpj}
-          slotProps={{ inputLabel: { shrink: isCnpj || undefined } }}
-          error={Boolean(errors.nomeFantasia)}
-          helperText={errors.nomeFantasia?.message}
-          sx={fieldSx}
-        />
+            <TextField
+              {...register("nomeFantasia")}
+              label="Nome Fantasia"
+              disabled={isCnpj}
+              slotProps={{ inputLabel: { shrink: isCnpj || undefined } }}
+              error={Boolean(errors.nomeFantasia)}
+              helperText={errors.nomeFantasia?.message}
+              sx={fieldSx}
+            />
+          </>
+        )}
 
         <Controller
-          name="mcc"
+          name="codCnae"
           control={control}
           render={({ field: { onChange, value, ref } }) => (
             <Autocomplete
@@ -164,8 +184,8 @@ export function Step1() {
                   inputRef={ref}
                   label="MCC"
                   required
-                  error={Boolean(errors.mcc)}
-                  helperText={errors.mcc?.message}
+                  error={Boolean(errors.codCnae)}
+                  helperText={errors.codCnae?.message}
                 />
               )}
             />

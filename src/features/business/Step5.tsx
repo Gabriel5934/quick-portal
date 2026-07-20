@@ -1,6 +1,9 @@
+import AddIcon from "@mui/icons-material/Add";
 import AssignmentIcon from "@mui/icons-material/Assignment";
 import Autocomplete from "@mui/material/Autocomplete";
+import Button from "@mui/material/Button";
 import TextField from "@mui/material/TextField";
+import { Link as RouterLink } from "@tanstack/react-router";
 import { useEffect, useMemo } from "react";
 import { Controller, useFormContext } from "react-hook-form";
 import { NumericFormat } from "react-number-format";
@@ -40,6 +43,18 @@ export function Step5() {
       title="Plano Comercial"
       subtitle="Selecione o MCC e o plano para o estabelecimento"
       Icon={AssignmentIcon}
+      action={
+        <Button
+          component={RouterLink}
+          to="/novo-plano"
+          variant="outlined"
+          size="small"
+          startIcon={<AddIcon />}
+          sx={{ whiteSpace: "nowrap" }}
+        >
+          Novo Plano
+        </Button>
+      }
     >
       <Controller
         name="planMcc"

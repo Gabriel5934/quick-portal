@@ -9,17 +9,39 @@ function validateCnpj(_cnpj: string): boolean {
 }
 
 function refineDocument(
-  data: { documentType: "CNPJ" | "CPF"; document: string },
+  data: { documentType: "CNPJ" | "CPF"; document: string; name: string },
   ctx: z.RefinementCtx,
 ) {
   const digits = data.document.replace(/\D/g, "");
   if (data.documentType === "CPF") {
     if (digits.length < 11 || !validateCpf(data.document)) {
-      ctx.addIssue({ code: "custom", message: "CPF inválido", path: ["document"] });
+      ctx.addIssue({
+        code: "custom",
+        message: "CPF inválido",
+        path: ["document"],
+      });
+    }
+    if (!data.name) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Nome Completo é obrigatório",
+        path: ["name"],
+      });
     }
   } else {
     if (digits.length < 14 || !validateCnpj(data.document)) {
-      ctx.addIssue({ code: "custom", message: "CNPJ inválido", path: ["document"] });
+      ctx.addIssue({
+        code: "custom",
+        message: "CNPJ inválido",
+        path: ["document"],
+      });
+    }
+    if (!data.name) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Razão Social é obrigatório",
+        path: ["name"],
+      });
     }
   }
 }
@@ -27,10 +49,10 @@ function refineDocument(
 const step1BaseSchema = z.object({
   documentType: z.enum(["CNPJ", "CPF"]),
   document: z.string(),
-  razaoSocial: z.string().min(1, "Nome / Razão Social é obrigatório"),
+  name: z.string(), // used for razao social for cnpjs and full name for cpfs
   nomeFantasia: z.string().optional(),
-  mcc: z.string().min(1, "MCC é obrigatório"),
-  email: z.string().email("Insira um email válido"),
+  codCnae: z.string().min(1, "MCC é obrigatório"),
+  email: z.email("Insira um email válido"),
   celular: z
     .string()
     .refine(
@@ -97,12 +119,12 @@ export const step4Schema = z.object({
   posDevices: z
     .array(z.object({ model: z.string(), serialNumber: z.string() }))
     .transform((devices) => {
-      const filled = devices.filter((d) => d.model !== "" || d.serialNumber !== "");
+      const filled = devices.filter(
+        (d) => d.model !== "" || d.serialNumber !== "",
+      );
       return filled.length > 0 ? filled : devices.slice(0, 1);
     })
-    .pipe(
-      z.array(posDeviceItem).min(1, "Adicione pelo menos um dispositivo"),
-    ),
+    .pipe(z.array(posDeviceItem).min(1, "Adicione pelo menos um dispositivo")),
 });
 
 export const step4Fields = Object.keys(step4Schema.shape) as (keyof z.infer<
