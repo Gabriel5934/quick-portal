@@ -1,10 +1,12 @@
 import Autocomplete from "@mui/material/Autocomplete";
+import Box from "@mui/material/Box";
 import FormControl from "@mui/material/FormControl";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import FormLabel from "@mui/material/FormLabel";
 import Radio from "@mui/material/Radio";
 import RadioGroup from "@mui/material/RadioGroup";
 import TextField from "@mui/material/TextField";
+import Typography from "@mui/material/Typography";
 import BadgeIcon from "@mui/icons-material/Badge";
 import MailIcon from "@mui/icons-material/Mail";
 import { Controller, useFormContext } from "react-hook-form";
@@ -17,6 +19,17 @@ import type { NewBusinessFormValues } from "./types";
 
 const fieldSx = { flexGrow: 1, flexShrink: 1, flexBasis: "360px" };
 
+function ReadOnlyField({ label, value }: { label: string; value: string }) {
+  return (
+    <Box sx={fieldSx}>
+      <Typography variant="caption" color="text.secondary">
+        {label}
+      </Typography>
+      <Typography variant="body1">{value || "—"}</Typography>
+    </Box>
+  );
+}
+
 export function Step1() {
   const { data: mccOptions = [] } = useCnaeMcc();
   const {
@@ -24,7 +37,6 @@ export function Step1() {
     control,
     watch,
     setValue,
-    setError,
     clearErrors,
     getValues,
     reset,
@@ -33,41 +45,32 @@ export function Step1() {
 
   const documentType = watch("documentType");
   const document = watch("document") ?? "";
+  const name = watch("name") ?? "";
+  const nomeFantasia = watch("nomeFantasia") ?? "";
+  const codCnae = watch("codCnae") ?? "";
   const isCnpj = documentType === "CNPJ";
   const isCpf = documentType === "CPF";
+  const mccLabel =
+    mccOptions
+      .filter((o) => String(o.cod_mcc) === codCnae)
+      .map((o) => `${o.cod_mcc} — ${o.desc_cnae}`)[0] ?? "";
 
   const { data: cnpjData, error: cnpjError } = useCnpj(document, isCnpj);
 
   useEffect(() => {
-    if (!cnpjData) return;
-    const mmcMatch = mccOptions.find(
-      (o) => o.cod_cnae.replace(/\D/g, "") === String(cnpjData.cnae_fiscal),
-    );
-    reset(
-      {
-        ...getValues(),
-        name: cnpjData.razao_social,
-        nomeFantasia: cnpjData.nome_fantasia,
-        codCnae: mmcMatch ? String(mmcMatch.cod_mcc) : "",
-      },
-      { keepErrors: true },
-    );
-    clearErrors("document");
-  }, [cnpjData, mccOptions, reset, getValues, clearErrors]);
-
-  useEffect(() => {
-    if (!cnpjError) return;
-    setError("document", { type: "manual", message: cnpjError.message });
-    reset(
-      {
-        ...getValues(),
-        name: "",
-        nomeFantasia: "",
-        codCnae: "",
-      },
-      { keepErrors: true },
-    );
-  }, [cnpjError, setError, reset, getValues]);
+    if (!cnpjData && !cnpjError) return;
+    const mmcMatch = cnpjData
+      ? mccOptions.find(
+          (o) => o.cod_cnae.replace(/\D/g, "") === String(cnpjData.cnae_fiscal),
+        )
+      : null;
+    reset({
+      ...getValues(),
+      name: cnpjData?.razao_social ?? "",
+      nomeFantasia: cnpjData?.nome_fantasia ?? "",
+      codCnae: mmcMatch ? String(mmcMatch.cod_mcc) : "",
+    });
+  }, [cnpjData, cnpjError, mccOptions, reset, getValues]);
 
   const handleDocumentTypeChange = (
     fieldOnChange: (...event: unknown[]) => void,
@@ -133,7 +136,7 @@ export function Step1() {
           )}
         />
 
-        {isCpf ? (
+        {isCpf && (
           <TextField
             {...register("name")}
             label="Nome Completo"
@@ -142,63 +145,49 @@ export function Step1() {
             helperText={errors.name?.message}
             sx={fieldSx}
           />
-        ) : (
-          <>
-            <TextField
-              {...register("name")}
-              label="Razão Social"
-              required
-              disabled={isCnpj}
-              slotProps={{ inputLabel: { shrink: isCnpj || undefined } }}
-              error={Boolean(errors.name)}
-              helperText={errors.name?.message}
-              sx={fieldSx}
-            />
+        )}
 
-            <TextField
-              {...register("nomeFantasia")}
-              label="Nome Fantasia"
-              disabled={isCnpj}
-              slotProps={{ inputLabel: { shrink: isCnpj || undefined } }}
-              error={Boolean(errors.nomeFantasia)}
-              helperText={errors.nomeFantasia?.message}
-              sx={fieldSx}
-            />
+        {isCnpj && (
+          <>
+            <ReadOnlyField label="Razão Social" value={name} />
+            <ReadOnlyField label="Nome Fantasia" value={nomeFantasia} />
+            <ReadOnlyField label="MCC" value={mccLabel} />
           </>
         )}
 
-        <Controller
-          name="codCnae"
-          control={control}
-          render={({ field: { onChange, value, ref } }) => (
-            <Autocomplete
-              options={mccOptions}
-              disabled={isCnpj}
-              getOptionLabel={(option) =>
-                `${option.cod_mcc} — ${option.desc_cnae}`
-              }
-              isOptionEqualToValue={(option, val) => option.cod_mcc === val.id}
-              value={
-                mccOptions.find((o) => String(o.cod_mcc) === value) ?? null
-              }
-              getOptionKey={(option) => option.id}
-              onChange={(_, selected) =>
-                onChange(selected ? String(selected.cod_mcc) : "")
-              }
-              sx={fieldSx}
-              renderInput={(params) => (
-                <TextField
-                  {...params}
-                  inputRef={ref}
-                  label="MCC"
-                  required
-                  error={Boolean(errors.codCnae)}
-                  helperText={errors.codCnae?.message}
-                />
-              )}
-            />
-          )}
-        />
+        {isCpf && (
+          <Controller
+            name="codCnae"
+            control={control}
+            render={({ field: { onChange, value, ref } }) => (
+              <Autocomplete
+                options={mccOptions}
+                getOptionLabel={(option) =>
+                  `${option.cod_mcc} — ${option.desc_cnae}`
+                }
+                isOptionEqualToValue={(option, val) => option.cod_mcc === val.id}
+                value={
+                  mccOptions.find((o) => String(o.cod_mcc) === value) ?? null
+                }
+                getOptionKey={(option) => option.id}
+                onChange={(_, selected) =>
+                  onChange(selected ? String(selected.cod_mcc) : "")
+                }
+                sx={fieldSx}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    inputRef={ref}
+                    label="MCC"
+                    required
+                    error={Boolean(errors.codCnae)}
+                    helperText={errors.codCnae?.message}
+                  />
+                )}
+              />
+            )}
+          />
+        )}
       </FormPaper>
 
       <FormPaper

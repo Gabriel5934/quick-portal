@@ -9,7 +9,12 @@ function validateCnpj(_cnpj: string): boolean {
 }
 
 function refineDocument(
-  data: { documentType: "CNPJ" | "CPF"; document: string; name: string },
+  data: {
+    documentType: "CNPJ" | "CPF";
+    document: string;
+    name: string;
+    codCnae: string;
+  },
   ctx: z.RefinementCtx,
 ) {
   const digits = data.document.replace(/\D/g, "");
@@ -28,19 +33,19 @@ function refineDocument(
         path: ["name"],
       });
     }
+    if (!data.codCnae) {
+      ctx.addIssue({
+        code: "custom",
+        message: "MCC é obrigatório",
+        path: ["codCnae"],
+      });
+    }
   } else {
     if (digits.length < 14 || !validateCnpj(data.document)) {
       ctx.addIssue({
         code: "custom",
         message: "CNPJ inválido",
         path: ["document"],
-      });
-    }
-    if (!data.name) {
-      ctx.addIssue({
-        code: "custom",
-        message: "Razão Social é obrigatório",
-        path: ["name"],
       });
     }
   }
@@ -51,7 +56,7 @@ const step1BaseSchema = z.object({
   document: z.string(),
   name: z.string(), // used for razao social for cnpjs and full name for cpfs
   nomeFantasia: z.string().optional(),
-  codCnae: z.string().min(1, "MCC é obrigatório"),
+  codCnae: z.string(),
   email: z.email("Insira um email válido"),
   celular: z
     .string()
