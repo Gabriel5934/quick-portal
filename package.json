@@ -26,6 +26,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@hookform/devtools": "^4.4.0",
     "@tanstack/eslint-plugin-query": "^5.100.5",
     "@tanstack/router-plugin": "^1.167.27",
     "@types/node": "^24.12.2",

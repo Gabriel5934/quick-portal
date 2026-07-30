@@ -165,7 +165,9 @@ export function Step1() {
                 getOptionLabel={(option) =>
                   `${option.cod_mcc} — ${option.desc_cnae}`
                 }
-                isOptionEqualToValue={(option, val) => option.cod_mcc === val.id}
+                isOptionEqualToValue={(option, val) =>
+                  option.cod_mcc === val.id
+                }
                 value={
                   mccOptions.find((o) => String(o.cod_mcc) === value) ?? null
                 }
