@@ -58,7 +58,6 @@ export function Step4() {
                     {...params}
                     inputRef={ref}
                     label="Modelo"
-                    required
                     error={Boolean(errors.posDevices?.[index]?.model)}
                     helperText={errors.posDevices?.[index]?.model?.message}
                   />
@@ -74,7 +73,6 @@ export function Step4() {
               <TextField
                 {...fieldProps}
                 label="Serial"
-                required
                 error={Boolean(errors.posDevices?.[index]?.serialNumber)}
                 helperText={errors.posDevices?.[index]?.serialNumber?.message}
                 sx={{ flexGrow: 1, flexShrink: 1, flexBasis: "360px" }}

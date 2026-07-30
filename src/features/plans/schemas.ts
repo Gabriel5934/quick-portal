@@ -49,9 +49,9 @@ export const basicInfoSchema = z.object({
   anticipation: z.boolean(),
   anticipation_fee: z.string(),
   mccId: z
-    .number({ message: "MCC é obrigatório" })
+    .number({ message: "Atividade Comercial é obrigatória" })
     .int()
-    .positive("MCC é obrigatório"),
+    .positive("Atividade Comercial é obrigatória"),
 });
 
 export type BasicInfoValues = z.infer<typeof basicInfoSchema>;

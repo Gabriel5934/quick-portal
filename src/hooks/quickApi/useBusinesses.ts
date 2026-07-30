@@ -2,6 +2,12 @@ import { keepPreviousData } from "@tanstack/react-query";
 import { useAuthQuery } from "../auth/useAuthQuery";
 import { useToken } from "#hooks/auth/useToken";
 
+export type BusinessStatus =
+  | "NOT_STARTED"
+  | "PENDING"
+  | "IN_VALIDATION"
+  | "COMPLETED";
+
 export interface Business {
   id: number;
   document_type: string;
@@ -12,14 +18,14 @@ export interface Business {
   email: string;
   phone: string;
   landline: string;
-  status: string;
+  status: BusinessStatus;
 }
 
 export interface BusinessesResponse {
   count: number;
   next: string | null;
   previous: string | null;
-  count_by_status: Record<string, number>;
+  count_by_status: Partial<Record<BusinessStatus, number>>;
   results: Business[];
 }
 

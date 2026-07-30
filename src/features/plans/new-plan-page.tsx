@@ -93,7 +93,7 @@ export function NewPlan() {
   function onInvalid(errors: FieldErrors<NewPlanFormValues>) {
     const missing: string[] = [];
     if (errors.name) missing.push("Nome");
-    if (errors.mccId) missing.push("MCC");
+    if (errors.mccId) missing.push("Atividade Comercial");
     if (errors.anticipation_fee) missing.push("Taxa de antecipação");
     if (errors.fees) {
       const networks = Object.keys(errors.fees) as Array<

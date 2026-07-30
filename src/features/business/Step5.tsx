@@ -41,7 +41,7 @@ export function Step5() {
   return (
     <FormPaper
       title="Plano Comercial"
-      subtitle="Selecione o MCC e o plano para o estabelecimento"
+      subtitle="Selecione a Atividade Comercial e o plano para o estabelecimento"
       Icon={AssignmentIcon}
       action={
         <Button
@@ -72,7 +72,7 @@ export function Step5() {
               <TextField
                 {...params}
                 inputRef={ref}
-                label="MCC"
+                label="Atividade Comercial"
                 required
                 error={Boolean(errors.planMcc)}
                 helperText={errors.planMcc?.message}
@@ -104,7 +104,9 @@ export function Step5() {
                 error={Boolean(errors.planId)}
                 helperText={
                   errors.planId?.message ??
-                  (planMcc ? undefined : "Selecione um MCC primeiro")
+                  (planMcc
+                    ? undefined
+                    : "Selecione uma Atividade Comercial primeiro")
                 }
               />
             )}

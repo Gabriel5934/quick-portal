@@ -126,7 +126,7 @@ export function Fees() {
             <TextField
               {...params}
               inputRef={ref}
-              label="MCC"
+              label="Atividade Comercial"
               required
               error={Boolean(errors.mccId)}
               helperText={errors.mccId?.message}
@@ -146,7 +146,7 @@ export function Fees() {
       >
         {mccField}
         <Alert severity="info" sx={{ flexBasis: "100%" }}>
-          Selecione um MCC para configurar as taxas.
+          Selecione uma Atividade Comercial para configurar as taxas.
         </Alert>
       </FormPaper>
     );

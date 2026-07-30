@@ -39,7 +39,6 @@ export function CompleteBusiness({ id }: { id?: number }) {
         zodResolver(schema) as unknown as Resolver<CompleteBusinessFormValues>
       )(values, context, options);
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
   );
 
@@ -76,10 +75,13 @@ export function CompleteBusiness({ id }: { id?: number }) {
     const result = schema.safeParse(values);
     if (!result.success) {
       result.error.issues.forEach((issue) => {
-        methods.setError(issue.path[0] as keyof CompleteBusinessFormValues, {
-          type: "manual",
-          message: issue.message,
-        });
+        methods.setError(
+          issue.path.join(".") as Parameters<typeof methods.setError>[0],
+          {
+            type: "manual",
+            message: issue.message,
+          },
+        );
       });
       return;
     }

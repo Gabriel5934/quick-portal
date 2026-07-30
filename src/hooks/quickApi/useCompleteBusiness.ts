@@ -57,8 +57,11 @@ async function fetchCompleteBusiness({ id, ...data }: Payload, token: string): P
 
   if (!detailsResponse.ok) await throwResponseError(detailsResponse);
 
+  const completedDevices = data.posDevices.filter(
+    (device) => device.model && device.serialNumber,
+  );
   const deviceResponses = await Promise.all(
-    data.posDevices.map((device) =>
+    completedDevices.map((device) =>
       fetch(`${import.meta.env.VITE_API_BASE_URL}/api/pos-devices/`, {
         method: "POST",
         headers,

@@ -25,7 +25,10 @@ import {
   SearchOutlined,
 } from "@mui/icons-material";
 import { useNavigate } from "@tanstack/react-router";
-import { useBusinesses } from "#hooks/quickApi/useBusinesses";
+import {
+  useBusinesses,
+  type BusinessStatus,
+} from "#hooks/quickApi/useBusinesses";
 
 interface StatCardProps {
   icon: React.ReactNode;
@@ -60,15 +63,17 @@ function StatCard({ icon, label, value, color }: StatCardProps) {
   );
 }
 
-function statusLabel(status: string): string {
-  if (status === "NOT_STARTED") return "Pendente";
+function statusLabel(status: BusinessStatus): string {
+  if (status === "NOT_STARTED") return "Não iniciado";
+  if (status === "PENDING") return "Pendente";
   if (status === "COMPLETED") return "Completo";
+  if (status === "IN_VALIDATION") return "Em validação";
   return status;
 }
 
-function statusColor(status: string): string {
+function statusColor(status: BusinessStatus): string {
   if (status === "COMPLETED") return "success.main";
-  if (status === "NOT_STARTED") return "warning.main";
+  if (status === "PENDING") return "warning.main";
   return "info.main";
 }
 
@@ -169,7 +174,7 @@ export function Home() {
           <StatCard
             icon={<CheckCircleOutlined fontSize="inherit" />}
             label="Concluídos"
-            value={data?.count_by_status["COMPLETED"]}
+            value={data ? (data.count_by_status.COMPLETED ?? 0) : undefined}
             color="success.main"
           />
         </Grid>
@@ -177,7 +182,7 @@ export function Home() {
           <StatCard
             icon={<AccessTimeOutlined fontSize="inherit" />}
             label="Pendentes"
-            value={data?.count_by_status["NOT_STARTED"]}
+            value={data ? (data.count_by_status.PENDING ?? 0) : undefined}
             color="warning.main"
           />
         </Grid>
@@ -185,7 +190,7 @@ export function Home() {
           <StatCard
             icon={<SyncOutlined fontSize="inherit" />}
             label="Em Validação"
-            value={data?.count_by_status["IN_VALIDATION"]}
+            value={data ? (data.count_by_status.IN_VALIDATION ?? 0) : undefined}
             color="info.main"
           />
         </Grid>

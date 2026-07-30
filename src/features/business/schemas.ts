@@ -110,21 +110,31 @@ export const step3Fields = Object.keys(step3Schema.shape) as (keyof z.infer<
   typeof step3Schema
 >)[];
 
-const posDeviceItem = z.object({
-  model: z.string().min(1, "Modelo é obrigatório"),
-  serialNumber: z.string().min(1, "Serial é obrigatório"),
-});
+const posDeviceItem = z
+  .object({
+    model: z.string(),
+    serialNumber: z.string(),
+  })
+  .superRefine((device, ctx) => {
+    if (device.serialNumber && !device.model) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Modelo é obrigatório quando o serial é informado",
+        path: ["model"],
+      });
+    }
+
+    if (device.model && !device.serialNumber) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Serial é obrigatório quando o modelo é informado",
+        path: ["serialNumber"],
+      });
+    }
+  });
 
 export const step4Schema = z.object({
-  posDevices: z
-    .array(z.object({ model: z.string(), serialNumber: z.string() }))
-    .transform((devices) => {
-      const filled = devices.filter(
-        (d) => d.model !== "" || d.serialNumber !== "",
-      );
-      return filled.length > 0 ? filled : devices.slice(0, 1);
-    })
-    .pipe(z.array(posDeviceItem).min(1, "Adicione pelo menos um dispositivo")),
+  posDevices: z.array(posDeviceItem),
 });
 
 export const step4Fields = Object.keys(step4Schema.shape) as (keyof z.infer<
@@ -133,9 +143,9 @@ export const step4Fields = Object.keys(step4Schema.shape) as (keyof z.infer<
 
 export const step5Schema = z.object({
   planMcc: z
-    .number({ message: "MCC é obrigatório" })
+    .number({ message: "Atividade Comercial é obrigatória" })
     .int()
-    .positive("MCC é obrigatório"),
+    .positive("Atividade Comercial é obrigatória"),
   planId: z
     .number({ message: "Plano é obrigatório" })
     .int()
