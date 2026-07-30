@@ -34,7 +34,7 @@ export function NewBusiness() {
   const methods = useForm<NewBusinessFormValues>({
     resolver,
     defaultValues: {
-      documentType: "CPF",
+      documentType: "CNPJ",
       document: "",
       name: "",
       nomeFantasia: "",
@@ -52,8 +52,9 @@ export function NewBusiness() {
   cnpjErrorRef.current = cnpjError ?? null;
 
   useEffect(() => {
+    if (documentType !== "CNPJ" || !cnpjError) return;
     void methods.trigger("document");
-  }, [cnpjError, methods]);
+  }, [cnpjError, documentType, methods]);
 
   function onSubmit(data: NewBusinessFormValues) {
     createBusiness(data, {

@@ -72,6 +72,23 @@ function statusColor(status: string): string {
   return "info.main";
 }
 
+function formatDocument(document: string): string {
+  const digits = document.replace(/\D/g, "");
+
+  if (digits.length === 11) {
+    return digits.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
+  }
+
+  if (digits.length === 14) {
+    return digits.replace(
+      /(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/,
+      "$1.$2.$3/$4-$5",
+    );
+  }
+
+  return document;
+}
+
 export function Home() {
   const navigate = useNavigate();
   const [document, setDocument] = useState("");
@@ -81,7 +98,7 @@ export function Home() {
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [activeFilters, setActiveFilters] = useState<{
     document?: string;
-    legal_name?: string;
+    name?: string;
     trade_name?: string;
   }>({});
 
@@ -94,8 +111,8 @@ export function Home() {
   function handleSearch() {
     setPage(0);
     setActiveFilters({
-      document: document || undefined,
-      legal_name: legalName || undefined,
+      document: document.replace(/\D/g, "") || undefined,
+      name: legalName || undefined,
       trade_name: tradeName || undefined,
     });
   }
@@ -290,24 +307,24 @@ export function Home() {
                     <TableRow key={biz.id} hover>
                       <TableCell>
                         <Typography variant="body2" sx={{ fontWeight: "bold" }}>
-                          {biz.document}
+                          {formatDocument(biz.document)}
                         </Typography>
                       </TableCell>
-                      <TableCell>{biz.legal_name}</TableCell>
+                      <TableCell>{biz.name}</TableCell>
                       <TableCell>{biz.trade_name}</TableCell>
                       <TableCell>
                         <Typography
                           variant="body2"
-                          color={statusColor(biz.own_status)}
+                          color={statusColor(biz.status)}
                           sx={{ fontWeight: 500 }}
                         >
-                          {statusLabel(biz.own_status)}
+                          {statusLabel(biz.status)}
                         </Typography>
                       </TableCell>
                       <TableCell>{biz.email}</TableCell>
-                      <TableCell>{biz.phone_number}</TableCell>
+                      <TableCell>{biz.phone}</TableCell>
                       <TableCell>
-                        {biz.own_status === "NOT_STARTED" && (
+                        {biz.status === "NOT_STARTED" && (
                           <Button
                             size="small"
                             variant="outlined"

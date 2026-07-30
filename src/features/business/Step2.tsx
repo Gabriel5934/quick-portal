@@ -29,7 +29,7 @@ export function Step2() {
           <Autocomplete
             options={bankOptions}
             getOptionLabel={(option) => `${option.code} - ${option.name}`}
-            getOptionKey={(option) => option.ispb}
+            getOptionKey={(option) => option.code}
             isOptionEqualToValue={(option, val) => option.code === val.code}
             value={bankOptions.find((o) => String(o.code) === value) ?? null}
             onChange={(_, selected) =>

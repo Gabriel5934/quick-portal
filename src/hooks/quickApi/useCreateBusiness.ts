@@ -22,12 +22,15 @@ async function fetchCreateBusiness(
       body: JSON.stringify({
         document_type: payload.documentType,
         document: payload.document.replace(/\D/g, ""),
-        legal_name: payload.name,
-        trade_name: payload.nomeFantasia,
-        cod_mcc: payload.codCnae,
         email: payload.email,
-        phone_number: payload.celular.replace(/\D/g, ""),
-        landline_number: payload.telefone.replace(/\D/g, ""),
+        phone: payload.celular.replace(/\D/g, ""),
+        landline: payload.telefone.replace(/\D/g, ""),
+        ...(payload.documentType === "CPF"
+          ? {
+              name: payload.name,
+              cod_cnae: payload.codCnae,
+            }
+          : {}),
       }),
     },
   );

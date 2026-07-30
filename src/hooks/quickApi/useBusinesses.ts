@@ -6,17 +6,13 @@ export interface Business {
   id: number;
   document_type: string;
   document: string;
-  legal_name: string;
+  name: string;
   trade_name: string;
-  mcc: {
-    id: number;
-    cod_cnae: string;
-    desc_cnae: string;
-    cod_mcc: number;
-  };
+  cod_cnae: string;
   email: string;
-  phone_number: string;
-  own_status: string;
+  phone: string;
+  landline: string;
+  status: string;
 }
 
 export interface BusinessesResponse {
@@ -29,7 +25,7 @@ export interface BusinessesResponse {
 
 interface BusinessQuery {
   document?: string;
-  legal_name?: string;
+  name?: string;
   trade_name?: string;
   page?: number;
   page_size?: number;
@@ -40,8 +36,11 @@ async function fetchBusinesses(
   token: string,
 ): Promise<BusinessesResponse> {
   const params = new URLSearchParams();
-  if (query.document) params.set("document", query.document);
-  if (query.legal_name) params.set("legal_name", query.legal_name);
+  if (query.document) {
+    const document = query.document.replace(/\D/g, "");
+    if (document) params.set("document", document);
+  }
+  if (query.name) params.set("name", query.name);
   if (query.trade_name) params.set("trade_name", query.trade_name);
   if (query.page && query.page > 1) params.set("page", String(query.page));
   if (query.page_size) params.set("page_size", String(query.page_size));

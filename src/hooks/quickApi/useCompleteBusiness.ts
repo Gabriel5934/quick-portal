@@ -11,41 +11,7 @@ function parseBrl(value: string): number {
   return Number.isNaN(n) ? 0 : n;
 }
 
-async function fetchCompleteBusiness({ id, ...data }: Payload, token: string): Promise<void> {
-  const res = await fetch(
-    `${import.meta.env.VITE_API_BASE_URL}/api/businesses/${id}/complete/`,
-    {
-      method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        bank_code: data.bankCode,
-        branch: data.branch,
-        branch_digit: data.branchDigit,
-        account: data.account,
-        account_digit: data.accountDigit,
-        postal_code: data.postalCode.replace(/\D/g, ""),
-        state: data.state,
-        city: data.city,
-        neighborhood: data.neighborhood,
-        street: data.street,
-        number: data.number,
-        complement: data.complement ?? "",
-        pos_devices: data.posDevices.map((d) => ({
-          model: d.model,
-          serial_number: d.serialNumber,
-        })),
-        mcc_id: data.planMcc,
-        plan_id: data.planId,
-        expected_revenue: parseBrl(data.expectedRevenue),
-        commited_revenue: parseBrl(data.commitedRevenue),
-        quantity_pos: data.quantityPos,
-      }),
-    },
-  );
-
+async function throwResponseError(res: Response): Promise<never> {
   if (!res.ok) {
     const body = (await res
       .json()
@@ -57,6 +23,56 @@ async function fetchCompleteBusiness({ id, ...data }: Payload, token: string): P
         : "Erro ao completar cadastro.",
     );
   }
+
+  throw new Error("Resposta inesperada do servidor.");
+}
+
+async function fetchCompleteBusiness({ id, ...data }: Payload, token: string): Promise<void> {
+  const headers = {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${token}`,
+  };
+  const detailsResponse = await fetch(
+    `${import.meta.env.VITE_API_BASE_URL}/api/business-details/`,
+    {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        business: id,
+        bank_code: data.bankCode,
+        branch: data.branch,
+        branch_digit: data.branchDigit,
+        account_number: data.account,
+        account_digit: data.accountDigit,
+        cep: data.postalCode.replace(/\D/g, ""),
+        address_number: data.number,
+        address_line2: data.complement ?? "",
+        projected_revenue: parseBrl(data.expectedRevenue),
+        commited_revenue: parseBrl(data.commitedRevenue),
+        amount_of_terminals: data.quantityPos,
+        plan: data.planId,
+      }),
+    },
+  );
+
+  if (!detailsResponse.ok) await throwResponseError(detailsResponse);
+
+  const deviceResponses = await Promise.all(
+    data.posDevices.map((device) =>
+      fetch(`${import.meta.env.VITE_API_BASE_URL}/api/pos-devices/`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          business: id,
+          model: Number(device.model),
+          serial: device.serialNumber,
+        }),
+      }),
+    ),
+  );
+
+  const failedDeviceResponse = deviceResponses.find((res) => !res.ok);
+  if (failedDeviceResponse) await throwResponseError(failedDeviceResponse);
 }
 
 export function useCompleteBusiness() {
