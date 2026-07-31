@@ -25,7 +25,8 @@ reports/
 # Environment and config files (sensitive)
 # =========================================
 *.env*
-!.env.production  # Allow production env file if needed
+# Production values are passed as build arguments; no env file is copied into
+# the image.
 *.log
  
 # =========================================
