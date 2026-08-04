@@ -28,7 +28,7 @@ async function fetchCreateBusiness(
         ...(payload.documentType === "CPF"
           ? {
               name: payload.name,
-              cod_cnae: payload.codCnae,
+              cnae: payload.cnaeId,
             }
           : {}),
       }),

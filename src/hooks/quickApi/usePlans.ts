@@ -1,12 +1,9 @@
 import { useAuthQuery, ApiError } from "../auth/useAuthQuery";
 import { useToken } from "#hooks/auth/useToken";
 
-export type PlanNetwork = "mastercard" | "visa" | "elo" | "pix";
-
 export interface PlanFee {
-  network: PlanNetwork;
-  payment_type: string;
-  commission: string;
+  fee: number;
+  value: string;
 }
 
 export interface Plan {
@@ -16,7 +13,9 @@ export interface Plan {
   split: boolean;
   anticipation: boolean;
   anticipation_fee: string | null;
-  mcc: { id: number; mcc: string };
+  acquirer: number;
+  cnae: number;
+  mcc?: { id: number; mcc: string };
   fees: PlanFee[];
   created_at: string;
 }

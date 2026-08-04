@@ -11,24 +11,24 @@ export const INSTALLMENT_TYPES = Array.from(
   (_, i) => `${i + 2}x`,
 );
 
-export function installmentLevel(
-  paymentType: string,
-): "installmentsA" | "installmentsB" | "installmentsC" | "installmentsD" {
-  const n = parseInt(paymentType, 10);
-  if (n <= 6) return "installmentsA";
-  if (n <= 11) return "installmentsB";
-  if (n <= 16) return "installmentsC";
-  return "installmentsD";
-}
-
 const feeRowSchema = z.object({
   commission: z.string().min(1, "Obrigatório"),
 });
 
+const installmentRowSchema = feeRowSchema
+  .extend({
+    from: z.number().int().min(2).max(21),
+    to: z.number().int().min(2).max(21),
+  })
+  .refine((range) => range.from <= range.to, {
+    message: "A parcela inicial deve ser menor ou igual à final",
+    path: ["to"],
+  });
+
 const cardNetworkFeesSchema = z.object({
   debit: feeRowSchema,
   credit: feeRowSchema,
-  ...Object.fromEntries(INSTALLMENT_TYPES.map((t) => [t, feeRowSchema])),
+  installments: z.array(installmentRowSchema).min(1),
 });
 
 const pixNetworkFeesSchema = z.object({
@@ -48,10 +48,11 @@ export const basicInfoSchema = z.object({
   split: z.boolean(),
   anticipation: z.boolean(),
   anticipation_fee: z.string(),
-  mccId: z
-    .number({ message: "Atividade Comercial é obrigatória" })
+  acquirerId: z
+    .number({ message: "Adquirente é obrigatório" })
     .int()
-    .positive("Atividade Comercial é obrigatória"),
+    .positive("Adquirente é obrigatório"),
+  cnae: z.string().min(1, "CNAE é obrigatório"),
 });
 
 export type BasicInfoValues = z.infer<typeof basicInfoSchema>;
@@ -62,6 +63,7 @@ export const newPlanSchema = basicInfoSchema.extend({
 
 export type NewPlanFormValues = z.infer<typeof newPlanSchema>;
 export type FeeRowValues = z.infer<typeof feeRowSchema>;
+export type InstallmentRowValues = z.infer<typeof installmentRowSchema>;
 
 export function makeBlankRow(): FeeRowValues {
   return { commission: "" };
@@ -71,7 +73,11 @@ export function makeBlankFees(): NewPlanFormValues["fees"] {
   const cardRows = () => ({
     debit: makeBlankRow(),
     credit: makeBlankRow(),
-    ...Object.fromEntries(INSTALLMENT_TYPES.map((t) => [t, makeBlankRow()])),
+    installments: INSTALLMENT_TYPES.map((_, index) => ({
+      from: index + 2,
+      to: index + 2,
+      commission: "",
+    })),
   });
   return {
     mastercard: cardRows() as NewPlanFormValues["fees"]["mastercard"],

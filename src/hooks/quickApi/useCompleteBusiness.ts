@@ -39,6 +39,7 @@ async function fetchCompleteBusiness({ id, ...data }: Payload, token: string): P
       headers,
       body: JSON.stringify({
         business: id,
+        acquirer: data.acquirerId,
         bank_code: data.bankCode,
         branch: data.branch,
         branch_digit: data.branchDigit,

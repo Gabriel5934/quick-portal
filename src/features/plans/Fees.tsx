@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
   Alert,
   Autocomplete,
@@ -21,26 +21,23 @@ import {
   Typography,
 } from "@mui/material";
 import PercentIcon from "@mui/icons-material/Percent";
-import { Controller, useFormContext } from "react-hook-form";
+import { Controller, useFieldArray, useFormContext } from "react-hook-form";
 import type { FieldPath } from "react-hook-form";
-import { useMccFee } from "#hooks/quickApi/useMccFee";
-import { useMccs } from "#hooks/quickApi/useMccs";
-import eloLogo from "../../assets/elo.svg";
-import mastercardLogo from "../../assets/mastercard.svg";
-import pixLogo from "../../assets/pix.svg";
-import visaLogo from "../../assets/visa.svg";
+import { useAcquirers } from "#hooks/quickApi/useAcquirers";
+import { useCnaes } from "#hooks/quickApi/useCnaes";
+import { useFees } from "#hooks/quickApi/useFees";
 import { FormPaper } from "../business/FormPaper";
-import { INSTALLMENT_TYPES, NETWORKS, installmentLevel } from "./schemas";
+import { NETWORKS } from "./schemas";
 import type { CardNetwork, Network, NewPlanFormValues } from "./schemas";
 
-const FILL_MODES = ["manual", "range", "single", "multiplier"] as const;
+const FILL_MODES = ["manual", "six"] as const;
 type FillMode = (typeof FILL_MODES)[number];
 
-const NETWORK_LOGO: Record<Network, string> = {
-  mastercard: mastercardLogo,
-  visa: visaLogo,
-  elo: eloLogo,
-  pix: pixLogo,
+const NETWORK_COLOR: Record<Network, string> = {
+  mastercard: "#f79e1a",
+  visa: "#1b34cb",
+  elo: "#0c3a34",
+  pix: "#39b4aa",
 };
 
 const NETWORK_NAME: Record<Network, string> = {
@@ -51,10 +48,8 @@ const NETWORK_NAME: Record<Network, string> = {
 };
 
 const FILL_MODE_LABEL: Record<FillMode, string> = {
-  manual: "Manual",
-  range: "Por intervalo",
-  single: "Único",
-  multiplier: "Multiplicador",
+  manual: "Por parcela",
+  six: "De 6 em 6",
 };
 
 function baseFeeAsPercent(value: string | null): number {
@@ -94,42 +89,81 @@ export function Fees() {
   const {
     control,
     register,
-    watch,
+    unregister,
     setValue,
+    watch,
     formState: { errors },
   } = useFormContext<NewPlanFormValues>();
-  const mccId = watch("mccId");
+  const acquirerId = watch("acquirerId");
+  const cnae = watch("cnae");
   const anticipation = watch("anticipation");
   const anticipationFee = watch("anticipation_fee");
   const fees = watch("fees");
 
   const [network, setNetwork] = useState<Network>("mastercard");
   const [fillMode, setFillMode] = useState<FillMode>("manual");
+  const mastercardInstallments = useFieldArray({
+    control,
+    name: "fees.mastercard.installments",
+  });
+  const visaInstallments = useFieldArray({
+    control,
+    name: "fees.visa.installments",
+  });
+  const eloInstallments = useFieldArray({
+    control,
+    name: "fees.elo.installments",
+  });
+  const installmentFields =
+    network === "mastercard"
+      ? mastercardInstallments.fields
+      : network === "visa"
+        ? visaInstallments.fields
+        : eloInstallments.fields;
 
-  const { data: mccOptions = [] } = useMccs();
-  const { data: mccFee, isLoading } = useMccFee(mccId);
+  const { data: acquirerOptions = [], isLoading: areAcquirersLoading } =
+    useAcquirers();
+  const { data: cnaeOptions = [], isLoading: areCnaesLoading } =
+    useCnaes(acquirerId);
+  const { data: feeCatalog, isLoading } = useFees(acquirerId, cnae);
+  const hasFees = feeCatalog
+    ? NETWORKS.some((network) => Object.keys(feeCatalog[network]).length > 0)
+    : false;
+  const anticipationFloor = feeCatalog?.acquirer[-2]?.value ?? null;
+  const anticipationFloorPercent = baseFeeAsPercent(anticipationFloor);
+  const anticipationSurchargePercent = parseNumber(anticipationFee);
+  const anticipationTotalPercent =
+    (Number.isNaN(anticipationFloorPercent) ? 0 : anticipationFloorPercent) +
+    (Number.isNaN(anticipationSurchargePercent)
+      ? 0
+      : anticipationSurchargePercent);
+  const anticipationTotal = anticipationTotalPercent.toString();
 
-  const mccField = (
+  const acquirerField = (
     <Controller
-      name="mccId"
+      name="acquirerId"
       control={control}
       render={({ field: { onChange, value, ref } }) => (
         <Autocomplete
-          options={mccOptions}
-          getOptionLabel={(option) => option.mcc}
-          isOptionEqualToValue={(option, val) => option.id === val.id}
-          value={mccOptions.find((o) => o.id === value) ?? null}
+          options={acquirerOptions}
+          loading={areAcquirersLoading}
+          getOptionLabel={(option) => option.name}
+          isOptionEqualToValue={(option, selected) => option.id === selected.id}
+          value={acquirerOptions.find((option) => option.id === value) ?? null}
           getOptionKey={(option) => option.id}
-          onChange={(_, selected) => onChange(selected?.id ?? null)}
+          onChange={(_, selected) => {
+            onChange(selected?.id);
+            setValue("cnae", "");
+          }}
           sx={{ flexBasis: "100%" }}
           renderInput={(params) => (
             <TextField
               {...params}
               inputRef={ref}
-              label="Atividade Comercial"
+              label="Adquirente"
               required
-              error={Boolean(errors.mccId)}
-              helperText={errors.mccId?.message}
+              error={Boolean(errors.acquirerId)}
+              helperText={errors.acquirerId?.message}
             />
           )}
         />
@@ -137,30 +171,63 @@ export function Fees() {
     />
   );
 
-  if (!mccId) {
+  const cnaeField = (
+    <Controller
+      name="cnae"
+      control={control}
+      render={({ field: { onChange, value, ref } }) => (
+        <Autocomplete
+          options={cnaeOptions}
+          loading={areCnaesLoading}
+          getOptionLabel={(option) => `${option.code} - ${option.description}`}
+          isOptionEqualToValue={(option, val) => option.code === val.code}
+          value={cnaeOptions.find((option) => option.code === value) ?? null}
+          getOptionKey={(option) => option.code}
+          onChange={(_, selected) => onChange(selected?.code ?? "")}
+          sx={{ flexBasis: "100%" }}
+          renderInput={(params) => (
+            <TextField
+              {...params}
+              inputRef={ref}
+              label="CNAE"
+              required
+              error={Boolean(errors.cnae)}
+              helperText={errors.cnae?.message}
+            />
+          )}
+        />
+      )}
+    />
+  );
+
+  if (!acquirerId || !cnae) {
     return (
       <FormPaper
         title="Taxas"
         subtitle="Configure as taxas por rede"
         Icon={PercentIcon}
       >
-        {mccField}
+        {acquirerField}
+        {cnaeField}
         <Alert severity="info" sx={{ flexBasis: "100%" }}>
-          Selecione uma Atividade Comercial para configurar as taxas.
+          Selecione um adquirente e um CNAE para configurar as taxas.
         </Alert>
       </FormPaper>
     );
   }
 
-  if (isLoading || !mccFee) {
+  if (isLoading || !feeCatalog || !hasFees) {
     return (
       <FormPaper
         title="Taxas"
         subtitle="Configure as taxas por rede"
         Icon={PercentIcon}
       >
-        {mccField}
-        <Typography sx={{ flexBasis: "100%" }}>Carregando taxas...</Typography>
+        {acquirerField}
+        {cnaeField}
+        <Typography sx={{ flexBasis: "100%" }}>
+          {isLoading ? "Carregando taxas..." : "Não há taxas para esta seleção."}
+        </Typography>
       </FormPaper>
     );
   }
@@ -171,7 +238,8 @@ export function Fees() {
       subtitle="Configure comissão e antecipação por rede"
       Icon={PercentIcon}
     >
-      {mccField}
+      {acquirerField}
+      {cnaeField}
 
       <Controller
         name="anticipation"
@@ -194,11 +262,14 @@ export function Fees() {
       {anticipation && (
         <TextField
           {...register("anticipation_fee")}
-          label="Taxa de antecipação"
+          label="Acréscimo da antecipação"
           type="number"
           required
           error={Boolean(errors.anticipation_fee)}
-          helperText={errors.anticipation_fee?.message}
+          helperText={
+            errors.anticipation_fee?.message ??
+            `Piso: ${formatBaseFee(anticipationFloor)} · Total: ${formatPercent(anticipationTotalPercent)}`
+          }
           slotProps={{
             htmlInput: { step: "0.01", min: "0" },
             input: {
@@ -214,9 +285,36 @@ export function Fees() {
         sx={{ flexBasis: "100%" }}
       >
         {anticipation
-          ? "Com antecipação ativa, os pagamentos são processados em 1 dia útil."
+          ? `Taxa total de antecipação: ${formatBaseFee(anticipationFloor)} de piso + ${formatPercent(Number.isNaN(anticipationSurchargePercent) ? 0 : anticipationSurchargePercent)} de acréscimo = ${formatPercent(anticipationTotalPercent)}.`
           : "Sem antecipação, os pagamentos são processados em 30 dias."}
       </Alert>
+
+      <TextField
+        select
+        size="small"
+        label="Modo de preenchimento das parcelas"
+        value={fillMode}
+        onChange={(event) => {
+          const mode = event.target.value as FillMode;
+          const rows = makeInstallmentRows(mode);
+          unregister([
+            "fees.mastercard.installments",
+            "fees.visa.installments",
+            "fees.elo.installments",
+          ]);
+          mastercardInstallments.replace(rows);
+          visaInstallments.replace(rows);
+          eloInstallments.replace(rows);
+          setFillMode(mode);
+        }}
+        sx={{ flexBasis: "100%", maxWidth: 320 }}
+      >
+        {FILL_MODES.map((mode) => (
+          <MenuItem key={mode} value={mode}>
+            {FILL_MODE_LABEL[mode]}
+          </MenuItem>
+        ))}
+      </TextField>
 
       <Box sx={{ flexBasis: "100%" }}>
         <Tabs
@@ -230,12 +328,19 @@ export function Fees() {
               key={n}
               value={n}
               label={
-                <Box
-                  component="img"
-                  src={NETWORK_LOGO[n]}
-                  alt={NETWORK_NAME[n]}
-                  sx={{ height: 28, width: "auto", display: "block" }}
-                />
+                <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
+                  <Box
+                    aria-hidden="true"
+                    sx={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: "50%",
+                      bgcolor: NETWORK_COLOR[n],
+                      flexShrink: 0,
+                    }}
+                  />
+                  <Box component="span">{NETWORK_NAME[n]}</Box>
+                </Stack>
               }
             />
           ))}
@@ -244,9 +349,9 @@ export function Fees() {
 
       <UpfrontTable
         network={network}
-        mccFee={mccFee}
+        feeCatalog={feeCatalog}
         anticipation={anticipation}
-        anticipationFee={anticipationFee}
+        anticipationFee={anticipationTotal}
         control={control}
         feesState={fees}
       />
@@ -254,13 +359,11 @@ export function Fees() {
       {network !== "pix" && (
         <InstallmentsTable
           network={network as CardNetwork}
-          mccFee={mccFee}
+          feeCatalog={feeCatalog}
           anticipation={anticipation}
-          anticipationFee={anticipationFee}
+          anticipationFee={anticipationTotal}
           control={control}
-          setValue={setValue}
-          fillMode={fillMode}
-          onFillModeChange={setFillMode}
+          fields={installmentFields}
           feesState={fees}
         />
       )}
@@ -269,16 +372,11 @@ export function Fees() {
 }
 
 type FormControl = ReturnType<typeof useFormContext<NewPlanFormValues>>["control"];
-type FormSetValue = ReturnType<typeof useFormContext<NewPlanFormValues>>["setValue"];
-type MccFee = NonNullable<ReturnType<typeof useMccFee>["data"]>;
-type NetworkFeesRecord = Record<
-  string,
-  { commission: string } | undefined
->;
+type FeeCatalog = NonNullable<ReturnType<typeof useFees>["data"]>;
 
 type UpfrontTableProps = {
   network: Network;
-  mccFee: MccFee;
+  feeCatalog: FeeCatalog;
   anticipation: boolean;
   anticipationFee: string;
   control: FormControl;
@@ -287,25 +385,29 @@ type UpfrontTableProps = {
 
 function UpfrontTable({
   network,
-  mccFee,
+  feeCatalog,
   anticipation,
   anticipationFee,
   control,
   feesState,
 }: UpfrontTableProps) {
-  const rows: { label: string; paymentType: string; baseFee: string | null }[] =
+  const rows: {
+    label: string;
+    paymentType: "debit" | "credit" | "pix";
+    baseFee: string | null;
+  }[] =
     network === "pix"
-      ? [{ label: "Pix", paymentType: "pix", baseFee: mccFee.fee.pix.pix }]
+      ? [{ label: "Pix", paymentType: "pix", baseFee: feeCatalog.pix[-1]?.value ?? null }]
       : [
           {
             label: "Débito",
             paymentType: "debit",
-            baseFee: mccFee.fee[network as CardNetwork].debit,
+            baseFee: feeCatalog[network][0]?.value ?? null,
           },
           {
             label: "Crédito 1x",
             paymentType: "credit",
-            baseFee: mccFee.fee[network as CardNetwork].credit,
+            baseFee: feeCatalog[network][1]?.value ?? null,
           },
         ];
 
@@ -327,9 +429,10 @@ function UpfrontTable({
           </TableHead>
           <TableBody>
             {rows.map((row) => {
-              const rowState = (feesState[network] as NetworkFeesRecord)[
-                row.paymentType
-              ];
+              const rowState =
+                network === "pix"
+                  ? feesState.pix.pix
+                  : feesState[network][row.paymentType as "debit" | "credit"];
               const total = computeTotal(
                 row.baseFee,
                 rowState?.commission ?? "",
@@ -363,171 +466,46 @@ function UpfrontTable({
 
 type InstallmentsTableProps = {
   network: CardNetwork;
-  mccFee: MccFee;
+  feeCatalog: FeeCatalog;
   anticipation: boolean;
   anticipationFee: string;
   control: FormControl;
-  setValue: FormSetValue;
-  fillMode: FillMode;
-  onFillModeChange: (mode: FillMode) => void;
+  fields: Array<{
+    id: string;
+    from: number;
+    to: number;
+    commission: string;
+  }>;
   feesState: NewPlanFormValues["fees"];
 };
 
-type RowDef = {
-  kind: "manual" | "single" | "range" | "multiplier-leader" | "multiplier-derived";
-  from: number;
-  to: number;
-};
+function makeInstallmentRows(fillMode: FillMode) {
+  const groupSize = fillMode === "manual" ? 1 : 6;
+  const rows = [];
+  for (let from = 2; from <= 21; from += groupSize) {
+    rows.push({
+      from,
+      to: Math.min(from + groupSize - 1, 21),
+      commission: "",
+    });
+  }
+  return rows;
+}
 
 function InstallmentsTable({
   network,
-  mccFee,
+  feeCatalog,
   anticipation,
   anticipationFee,
   control,
-  setValue,
-  fillMode,
-  onFillModeChange,
+  fields,
   feesState,
 }: InstallmentsTableProps) {
-  const [rangeSize, setRangeSize] = useState(5);
-  const [multiplier, setMultiplier] = useState("");
-  const [singleValues, setSingleValues] = useState({ commission: "" });
-  const [rangeValues, setRangeValues] = useState<
-    Record<number, { commission: string }>
-  >({});
-
-  useEffect(() => {
-    INSTALLMENT_TYPES.forEach((t) => {
-      setValue(
-        `fees.${network}.${t}.commission` as FieldPath<NewPlanFormValues>,
-        "" as never,
-      );
-    });
-    setSingleValues({ commission: "" });
-    setRangeValues({});
-    setMultiplier("");
-    setRangeSize(5);
-    // Only react to fillMode changes — switching networks must not wipe
-    // the form values the user just entered for the previous network.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fillMode]);
-
-  useEffect(() => {
-    setSingleValues({ commission: "" });
-    setRangeValues({});
-    setMultiplier("");
-  }, [network]);
-
-  const tx2 = (feesState[network] as NetworkFeesRecord)["2x"];
-  const tx2Commission = tx2?.commission ?? "";
-
-  useEffect(() => {
-    if (fillMode !== "multiplier") return;
-    const m = parseNumber(multiplier);
-    const mv = Number.isNaN(m) ? 0 : m;
-    const b = parseNumber(tx2Commission);
-    const bv = Number.isNaN(b) ? 0 : b;
-    INSTALLMENT_TYPES.forEach((t, idx) => {
-      if (idx === 0) return;
-      const value = tx2Commission === "" ? "" : (bv + idx * mv).toFixed(2);
-      setValue(
-        `fees.${network}.${t}.commission` as FieldPath<NewPlanFormValues>,
-        value as never,
-      );
-    });
-  }, [fillMode, multiplier, tx2Commission, network, setValue]);
-
-  let rowDefs: RowDef[] = [];
-  if (fillMode === "manual") {
-    rowDefs = INSTALLMENT_TYPES.map((_, i) => ({
-      kind: "manual",
-      from: i,
-      to: i,
-    }));
-  } else if (fillMode === "single") {
-    rowDefs = [{ kind: "single", from: 0, to: INSTALLMENT_TYPES.length - 1 }];
-  } else if (fillMode === "range") {
-    for (let i = 0; i < INSTALLMENT_TYPES.length; i += rangeSize) {
-      const to = Math.min(i + rangeSize - 1, INSTALLMENT_TYPES.length - 1);
-      rowDefs.push({ kind: "range", from: i, to });
-    }
-  } else {
-    rowDefs = INSTALLMENT_TYPES.map((_, i) => ({
-      kind: i === 0 ? "multiplier-leader" : "multiplier-derived",
-      from: i,
-      to: i,
-    }));
-  }
-
   return (
     <Box sx={{ flexBasis: "100%" }}>
-      <Stack
-        direction={{ xs: "column", sm: "row" }}
-        spacing={2}
-        sx={{
-          mb: 1,
-          alignItems: { sm: "center" },
-          justifyContent: "space-between",
-        }}
-      >
-        <Typography variant="subtitle2">Parcelado (2x a 21x)</Typography>
-        <Stack
-          direction={{ xs: "column", sm: "row" }}
-          spacing={2}
-          sx={{ alignItems: { sm: "flex-start" } }}
-        >
-          {fillMode === "range" && (
-            <TextField
-              size="small"
-              label="Tamanho do intervalo"
-              type="number"
-              value={rangeSize}
-              onChange={(e) => {
-                const v = parseInt(e.target.value, 10);
-                if (v >= 1 && v <= INSTALLMENT_TYPES.length) setRangeSize(v);
-              }}
-              slotProps={{
-                htmlInput: { min: 1, max: INSTALLMENT_TYPES.length },
-              }}
-              sx={{ width: 180 }}
-            />
-          )}
-          {fillMode === "multiplier" && (
-            <TextField
-              size="small"
-              label="Multiplicador"
-              type="number"
-              value={multiplier}
-              onChange={(e) => setMultiplier(e.target.value)}
-              slotProps={{
-                htmlInput: { step: "0.01" },
-                input: {
-                  endAdornment: (
-                    <InputAdornment position="end">%</InputAdornment>
-                  ),
-                },
-              }}
-              helperText="nx = 2x + (n − 2) · mult"
-              sx={{ width: 200 }}
-            />
-          )}
-          <TextField
-            select
-            size="small"
-            label="Modo de preenchimento"
-            value={fillMode}
-            onChange={(e) => onFillModeChange(e.target.value as FillMode)}
-            sx={{ minWidth: 220 }}
-          >
-            {FILL_MODES.map((m) => (
-              <MenuItem key={m} value={m}>
-                {FILL_MODE_LABEL[m]}
-              </MenuItem>
-            ))}
-          </TextField>
-        </Stack>
-      </Stack>
+      <Typography variant="subtitle2" sx={{ mb: 1 }}>
+        Parcelado (2x a 21x)
+      </Typography>
 
       <TableContainer component={Paper} variant="outlined" sx={{ mt: 1 }}>
         <Table size="small">
@@ -541,150 +519,51 @@ function InstallmentsTable({
             </TableRow>
           </TableHead>
           <TableBody>
-            {rowDefs.map((row) => (
-              <InstallmentRow
-                key={`${row.kind}-${row.from}`}
-                row={row}
-                network={network}
-                mccFee={mccFee}
-                anticipation={anticipation}
-                anticipationFee={anticipationFee}
-                control={control}
-                setValue={setValue}
-                feesState={feesState}
-                singleValues={singleValues}
-                setSingleValues={setSingleValues}
-                rangeValues={rangeValues}
-                setRangeValues={setRangeValues}
-              />
-            ))}
+            {fields.map((field, index) => {
+              const row = feesState[network].installments[index] ?? field;
+              const baseFees: (string | null)[] = [];
+              const totals: number[] = [];
+              for (let installments = row.from; installments <= row.to; installments++) {
+                const baseFee = feeCatalog[network][installments]?.value ?? null;
+                baseFees.push(baseFee);
+                totals.push(
+                  computeTotal(
+                    baseFee,
+                    row.commission,
+                    anticipation ? anticipationFee : "",
+                  ),
+                );
+              }
+              const label =
+                row.from === row.to
+                  ? `${row.from}x`
+                  : `${row.from}x – ${row.to}x`;
+
+              return (
+                <TableRow key={field.id}>
+                  <TableCell>{label}</TableCell>
+                  <TableCell>
+                    {formatRange(baseFees.map(baseFeeAsPercent))}
+                  </TableCell>
+                  <TableCell>
+                    <FeeInput
+                      control={control}
+                      name={`fees.${network}.installments.${index}.commission` as FieldPath<NewPlanFormValues>}
+                    />
+                  </TableCell>
+                  {anticipation && (
+                    <TableCell>
+                      {formatPercent(parseNumber(anticipationFee))}
+                    </TableCell>
+                  )}
+                  <TableCell>{formatRange(totals)}</TableCell>
+                </TableRow>
+              );
+            })}
           </TableBody>
         </Table>
       </TableContainer>
     </Box>
-  );
-}
-
-type InstallmentRowProps = {
-  row: RowDef;
-  network: CardNetwork;
-  mccFee: MccFee;
-  anticipation: boolean;
-  anticipationFee: string;
-  control: FormControl;
-  setValue: FormSetValue;
-  feesState: NewPlanFormValues["fees"];
-  singleValues: { commission: string };
-  setSingleValues: (v: { commission: string }) => void;
-  rangeValues: Record<number, { commission: string }>;
-  setRangeValues: (v: Record<number, { commission: string }>) => void;
-};
-
-function InstallmentRow({
-  row,
-  network,
-  mccFee,
-  anticipation,
-  anticipationFee,
-  control,
-  setValue,
-  feesState,
-  singleValues,
-  setSingleValues,
-  rangeValues,
-  setRangeValues,
-}: InstallmentRowProps) {
-  const label =
-    row.from === row.to
-      ? INSTALLMENT_TYPES[row.from]
-      : `${INSTALLMENT_TYPES[row.from]} – ${INSTALLMENT_TYPES[row.to]}`;
-
-  const baseFees: (string | null)[] = [];
-  for (let i = row.from; i <= row.to; i++) {
-    baseFees.push(mccFee.fee[network][installmentLevel(INSTALLMENT_TYPES[i])]);
-  }
-  const baseFeeLabel = formatRange(baseFees.map(baseFeeAsPercent));
-
-  const networkFees = feesState[network] as NetworkFeesRecord;
-
-  const renderCommission = () => {
-    if (row.kind === "manual" || row.kind === "multiplier-leader") {
-      return (
-        <FeeInput
-          control={control}
-          name={`fees.${network}.${INSTALLMENT_TYPES[row.from]}.commission` as FieldPath<NewPlanFormValues>}
-        />
-      );
-    }
-    if (row.kind === "multiplier-derived") {
-      return (
-        <FeeInput
-          control={control}
-          name={`fees.${network}.${INSTALLMENT_TYPES[row.from]}.commission` as FieldPath<NewPlanFormValues>}
-          disabled
-        />
-      );
-    }
-    if (row.kind === "single") {
-      return (
-        <AggregateInput
-          value={singleValues.commission}
-          onChange={(v) => {
-            setSingleValues({ commission: v });
-            INSTALLMENT_TYPES.forEach((t) =>
-              setValue(
-                `fees.${network}.${t}.commission` as FieldPath<NewPlanFormValues>,
-                v as never,
-              ),
-            );
-          }}
-        />
-      );
-    }
-    const current = rangeValues[row.from] ?? { commission: "" };
-    return (
-      <AggregateInput
-        value={current.commission}
-        onChange={(v) => {
-          setRangeValues({
-            ...rangeValues,
-            [row.from]: { commission: v },
-          });
-          for (let i = row.from; i <= row.to; i++) {
-            setValue(
-              `fees.${network}.${INSTALLMENT_TYPES[i]}.commission` as FieldPath<NewPlanFormValues>,
-              v as never,
-            );
-          }
-        }}
-      />
-    );
-  };
-
-  const totals: number[] = [];
-  for (let i = row.from; i <= row.to; i++) {
-    const t = INSTALLMENT_TYPES[i];
-    const rowState = networkFees[t];
-    totals.push(
-      computeTotal(
-        mccFee.fee[network][installmentLevel(t)],
-        rowState?.commission ?? "",
-        anticipation ? anticipationFee : "",
-      ),
-    );
-  }
-  const totalLabel = formatRange(totals);
-
-  return (
-    <TableRow>
-      <TableCell>{label}</TableCell>
-      <TableCell>{baseFeeLabel}</TableCell>
-      <TableCell>{renderCommission()}</TableCell>
-      {anticipation && (
-        <TableCell>{formatPercent(parseNumber(anticipationFee))}</TableCell>
-      )}
-      <TableCell>{totalLabel}</TableCell>
-    </TableRow>
   );
 }
 
@@ -719,29 +598,6 @@ function FeeInput({ control, name, disabled }: FeeInputProps) {
           sx={{ width: 130 }}
         />
       )}
-    />
-  );
-}
-
-type AggregateInputProps = {
-  value: string;
-  onChange: (v: string) => void;
-};
-
-function AggregateInput({ value, onChange }: AggregateInputProps) {
-  return (
-    <TextField
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      size="small"
-      type="number"
-      slotProps={{
-        htmlInput: { step: "0.01", min: "0" },
-        input: {
-          endAdornment: <InputAdornment position="end">%</InputAdornment>,
-        },
-      }}
-      sx={{ width: 130 }}
     />
   );
 }

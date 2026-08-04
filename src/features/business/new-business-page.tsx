@@ -38,7 +38,7 @@ export function NewBusiness() {
       document: "",
       name: "",
       nomeFantasia: "",
-      codCnae: "",
+      cnaeId: undefined,
       email: "",
       celular: "",
       telefone: "",

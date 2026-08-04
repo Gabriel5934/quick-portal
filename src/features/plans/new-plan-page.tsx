@@ -7,15 +7,11 @@ import type { FieldErrors } from "react-hook-form";
 import { FormProvider, useForm } from "react-hook-form";
 import { useCreatePlan } from "#hooks/quickApi/useCreatePlan";
 import type { CreatePlanPayload } from "#hooks/quickApi/useCreatePlan";
+import { useFees } from "#hooks/quickApi/useFees";
 import { FormPage } from "../../layout/form-page";
 import { BasicInfo } from "./BasicInfo";
 import { Fees } from "./Fees";
-import {
-  CARD_NETWORKS,
-  INSTALLMENT_TYPES,
-  makeBlankFees,
-  newPlanSchema,
-} from "./schemas";
+import { CARD_NETWORKS, makeBlankFees, newPlanSchema } from "./schemas";
 import type { NewPlanFormValues } from "./schemas";
 
 function percentToDecimal(value: string): string {
@@ -26,32 +22,58 @@ function percentToDecimal(value: string): string {
 
 function buildFeesPayload(
   values: NewPlanFormValues,
-): CreatePlanPayload["fees"] {
+  feeCatalog: NonNullable<ReturnType<typeof useFees>["data"]>,
+): { fees: CreatePlanPayload["fees"]; missingFees: string[] } {
   const fees: CreatePlanPayload["fees"] = [];
+  const missingFees: string[] = [];
 
   for (const network of CARD_NETWORKS) {
-    const networkFees = values.fees[network] as Record<
-      string,
-      { commission: string }
-    >;
-    for (const paymentType of ["debit", "credit", ...INSTALLMENT_TYPES]) {
-      const row = networkFees[paymentType];
+    const networkFees = values.fees[network];
+    for (const [installments, row] of [
+      [0, networkFees.debit],
+      [1, networkFees.credit],
+    ] as const) {
+      const baseFee = feeCatalog[network][installments];
+      if (!baseFee) {
+        missingFees.push(
+          `${network} ${installments === 0 ? "débito" : "crédito 1x"}`,
+        );
+        continue;
+      }
       fees.push({
-        network,
-        payment_type: paymentType,
-        commission: percentToDecimal(row.commission),
+        fee: baseFee.id,
+        value: percentToDecimal(row.commission),
       });
+    }
+    for (const row of networkFees.installments) {
+      for (
+        let installments = row.from;
+        installments <= row.to;
+        installments++
+      ) {
+        const baseFee = feeCatalog[network][installments];
+        if (!baseFee) {
+          missingFees.push(`${network} ${installments}x`);
+          continue;
+        }
+        fees.push({
+          fee: baseFee.id,
+          value: percentToDecimal(row.commission),
+        });
+      }
     }
   }
 
   const pixRow = values.fees.pix.pix;
-  fees.push({
-    network: "pix",
-    payment_type: "pix",
-    commission: percentToDecimal(pixRow.commission),
-  });
+  const pixFee = feeCatalog.pix[-1];
+  if (pixFee) {
+    fees.push({
+      fee: pixFee.id,
+      value: percentToDecimal(pixRow.commission),
+    });
+  }
 
-  return fees;
+  return { fees, missingFees };
 }
 
 export function NewPlan() {
@@ -66,12 +88,29 @@ export function NewPlan() {
       split: false,
       anticipation: false,
       anticipation_fee: "",
-      mccId: undefined,
+      acquirerId: undefined,
+      cnae: "",
       fees: makeBlankFees(),
     },
   });
+  const acquirerId = methods.watch("acquirerId");
+  const cnae = methods.watch("cnae");
+  const { data: feeCatalog } = useFees(acquirerId, cnae);
 
   function onSubmit(data: NewPlanFormValues) {
+    if (!feeCatalog) {
+      methods.setError("root", {
+        message: "Carregue as taxas antes de salvar.",
+      });
+      return;
+    }
+    const { fees, missingFees } = buildFeesPayload(data, feeCatalog);
+    if (missingFees.length > 0) {
+      methods.setError("root", {
+        message: `Não há taxa base para: ${missingFees.join(", ")}.`,
+      });
+      return;
+    }
     const payload: CreatePlanPayload = {
       name: data.name,
       description: data.description,
@@ -80,8 +119,8 @@ export function NewPlan() {
       anticipation_fee: data.anticipation
         ? percentToDecimal(data.anticipation_fee || "0")
         : null,
-      mcc_id: data.mccId,
-      fees: buildFeesPayload(data),
+      cnae: data.cnae,
+      fees,
     };
 
     createPlan(payload, {
@@ -93,8 +132,9 @@ export function NewPlan() {
   function onInvalid(errors: FieldErrors<NewPlanFormValues>) {
     const missing: string[] = [];
     if (errors.name) missing.push("Nome");
-    if (errors.mccId) missing.push("Atividade Comercial");
-    if (errors.anticipation_fee) missing.push("Taxa de antecipação");
+    if (errors.acquirerId) missing.push("Adquirente");
+    if (errors.cnae) missing.push("CNAE");
+    if (errors.anticipation_fee) missing.push("Acréscimo da antecipação");
     if (errors.fees) {
       const networks = Object.keys(errors.fees) as Array<
         keyof NonNullable<typeof errors.fees>
@@ -103,9 +143,7 @@ export function NewPlan() {
         if (errors.fees[n]) missing.push(`Comissões de ${n}`);
       }
     }
-    const detail = missing.length
-      ? ` Verifique: ${missing.join(", ")}.`
-      : "";
+    const detail = missing.length ? ` Verifique: ${missing.join(", ")}.` : "";
     methods.setError("root", {
       message: `Preencha todos os campos obrigatórios.${detail}`,
     });

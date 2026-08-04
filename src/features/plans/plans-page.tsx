@@ -15,6 +15,14 @@ import {
 import { useNavigate } from "@tanstack/react-router";
 import { usePlans } from "#hooks/quickApi/usePlans";
 
+function formatCnae(value: number): string {
+  const stringValue = String(value);
+  const digits = stringValue.replace(/\D/g, "");
+  return digits.length === 7
+    ? `${digits.slice(0, 4)}-${digits.slice(4, 5)}/${digits.slice(5)}`
+    : stringValue;
+}
+
 export function Plans() {
   const navigate = useNavigate();
   const { data, isLoading, error } = usePlans();
@@ -89,7 +97,7 @@ export function Plans() {
               <TableHead>
                 <TableRow>
                   <TableCell>Nome</TableCell>
-                  <TableCell>MCC</TableCell>
+                  <TableCell>CNAE</TableCell>
                   <TableCell>Split</TableCell>
                   <TableCell>Antecipação</TableCell>
                   <TableCell>Criado em</TableCell>
@@ -109,7 +117,7 @@ export function Plans() {
                           </Typography>
                         )}
                       </TableCell>
-                      <TableCell>{plan.mcc.mcc}</TableCell>
+                      <TableCell>{formatCnae(plan.cnae)}</TableCell>
                       <TableCell>
                         <Chip
                           label={plan.split ? "Sim" : "Não"}

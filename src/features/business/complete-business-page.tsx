@@ -5,6 +5,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { useCallback, useRef, useState } from "react";
 import { FormProvider, useForm, type Resolver } from "react-hook-form";
 import { useCompleteBusiness } from "#hooks/quickApi/useCompleteBusiness";
+import { useBusiness } from "#hooks/quickApi/useBusinesses";
 import { FormPage } from "../../layout/form-page";
 import {
   completeBusinessSchema,
@@ -26,6 +27,7 @@ const TOTAL_STEPS = 4;
 export function CompleteBusiness({ id }: { id?: number }) {
   const navigate = useNavigate();
   const { mutate: completeBusiness } = useCompleteBusiness();
+  const { data: business, isLoading: isBusinessLoading } = useBusiness(id);
   const [step, setStep] = useState(1);
 
   const submittedRef = useRef(false);
@@ -58,7 +60,7 @@ export function CompleteBusiness({ id }: { id?: number }) {
       number: "",
       complement: "",
       posDevices: [{ model: "", serialNumber: "" }],
-      planMcc: undefined,
+      acquirerId: undefined,
       planId: undefined,
       expectedRevenue: "",
       commitedRevenue: "",
@@ -144,7 +146,12 @@ export function CompleteBusiness({ id }: { id?: number }) {
           {step === 1 && <Step2 />}
           {step === 2 && <Step3 />}
           {step === 3 && <Step4 />}
-          {step === 4 && <Step5 />}
+          {step === 4 && (
+            <Step5
+              businessCnae={business?.cnae}
+              isBusinessLoading={isBusinessLoading}
+            />
+          )}
         </Box>
 
         <Box sx={{ display: "flex", justifyContent: "space-between" }}>

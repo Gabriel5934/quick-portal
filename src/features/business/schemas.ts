@@ -13,7 +13,7 @@ function refineDocument(
     documentType: "CNPJ" | "CPF";
     document: string;
     name: string;
-    codCnae: string;
+    cnaeId?: number;
   },
   ctx: z.RefinementCtx,
 ) {
@@ -33,11 +33,11 @@ function refineDocument(
         path: ["name"],
       });
     }
-    if (!data.codCnae) {
+    if (!data.cnaeId) {
       ctx.addIssue({
         code: "custom",
-        message: "MCC é obrigatório",
-        path: ["codCnae"],
+        message: "Categoria é obrigatória",
+        path: ["cnaeId"],
       });
     }
   } else {
@@ -56,7 +56,7 @@ const step1BaseSchema = z.object({
   document: z.string(),
   name: z.string(), // used for razao social for cnpjs and full name for cpfs
   nomeFantasia: z.string().optional(),
-  codCnae: z.string(),
+  cnaeId: z.number().int().positive().optional(),
   email: z.email("Insira um email válido"),
   celular: z
     .string()
@@ -142,10 +142,10 @@ export const step4Fields = Object.keys(step4Schema.shape) as (keyof z.infer<
 >)[];
 
 export const step5Schema = z.object({
-  planMcc: z
-    .number({ message: "Atividade Comercial é obrigatória" })
+  acquirerId: z
+    .number({ message: "Adquirente é obrigatório" })
     .int()
-    .positive("Atividade Comercial é obrigatória"),
+    .positive("Adquirente é obrigatório"),
   planId: z
     .number({ message: "Plano é obrigatório" })
     .int()

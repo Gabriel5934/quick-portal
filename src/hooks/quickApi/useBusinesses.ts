@@ -14,7 +14,7 @@ export interface Business {
   document: string;
   name: string;
   trade_name: string;
-  cod_cnae: string;
+  cnae: number | null;
   email: string;
   phone: string;
   landline: string;
@@ -70,5 +70,24 @@ export function useBusinesses(query: BusinessQuery = {}) {
     queryFn: () => fetchBusinesses(query, token!),
     placeholderData: keepPreviousData,
     enabled: !!token,
+  });
+}
+
+async function fetchBusiness(id: number, token: string): Promise<Business> {
+  const res = await fetch(
+    `${import.meta.env.VITE_API_BASE_URL}/api/businesses/${id}/`,
+    { headers: { Authorization: `Bearer ${token}` } },
+  );
+
+  if (!res.ok) throw new Error("Erro ao carregar o estabelecimento.");
+  return res.json() as Promise<Business>;
+}
+
+export function useBusiness(id: number | undefined) {
+  const { data: token } = useToken();
+  return useAuthQuery<Business>({
+    queryKey: ["business", id],
+    queryFn: () => fetchBusiness(id!, token!),
+    enabled: !!token && !!id,
   });
 }

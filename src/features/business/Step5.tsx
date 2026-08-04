@@ -7,15 +7,21 @@ import { Link as RouterLink } from "@tanstack/react-router";
 import { useEffect, useMemo } from "react";
 import { Controller, useFormContext } from "react-hook-form";
 import { NumericFormat } from "react-number-format";
-import { useMccs } from "#hooks/quickApi/useMccs";
+import { useAcquirers } from "#hooks/quickApi/useAcquirers";
 import { usePlans } from "#hooks/quickApi/usePlans";
 import { FormPaper } from "./FormPaper";
 import type { CompleteBusinessFormValues } from "./types";
 
 const fieldSx = { flexGrow: 1, flexShrink: 1, flexBasis: "360px" };
 
-export function Step5() {
-  const { data: mccOptions = [] } = useMccs();
+interface Step5Props {
+  businessCnae: number | null | undefined;
+  isBusinessLoading: boolean;
+}
+
+export function Step5({ businessCnae, isBusinessLoading }: Step5Props) {
+  const { data: acquirerOptions = [], isLoading: areAcquirersLoading } =
+    useAcquirers();
   const { data: plans = [] } = usePlans();
   const {
     control,
@@ -24,12 +30,16 @@ export function Step5() {
     formState: { errors },
   } = useFormContext<CompleteBusinessFormValues>();
 
-  const planMcc = watch("planMcc");
+  const acquirerId = watch("acquirerId");
   const planId = watch("planId");
 
   const filteredPlans = useMemo(
-    () => plans.filter((p) => p.mcc.id === planMcc),
-    [plans, planMcc],
+    () =>
+      plans.filter(
+        (plan) =>
+          plan.cnae === businessCnae && plan.acquirer === acquirerId,
+      ),
+    [plans, businessCnae, acquirerId],
   );
 
   useEffect(() => {
@@ -41,7 +51,7 @@ export function Step5() {
   return (
     <FormPaper
       title="Plano Comercial"
-      subtitle="Selecione a Atividade Comercial e o plano para o estabelecimento"
+      subtitle="Selecione o plano para o estabelecimento"
       Icon={AssignmentIcon}
       action={
         <Button
@@ -57,25 +67,30 @@ export function Step5() {
       }
     >
       <Controller
-        name="planMcc"
+        name="acquirerId"
         control={control}
         render={({ field: { onChange, value, ref } }) => (
           <Autocomplete
-            options={mccOptions}
-            getOptionLabel={(option) => option.mcc}
-            isOptionEqualToValue={(option, val) => option.id === val.id}
-            value={mccOptions.find((o) => o.id === value) ?? null}
+            options={acquirerOptions}
+            loading={areAcquirersLoading}
+            getOptionLabel={(option) => option.name}
+            isOptionEqualToValue={(option, selected) =>
+              option.id === selected.id
+            }
+            value={
+              acquirerOptions.find((option) => option.id === value) ?? null
+            }
             getOptionKey={(option) => option.id}
-            onChange={(_, selected) => onChange(selected?.id ?? null)}
+            onChange={(_, selected) => onChange(selected?.id)}
             sx={fieldSx}
             renderInput={(params) => (
               <TextField
                 {...params}
                 inputRef={ref}
-                label="Atividade Comercial"
+                label="Adquirente"
                 required
-                error={Boolean(errors.planMcc)}
-                helperText={errors.planMcc?.message}
+                error={Boolean(errors.acquirerId)}
+                helperText={errors.acquirerId?.message}
               />
             )}
           />
@@ -93,7 +108,7 @@ export function Step5() {
             value={filteredPlans.find((p) => p.id === value) ?? null}
             getOptionKey={(option) => option.id}
             onChange={(_, selected) => onChange(selected?.id ?? null)}
-            disabled={!planMcc}
+            disabled={isBusinessLoading || !businessCnae || !acquirerId}
             sx={fieldSx}
             renderInput={(params) => (
               <TextField
@@ -104,9 +119,13 @@ export function Step5() {
                 error={Boolean(errors.planId)}
                 helperText={
                   errors.planId?.message ??
-                  (planMcc
-                    ? undefined
-                    : "Selecione uma Atividade Comercial primeiro")
+                  (!businessCnae
+                    ? "O estabelecimento não possui CNAE"
+                    : !acquirerId
+                      ? "Selecione um adquirente primeiro"
+                      : filteredPlans.length === 0
+                        ? "Sem planos disponíveis para esse CNAE e adquirente"
+                        : undefined)
                 }
               />
             )}
