@@ -94,6 +94,13 @@ function formatDocument(document: string): string {
   return document;
 }
 
+function formatPhone(phone: string): string {
+  const digits = phone.replace(/\D/g, "");
+  return digits.length === 11
+    ? digits.replace(/(\d{2})(\d{5})(\d{4})/, "($1) $2-$3")
+    : phone;
+}
+
 export function Home() {
   const navigate = useNavigate();
   const [document, setDocument] = useState("");
@@ -154,7 +161,7 @@ export function Home() {
         <Button
           variant="contained"
           size="large"
-          onClick={() => navigate({ to: "/novo-ec" })}
+          onClick={() => void navigate({ to: "/novo-ec" })}
           sx={{ whiteSpace: "nowrap" }}
         >
           Novo Credenciamento
@@ -327,14 +334,14 @@ export function Home() {
                         </Typography>
                       </TableCell>
                       <TableCell>{biz.email}</TableCell>
-                      <TableCell>{biz.phone}</TableCell>
+                      <TableCell>{formatPhone(biz.phone)}</TableCell>
                       <TableCell>
                         {biz.status === "NOT_STARTED" && (
                           <Button
                             size="small"
                             variant="outlined"
                             onClick={() =>
-                              navigate({
+                              void navigate({
                                 to: "/completar-ec",
                                 search: { id: biz.id },
                               })
