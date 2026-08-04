@@ -29,7 +29,7 @@ import { useFees } from "#hooks/quickApi/useFees";
 import { networkCode, useNetworks } from "#hooks/quickApi/useNetworks";
 import { FormPaper } from "../business/FormPaper";
 import { makeBlankNetworkFees } from "./schemas";
-import type { NewPlanFormValues } from "./schemas";
+import type { CardNetworkFees, NewPlanFormValues } from "./schemas";
 
 const FILL_MODES = ["manual", "six"] as const;
 type FillMode = (typeof FILL_MODES)[number];
@@ -97,17 +97,22 @@ export function Fees() {
     isLoading: areNetworksLoading,
     error: networksError,
   } = useNetworks();
-  const paymentNetworks = useMemo(
+  const editableNetworks = useMemo(
     () =>
       networkOptions.filter(
-        (option) => !["acquirer", "default"].includes(networkCode(option)),
+        (option) => networkCode(option) !== "acquirer",
       ),
     [networkOptions],
   );
+  const paymentNetworks = useMemo(
+    () =>
+      editableNetworks.filter((option) => networkCode(option) !== "default"),
+    [editableNetworks],
+  );
   const cardNetworks = useMemo(
     () =>
-      paymentNetworks.filter((option) => networkCode(option) !== "pix"),
-    [paymentNetworks],
+      editableNetworks.filter((option) => networkCode(option) !== "pix"),
+    [editableNetworks],
   );
   const { data: cnaeOptions = [], isLoading: areCnaesLoading } =
     useCnaes(acquirerId);
@@ -127,12 +132,12 @@ export function Fees() {
       ? 0
       : anticipationSurchargePercent);
   const anticipationTotal = anticipationTotalPercent.toString();
-  const activeNetwork = paymentNetworks.some(
+  const activeNetwork = editableNetworks.some(
     (option) => networkCode(option) === network,
   )
     ? network
-    : paymentNetworks[0]
-      ? networkCode(paymentNetworks[0])
+    : editableNetworks[0]
+      ? networkCode(editableNetworks[0])
       : "";
   const selectedFees = fees[activeNetwork];
   const installmentFields =
@@ -141,11 +146,11 @@ export function Fees() {
       : [];
 
   useEffect(() => {
-    if (paymentNetworks.length === 0) return;
+    if (editableNetworks.length === 0) return;
     const currentFees = getValues("fees");
     let changed = false;
     const nextFees = { ...currentFees };
-    for (const option of paymentNetworks) {
+    for (const option of editableNetworks) {
       const code = networkCode(option);
       if (!nextFees[code]) {
         nextFees[code] = makeBlankNetworkFees(code);
@@ -153,7 +158,7 @@ export function Fees() {
       }
     }
     if (changed) setValue("fees", nextFees);
-  }, [getValues, paymentNetworks, setValue]);
+  }, [editableNetworks, getValues, setValue]);
 
   const acquirerField = (
     <Controller
@@ -356,7 +361,7 @@ export function Fees() {
           variant="scrollable"
           scrollButtons="auto"
         >
-          {paymentNetworks.map((option) => {
+          {editableNetworks.map((option) => {
             const code = networkCode(option);
             return (
             <Tab
@@ -390,6 +395,9 @@ export function Fees() {
         anticipationFee={anticipationTotal}
         control={control}
         feesState={fees}
+        defaultFees={
+          fees.default && "debit" in fees.default ? fees.default : undefined
+        }
       />
 
       {activeNetwork !== "pix" && (
@@ -401,6 +409,9 @@ export function Fees() {
           control={control}
           fields={installmentFields}
           feesState={fees}
+          defaultFees={
+            fees.default && "debit" in fees.default ? fees.default : undefined
+          }
         />
       )}
     </FormPaper>
@@ -417,6 +428,7 @@ type UpfrontTableProps = {
   anticipationFee: string;
   control: FormControl;
   feesState: NewPlanFormValues["fees"];
+  defaultFees?: CardNetworkFees;
 };
 
 function UpfrontTable({
@@ -426,6 +438,7 @@ function UpfrontTable({
   anticipationFee,
   control,
   feesState,
+  defaultFees,
 }: UpfrontTableProps) {
   const rows: {
     label: string;
@@ -485,6 +498,11 @@ function UpfrontTable({
                     <FeeInput
                       control={control}
                       name={`fees.${network}.${row.paymentType}.commission`}
+                      placeholder={
+                        network === "default" || row.paymentType === "pix"
+                          ? undefined
+                          : defaultFees?.[row.paymentType].commission
+                      }
                     />
                   </TableCell>
                   {anticipation && (
@@ -515,6 +533,7 @@ type InstallmentsTableProps = {
     commission: string;
   }>;
   feesState: NewPlanFormValues["fees"];
+  defaultFees?: CardNetworkFees;
 };
 
 function makeInstallmentRows(fillMode: FillMode) {
@@ -538,6 +557,7 @@ function InstallmentsTable({
   control,
   fields,
   feesState,
+  defaultFees,
 }: InstallmentsTableProps) {
   return (
     <Box sx={{ flexBasis: "100%" }}>
@@ -591,6 +611,15 @@ function InstallmentsTable({
                     <FeeInput
                       control={control}
                       name={`fees.${network}.installments.${index}.commission`}
+                      placeholder={
+                        network === "default"
+                          ? undefined
+                          : defaultFees?.installments.find(
+                              (candidate) =>
+                                candidate.from === row.from &&
+                                candidate.to === row.to,
+                            )?.commission
+                      }
                     />
                   </TableCell>
                   {anticipation && (
@@ -613,9 +642,10 @@ type FeeInputProps = {
   control: FormControl;
   name: FieldPath<NewPlanFormValues>;
   disabled?: boolean;
+  placeholder?: string;
 };
 
-function FeeInput({ control, name, disabled }: FeeInputProps) {
+function FeeInput({ control, name, disabled, placeholder }: FeeInputProps) {
   return (
     <Controller
       control={control}
@@ -627,6 +657,7 @@ function FeeInput({ control, name, disabled }: FeeInputProps) {
           size="small"
           type="number"
           disabled={disabled}
+          placeholder={placeholder}
           slotProps={{
             htmlInput: { step: "0.01", min: "0" },
             input: {

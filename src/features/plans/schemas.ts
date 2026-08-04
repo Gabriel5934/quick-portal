@@ -6,7 +6,7 @@ export const INSTALLMENT_TYPES = Array.from(
 );
 
 const feeRowSchema = z.object({
-  commission: z.string().min(1, "Obrigatório"),
+  commission: z.string(),
 });
 
 const installmentRowSchema = feeRowSchema
@@ -34,7 +34,54 @@ const networkFeesSchema = z.union([
   pixNetworkFeesSchema,
 ]);
 
-const feesSchema = z.record(z.string(), networkFeesSchema);
+const feesSchema = z
+  .record(z.string(), networkFeesSchema)
+  .superRefine((fees, context) => {
+    const defaultFees = fees.default;
+    const cardDefaults =
+      defaultFees && "debit" in defaultFees ? defaultFees : undefined;
+
+    for (const [network, networkFees] of Object.entries(fees)) {
+      if (network === "default") continue;
+      if (network === "pix") {
+        if ("pix" in networkFees && !networkFees.pix.commission) {
+          context.addIssue({
+            code: "custom",
+            message: "Obrigatório",
+            path: [network, "pix", "commission"],
+          });
+        }
+        continue;
+      }
+      if (!("debit" in networkFees)) continue;
+
+      for (const paymentType of ["debit", "credit"] as const) {
+        if (
+          !networkFees[paymentType].commission &&
+          !cardDefaults?.[paymentType].commission
+        ) {
+          context.addIssue({
+            code: "custom",
+            message: "Obrigatório",
+            path: [network, paymentType, "commission"],
+          });
+        }
+      }
+
+      networkFees.installments.forEach((row, index) => {
+        const fallback = cardDefaults?.installments.find(
+          (candidate) => candidate.from === row.from && candidate.to === row.to,
+        );
+        if (!row.commission && !fallback?.commission) {
+          context.addIssue({
+            code: "custom",
+            message: "Obrigatório",
+            path: [network, "installments", index, "commission"],
+          });
+        }
+      });
+    }
+  });
 
 export const basicInfoSchema = z.object({
   name: z.string().min(1, "Nome é obrigatório"),

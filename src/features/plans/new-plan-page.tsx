@@ -28,6 +28,11 @@ function buildFeesPayload(
 ): { fees: CreatePlanPayload["fees"]; missingFees: string[] } {
   const fees: CreatePlanPayload["fees"] = [];
   const missingFees: string[] = [];
+  const defaultNetworkFees = values.fees.default;
+  const defaultFees =
+    defaultNetworkFees && "debit" in defaultNetworkFees
+      ? defaultNetworkFees
+      : undefined;
 
   for (const network of paymentNetworkCodes.filter((code) => code !== "pix")) {
     const networkFees = values.fees[network];
@@ -48,7 +53,9 @@ function buildFeesPayload(
       }
       fees.push({
         fee: baseFee.id,
-        value: percentToDecimal(row.commission),
+        value: percentToDecimal(
+          row.commission || defaultFees?.[installments === 0 ? "debit" : "credit"].commission || "",
+        ),
       });
     }
     for (const row of networkFees.installments) {
@@ -64,7 +71,14 @@ function buildFeesPayload(
         }
         fees.push({
           fee: baseFee.id,
-          value: percentToDecimal(row.commission),
+          value: percentToDecimal(
+            row.commission ||
+              defaultFees?.installments.find(
+                (candidate) =>
+                  candidate.from === row.from && candidate.to === row.to,
+              )?.commission ||
+              "",
+          ),
         });
       }
     }
