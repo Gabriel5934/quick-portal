@@ -12,7 +12,6 @@ import MailIcon from "@mui/icons-material/Mail";
 import { Controller, useFormContext } from "react-hook-form";
 import { PatternFormat } from "react-number-format";
 import { useEffect } from "react";
-import { useCnaeMcc } from "#hooks/quickApi/useCnaeMcc";
 import { useAllCnaes } from "#hooks/quickApi/useCnaes";
 import { useCnpj } from "#hooks/brasilApi/useCnpj";
 import { FormPaper } from "./FormPaper";
@@ -39,7 +38,6 @@ function ReadOnlyField({ label, value }: { label: string; value: string }) {
 }
 
 export function Step1() {
-  const { data: mccOptions = [] } = useCnaeMcc();
   const { data: cnaeOptions = [], isLoading: areCnaesLoading } = useAllCnaes();
   const {
     register,
@@ -59,15 +57,6 @@ export function Step1() {
   const isCnpj = documentType === "CNPJ";
   const isCpf = documentType === "CPF";
   const { data: cnpjData, error: cnpjError } = useCnpj(document, isCnpj);
-  const mccLabel =
-    mccOptions
-      .filter(
-        (option) =>
-          option.cod_cnae.replace(/\D/g, "") ===
-          String(cnpjData?.cnae_fiscal ?? ""),
-      )
-      .map((o) => `${o.cod_mcc} — ${o.desc_cnae}`)[0] ?? "";
-
   useEffect(() => {
     if (!cnpjData && !cnpjError) return;
     reset({
@@ -157,7 +146,6 @@ export function Step1() {
           <>
             <ReadOnlyField label="Razão Social" value={name} />
             <ReadOnlyField label="Nome Fantasia" value={nomeFantasia} />
-            <ReadOnlyField label="MCC" value={mccLabel} />
           </>
         )}
 
