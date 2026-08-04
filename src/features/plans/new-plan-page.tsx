@@ -8,10 +8,11 @@ import { FormProvider, useForm } from "react-hook-form";
 import { useCreatePlan } from "#hooks/quickApi/useCreatePlan";
 import type { CreatePlanPayload } from "#hooks/quickApi/useCreatePlan";
 import { useFees } from "#hooks/quickApi/useFees";
+import { networkCode, useNetworks } from "#hooks/quickApi/useNetworks";
 import { FormPage } from "../../layout/form-page";
 import { BasicInfo } from "./BasicInfo";
 import { Fees } from "./Fees";
-import { CARD_NETWORKS, makeBlankFees, newPlanSchema } from "./schemas";
+import { newPlanSchema } from "./schemas";
 import type { NewPlanFormValues } from "./schemas";
 
 function percentToDecimal(value: string): string {
@@ -23,12 +24,17 @@ function percentToDecimal(value: string): string {
 function buildFeesPayload(
   values: NewPlanFormValues,
   feeCatalog: NonNullable<ReturnType<typeof useFees>["data"]>,
+  paymentNetworkCodes: string[],
 ): { fees: CreatePlanPayload["fees"]; missingFees: string[] } {
   const fees: CreatePlanPayload["fees"] = [];
   const missingFees: string[] = [];
 
-  for (const network of CARD_NETWORKS) {
+  for (const network of paymentNetworkCodes.filter((code) => code !== "pix")) {
     const networkFees = values.fees[network];
+    if (!networkFees || !("debit" in networkFees)) {
+      missingFees.push(`${network} (configuração)`);
+      continue;
+    }
     for (const [installments, row] of [
       [0, networkFees.debit],
       [1, networkFees.credit],
@@ -64,12 +70,12 @@ function buildFeesPayload(
     }
   }
 
-  const pixRow = values.fees.pix.pix;
-  const pixFee = feeCatalog.pix[-1];
-  if (pixFee) {
+  const pixNetworkFees = values.fees.pix;
+  const pixFee = feeCatalog.pix?.[-1];
+  if (pixFee && pixNetworkFees && "pix" in pixNetworkFees) {
     fees.push({
       fee: pixFee.id,
-      value: percentToDecimal(pixRow.commission),
+      value: percentToDecimal(pixNetworkFees.pix.commission),
     });
   }
 
@@ -79,6 +85,7 @@ function buildFeesPayload(
 export function NewPlan() {
   const navigate = useNavigate();
   const { mutate: createPlan, isPending } = useCreatePlan();
+  const { data: networkOptions, error: networksError } = useNetworks();
 
   const methods = useForm<NewPlanFormValues>({
     resolver: zodResolver(newPlanSchema),
@@ -90,7 +97,7 @@ export function NewPlan() {
       anticipation_fee: "",
       acquirerId: undefined,
       cnae: "",
-      fees: makeBlankFees(),
+      fees: {},
     },
   });
   const acquirerId = methods.watch("acquirerId");
@@ -104,7 +111,20 @@ export function NewPlan() {
       });
       return;
     }
-    const { fees, missingFees } = buildFeesPayload(data, feeCatalog);
+    if (!networkOptions) {
+      methods.setError("root", {
+        message: "Carregue as redes de pagamento antes de salvar.",
+      });
+      return;
+    }
+    const paymentNetworkCodes = networkOptions
+      .map(networkCode)
+      .filter((code) => !["acquirer", "default"].includes(code));
+    const { fees, missingFees } = buildFeesPayload(
+      data,
+      feeCatalog,
+      paymentNetworkCodes,
+    );
     if (missingFees.length > 0) {
       methods.setError("root", {
         message: `Não há taxa base para: ${missingFees.join(", ")}.`,
@@ -136,9 +156,7 @@ export function NewPlan() {
     if (errors.cnae) missing.push("CNAE");
     if (errors.anticipation_fee) missing.push("Acréscimo da antecipação");
     if (errors.fees) {
-      const networks = Object.keys(errors.fees) as Array<
-        keyof NonNullable<typeof errors.fees>
-      >;
+      const networks = Object.keys(errors.fees);
       for (const n of networks) {
         if (errors.fees[n]) missing.push(`Comissões de ${n}`);
       }
@@ -169,6 +187,13 @@ export function NewPlan() {
               {methods.formState.errors.root.message}
             </Typography>
           )}
+          {networksError && !methods.formState.errors.root && (
+            <Typography color="error">
+              {networksError instanceof Error
+                ? networksError.message
+                : "Erro ao carregar redes de pagamento."}
+            </Typography>
+          )}
         </Box>
 
         <Box sx={{ display: "flex", justifyContent: "space-between" }}>
@@ -182,7 +207,7 @@ export function NewPlan() {
           <Button
             variant="contained"
             loading={isPending}
-            onClick={methods.handleSubmit(onSubmit, onInvalid)}
+            onClick={() => void methods.handleSubmit(onSubmit, onInvalid)()}
           >
             Salvar
           </Button>

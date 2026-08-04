@@ -1,8 +1,6 @@
 import { ApiError, useAuthQuery } from "../auth/useAuthQuery";
 import { useToken } from "#hooks/auth/useToken";
 
-export type FeeNetwork = "mastercard" | "visa" | "elo" | "pix" | "acquirer";
-
 export interface FeeOption {
   id: number;
   value: string;
@@ -16,29 +14,17 @@ interface FeeResponse extends FeeOption {
   installments: number;
 }
 
-export type FeeCatalog = Record<FeeNetwork, Partial<Record<number, FeeOption>>>;
-
-const CARD_NETWORKS = new Set<FeeNetwork>(["elo", "mastercard", "visa"]);
+export type FeeCatalog = Record<string, Partial<Record<number, FeeOption>>>;
 
 function buildFeeCatalog(fees: FeeResponse[]): FeeCatalog {
-  const catalog: FeeCatalog = {
-    mastercard: {},
-    visa: {},
-    elo: {},
-    pix: {},
-    acquirer: {},
-  };
+  const catalog: FeeCatalog = {};
   for (const fee of fees) {
-    const networkCode = fee.network_code.toLowerCase() as FeeNetwork;
+    const networkCode = fee.network_code.trim().toLowerCase();
     const network =
       fee.installments === -2
         ? "acquirer"
-        : fee.installments === -1
-          ? "pix"
-          : CARD_NETWORKS.has(networkCode)
-            ? networkCode
-            : undefined;
-    if (!network) continue;
+        : networkCode;
+    catalog[network] ??= {};
     catalog[network][fee.installments] = { id: fee.id, value: fee.value };
   }
 

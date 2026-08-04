@@ -1,11 +1,5 @@
 import { z } from "zod";
 
-export const NETWORKS = ["mastercard", "visa", "elo", "pix"] as const;
-export type Network = (typeof NETWORKS)[number];
-
-export const CARD_NETWORKS = ["mastercard", "visa", "elo"] as const;
-export type CardNetwork = (typeof CARD_NETWORKS)[number];
-
 export const INSTALLMENT_TYPES = Array.from(
   { length: 20 },
   (_, i) => `${i + 2}x`,
@@ -35,12 +29,12 @@ const pixNetworkFeesSchema = z.object({
   pix: feeRowSchema,
 });
 
-const feesSchema = z.object({
-  mastercard: cardNetworkFeesSchema,
-  visa: cardNetworkFeesSchema,
-  elo: cardNetworkFeesSchema,
-  pix: pixNetworkFeesSchema,
-});
+const networkFeesSchema = z.union([
+  cardNetworkFeesSchema,
+  pixNetworkFeesSchema,
+]);
+
+const feesSchema = z.record(z.string(), networkFeesSchema);
 
 export const basicInfoSchema = z.object({
   name: z.string().min(1, "Nome é obrigatório"),
@@ -64,13 +58,15 @@ export const newPlanSchema = basicInfoSchema.extend({
 export type NewPlanFormValues = z.infer<typeof newPlanSchema>;
 export type FeeRowValues = z.infer<typeof feeRowSchema>;
 export type InstallmentRowValues = z.infer<typeof installmentRowSchema>;
+export type CardNetworkFees = z.infer<typeof cardNetworkFeesSchema>;
+export type PixNetworkFees = z.infer<typeof pixNetworkFeesSchema>;
 
 export function makeBlankRow(): FeeRowValues {
   return { commission: "" };
 }
 
-export function makeBlankFees(): NewPlanFormValues["fees"] {
-  const cardRows = () => ({
+export function makeBlankCardFees(): CardNetworkFees {
+  return {
     debit: makeBlankRow(),
     credit: makeBlankRow(),
     installments: INSTALLMENT_TYPES.map((_, index) => ({
@@ -78,11 +74,11 @@ export function makeBlankFees(): NewPlanFormValues["fees"] {
       to: index + 2,
       commission: "",
     })),
-  });
-  return {
-    mastercard: cardRows() as NewPlanFormValues["fees"]["mastercard"],
-    visa: cardRows() as NewPlanFormValues["fees"]["visa"],
-    elo: cardRows() as NewPlanFormValues["fees"]["elo"],
-    pix: { pix: makeBlankRow() },
   };
+}
+
+export function makeBlankNetworkFees(
+  networkCode: string,
+): CardNetworkFees | PixNetworkFees {
+  return networkCode === "pix" ? { pix: makeBlankRow() } : makeBlankCardFees();
 }

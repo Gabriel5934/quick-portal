@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Autocomplete,
@@ -21,31 +21,18 @@ import {
   Typography,
 } from "@mui/material";
 import PercentIcon from "@mui/icons-material/Percent";
-import { Controller, useFieldArray, useFormContext } from "react-hook-form";
+import { Controller, useFormContext } from "react-hook-form";
 import type { FieldPath } from "react-hook-form";
 import { useAcquirers } from "#hooks/quickApi/useAcquirers";
 import { useCnaes } from "#hooks/quickApi/useCnaes";
 import { useFees } from "#hooks/quickApi/useFees";
+import { networkCode, useNetworks } from "#hooks/quickApi/useNetworks";
 import { FormPaper } from "../business/FormPaper";
-import { NETWORKS } from "./schemas";
-import type { CardNetwork, Network, NewPlanFormValues } from "./schemas";
+import { makeBlankNetworkFees } from "./schemas";
+import type { NewPlanFormValues } from "./schemas";
 
 const FILL_MODES = ["manual", "six"] as const;
 type FillMode = (typeof FILL_MODES)[number];
-
-const NETWORK_COLOR: Record<Network, string> = {
-  mastercard: "#f79e1a",
-  visa: "#1b34cb",
-  elo: "#0c3a34",
-  pix: "#39b4aa",
-};
-
-const NETWORK_NAME: Record<Network, string> = {
-  mastercard: "Mastercard",
-  visa: "Visa",
-  elo: "Elo",
-  pix: "Pix",
-};
 
 const FILL_MODE_LABEL: Record<FillMode, string> = {
   manual: "Por parcela",
@@ -89,7 +76,7 @@ export function Fees() {
   const {
     control,
     register,
-    unregister,
+    getValues,
     setValue,
     watch,
     formState: { errors },
@@ -100,34 +87,36 @@ export function Fees() {
   const anticipationFee = watch("anticipation_fee");
   const fees = watch("fees");
 
-  const [network, setNetwork] = useState<Network>("mastercard");
+  const [network, setNetwork] = useState("");
   const [fillMode, setFillMode] = useState<FillMode>("manual");
-  const mastercardInstallments = useFieldArray({
-    control,
-    name: "fees.mastercard.installments",
-  });
-  const visaInstallments = useFieldArray({
-    control,
-    name: "fees.visa.installments",
-  });
-  const eloInstallments = useFieldArray({
-    control,
-    name: "fees.elo.installments",
-  });
-  const installmentFields =
-    network === "mastercard"
-      ? mastercardInstallments.fields
-      : network === "visa"
-        ? visaInstallments.fields
-        : eloInstallments.fields;
 
   const { data: acquirerOptions = [], isLoading: areAcquirersLoading } =
     useAcquirers();
+  const {
+    data: networkOptions = [],
+    isLoading: areNetworksLoading,
+    error: networksError,
+  } = useNetworks();
+  const paymentNetworks = useMemo(
+    () =>
+      networkOptions.filter(
+        (option) => !["acquirer", "default"].includes(networkCode(option)),
+      ),
+    [networkOptions],
+  );
+  const cardNetworks = useMemo(
+    () =>
+      paymentNetworks.filter((option) => networkCode(option) !== "pix"),
+    [paymentNetworks],
+  );
   const { data: cnaeOptions = [], isLoading: areCnaesLoading } =
     useCnaes(acquirerId);
   const { data: feeCatalog, isLoading } = useFees(acquirerId, cnae);
   const hasFees = feeCatalog
-    ? NETWORKS.some((network) => Object.keys(feeCatalog[network]).length > 0)
+    ? paymentNetworks.some(
+        (option) =>
+          Object.keys(feeCatalog[networkCode(option)] ?? {}).length > 0,
+      )
     : false;
   const anticipationFloor = feeCatalog?.acquirer[-2]?.value ?? null;
   const anticipationFloorPercent = baseFeeAsPercent(anticipationFloor);
@@ -138,6 +127,33 @@ export function Fees() {
       ? 0
       : anticipationSurchargePercent);
   const anticipationTotal = anticipationTotalPercent.toString();
+  const activeNetwork = paymentNetworks.some(
+    (option) => networkCode(option) === network,
+  )
+    ? network
+    : paymentNetworks[0]
+      ? networkCode(paymentNetworks[0])
+      : "";
+  const selectedFees = fees[activeNetwork];
+  const installmentFields =
+    selectedFees && "installments" in selectedFees
+      ? selectedFees.installments
+      : [];
+
+  useEffect(() => {
+    if (paymentNetworks.length === 0) return;
+    const currentFees = getValues("fees");
+    let changed = false;
+    const nextFees = { ...currentFees };
+    for (const option of paymentNetworks) {
+      const code = networkCode(option);
+      if (!nextFees[code]) {
+        nextFees[code] = makeBlankNetworkFees(code);
+        changed = true;
+      }
+    }
+    if (changed) setValue("fees", nextFees);
+  }, [getValues, paymentNetworks, setValue]);
 
   const acquirerField = (
     <Controller
@@ -216,7 +232,27 @@ export function Fees() {
     );
   }
 
-  if (isLoading || !feeCatalog || !hasFees) {
+  if (networksError) {
+    return (
+      <FormPaper title="Taxas" subtitle="Configure as taxas por rede" Icon={PercentIcon}>
+        {acquirerField}
+        {cnaeField}
+        <Alert severity="error" sx={{ flexBasis: "100%" }}>
+          {networksError instanceof Error
+            ? networksError.message
+            : "Erro ao carregar redes de pagamento."}
+        </Alert>
+      </FormPaper>
+    );
+  }
+
+  if (
+    areNetworksLoading ||
+    isLoading ||
+    !feeCatalog ||
+    !hasFees ||
+    paymentNetworks.length === 0
+  ) {
     return (
       <FormPaper
         title="Taxas"
@@ -226,7 +262,9 @@ export function Fees() {
         {acquirerField}
         {cnaeField}
         <Typography sx={{ flexBasis: "100%" }}>
-          {isLoading ? "Carregando taxas..." : "Não há taxas para esta seleção."}
+          {areNetworksLoading || isLoading
+            ? "Carregando taxas..."
+            : "Não há taxas ou redes para esta seleção."}
         </Typography>
       </FormPaper>
     );
@@ -297,14 +335,9 @@ export function Fees() {
         onChange={(event) => {
           const mode = event.target.value as FillMode;
           const rows = makeInstallmentRows(mode);
-          unregister([
-            "fees.mastercard.installments",
-            "fees.visa.installments",
-            "fees.elo.installments",
-          ]);
-          mastercardInstallments.replace(rows);
-          visaInstallments.replace(rows);
-          eloInstallments.replace(rows);
+          for (const option of cardNetworks) {
+            setValue(`fees.${networkCode(option)}.installments`, rows);
+          }
           setFillMode(mode);
         }}
         sx={{ flexBasis: "100%", maxWidth: 320 }}
@@ -318,15 +351,17 @@ export function Fees() {
 
       <Box sx={{ flexBasis: "100%" }}>
         <Tabs
-          value={network}
-          onChange={(_, v: Network) => setNetwork(v)}
+          value={activeNetwork}
+          onChange={(_, value: string) => setNetwork(value)}
           variant="scrollable"
           scrollButtons="auto"
         >
-          {NETWORKS.map((n) => (
+          {paymentNetworks.map((option) => {
+            const code = networkCode(option);
+            return (
             <Tab
-              key={n}
-              value={n}
+              key={option.id}
+              value={code}
               label={
                 <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
                   <Box
@@ -335,20 +370,21 @@ export function Fees() {
                       width: 8,
                       height: 8,
                       borderRadius: "50%",
-                      bgcolor: NETWORK_COLOR[n],
+                      bgcolor: option.color || "text.disabled",
                       flexShrink: 0,
                     }}
                   />
-                  <Box component="span">{NETWORK_NAME[n]}</Box>
+                  <Box component="span">{option.name}</Box>
                 </Stack>
               }
             />
-          ))}
+            );
+          })}
         </Tabs>
       </Box>
 
       <UpfrontTable
-        network={network}
+        network={activeNetwork}
         feeCatalog={feeCatalog}
         anticipation={anticipation}
         anticipationFee={anticipationTotal}
@@ -356,9 +392,9 @@ export function Fees() {
         feesState={fees}
       />
 
-      {network !== "pix" && (
+      {activeNetwork !== "pix" && (
         <InstallmentsTable
-          network={network as CardNetwork}
+          network={activeNetwork}
           feeCatalog={feeCatalog}
           anticipation={anticipation}
           anticipationFee={anticipationTotal}
@@ -375,7 +411,7 @@ type FormControl = ReturnType<typeof useFormContext<NewPlanFormValues>>["control
 type FeeCatalog = NonNullable<ReturnType<typeof useFees>["data"]>;
 
 type UpfrontTableProps = {
-  network: Network;
+  network: string;
   feeCatalog: FeeCatalog;
   anticipation: boolean;
   anticipationFee: string;
@@ -397,17 +433,17 @@ function UpfrontTable({
     baseFee: string | null;
   }[] =
     network === "pix"
-      ? [{ label: "Pix", paymentType: "pix", baseFee: feeCatalog.pix[-1]?.value ?? null }]
+      ? [{ label: "Pix", paymentType: "pix", baseFee: feeCatalog.pix?.[-1]?.value ?? null }]
       : [
           {
             label: "Débito",
             paymentType: "debit",
-            baseFee: feeCatalog[network][0]?.value ?? null,
+            baseFee: feeCatalog[network]?.[0]?.value ?? null,
           },
           {
             label: "Crédito 1x",
             paymentType: "credit",
-            baseFee: feeCatalog[network][1]?.value ?? null,
+            baseFee: feeCatalog[network]?.[1]?.value ?? null,
           },
         ];
 
@@ -429,10 +465,13 @@ function UpfrontTable({
           </TableHead>
           <TableBody>
             {rows.map((row) => {
+              const networkState = feesState[network];
               const rowState =
-                network === "pix"
-                  ? feesState.pix.pix
-                  : feesState[network][row.paymentType as "debit" | "credit"];
+                network === "pix" && networkState && "pix" in networkState
+                  ? networkState.pix
+                  : networkState && "debit" in networkState
+                    ? networkState[row.paymentType as "debit" | "credit"]
+                    : undefined;
               const total = computeTotal(
                 row.baseFee,
                 rowState?.commission ?? "",
@@ -445,7 +484,7 @@ function UpfrontTable({
                   <TableCell>
                     <FeeInput
                       control={control}
-                      name={`fees.${network}.${row.paymentType}.commission` as FieldPath<NewPlanFormValues>}
+                      name={`fees.${network}.${row.paymentType}.commission`}
                     />
                   </TableCell>
                   {anticipation && (
@@ -465,13 +504,12 @@ function UpfrontTable({
 }
 
 type InstallmentsTableProps = {
-  network: CardNetwork;
+  network: string;
   feeCatalog: FeeCatalog;
   anticipation: boolean;
   anticipationFee: string;
   control: FormControl;
   fields: Array<{
-    id: string;
     from: number;
     to: number;
     commission: string;
@@ -520,11 +558,15 @@ function InstallmentsTable({
           </TableHead>
           <TableBody>
             {fields.map((field, index) => {
-              const row = feesState[network].installments[index] ?? field;
+              const networkState = feesState[network];
+              const row =
+                networkState && "installments" in networkState
+                  ? (networkState.installments[index] ?? field)
+                  : field;
               const baseFees: (string | null)[] = [];
               const totals: number[] = [];
               for (let installments = row.from; installments <= row.to; installments++) {
-                const baseFee = feeCatalog[network][installments]?.value ?? null;
+                const baseFee = feeCatalog[network]?.[installments]?.value ?? null;
                 baseFees.push(baseFee);
                 totals.push(
                   computeTotal(
@@ -540,7 +582,7 @@ function InstallmentsTable({
                   : `${row.from}x – ${row.to}x`;
 
               return (
-                <TableRow key={field.id}>
+                <TableRow key={`${field.from}-${field.to}-${index}`}>
                   <TableCell>{label}</TableCell>
                   <TableCell>
                     {formatRange(baseFees.map(baseFeeAsPercent))}
@@ -548,7 +590,7 @@ function InstallmentsTable({
                   <TableCell>
                     <FeeInput
                       control={control}
-                      name={`fees.${network}.installments.${index}.commission` as FieldPath<NewPlanFormValues>}
+                      name={`fees.${network}.installments.${index}.commission`}
                     />
                   </TableCell>
                   {anticipation && (
@@ -581,7 +623,7 @@ function FeeInput({ control, name, disabled }: FeeInputProps) {
       render={({ field, fieldState }) => (
         <TextField
           {...field}
-          value={(field.value as string) ?? ""}
+          value={field.value ?? ""}
           size="small"
           type="number"
           disabled={disabled}
