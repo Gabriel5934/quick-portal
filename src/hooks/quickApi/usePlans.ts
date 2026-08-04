@@ -15,7 +15,7 @@ export interface Plan {
   anticipation_fee: string | null;
   acquirer: number;
   cnae: number;
-  mcc?: { id: number; mcc: string };
+  cnae_code: string;
   fees: PlanFee[];
   created_at: string;
 }

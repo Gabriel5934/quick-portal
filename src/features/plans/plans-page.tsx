@@ -15,7 +15,7 @@ import {
 import { useNavigate } from "@tanstack/react-router";
 import { usePlans } from "#hooks/quickApi/usePlans";
 
-function formatCnae(value: number): string {
+function formatCnae(value: string): string {
   const stringValue = String(value);
   const digits = stringValue.replace(/\D/g, "");
   return digits.length === 7
@@ -50,7 +50,7 @@ export function Plans() {
         <Button
           variant="contained"
           size="large"
-          onClick={() => navigate({ to: "/novo-plano" })}
+          onClick={() => void navigate({ to: "/novo-plano" })}
           sx={{ whiteSpace: "nowrap" }}
         >
           Novo Plano
@@ -117,7 +117,7 @@ export function Plans() {
                           </Typography>
                         )}
                       </TableCell>
-                      <TableCell>{formatCnae(plan.cnae)}</TableCell>
+                      <TableCell>{formatCnae(plan.cnae_code)}</TableCell>
                       <TableCell>
                         <Chip
                           label={plan.split ? "Sim" : "Não"}
