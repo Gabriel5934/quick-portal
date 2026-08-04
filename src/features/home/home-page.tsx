@@ -101,6 +101,10 @@ function formatPhone(phone: string): string {
     : phone;
 }
 
+function displayValue(value: string | null | undefined): string {
+  return value == null || value.trim() === "" ? "-" : value;
+}
+
 export function Home() {
   const navigate = useNavigate();
   const [document, setDocument] = useState("");
@@ -319,11 +323,11 @@ export function Home() {
                     <TableRow key={biz.id} hover>
                       <TableCell>
                         <Typography variant="body2" sx={{ fontWeight: "bold" }}>
-                          {formatDocument(biz.document)}
+                          {displayValue(formatDocument(biz.document))}
                         </Typography>
                       </TableCell>
-                      <TableCell>{biz.name}</TableCell>
-                      <TableCell>{biz.trade_name}</TableCell>
+                      <TableCell>{displayValue(biz.name)}</TableCell>
+                      <TableCell>{displayValue(biz.trade_name)}</TableCell>
                       <TableCell>
                         <Typography
                           variant="body2"
@@ -333,8 +337,8 @@ export function Home() {
                           {statusLabel(biz.status)}
                         </Typography>
                       </TableCell>
-                      <TableCell>{biz.email}</TableCell>
-                      <TableCell>{formatPhone(biz.phone)}</TableCell>
+                      <TableCell>{displayValue(biz.email)}</TableCell>
+                      <TableCell>{displayValue(formatPhone(biz.phone))}</TableCell>
                       <TableCell>
                         {biz.status === "NOT_STARTED" && (
                           <Button
