@@ -9,8 +9,16 @@ import { BusinessLayout } from "./business-layout";
 const navigate = vi.hoisted(() => vi.fn());
 
 vi.mock("@tanstack/react-router", () => ({
-  Link: ({ children }: { children: ReactNode }) => children,
+  Link: ({
+    children,
+    className,
+  }: {
+    children: ReactNode;
+    className?: string;
+  }) => <a className={className}>{children}</a>,
   useNavigate: () => navigate,
+  useRouterState: ({ select }: { select: (state: unknown) => unknown }) =>
+    select({ location: { pathname: "/sales" } }),
 }));
 
 vi.mock("#hooks/quickApi/useBusinesses", async (importOriginal) => {
@@ -139,5 +147,11 @@ describe("BusinessLayout business selector", () => {
     expect(screen.queryByText("Estabelecimentos")).not.toBeInTheDocument();
     expect(screen.queryByText("Credenciamento")).not.toBeInTheDocument();
     expect(screen.queryByText("Planos e Taxas")).not.toBeInTheDocument();
+  });
+
+  it("marks the current business route as selected", () => {
+    renderHierarchy(hierarchy);
+
+    expect(screen.getByText("Vendas").closest("a")).toHaveClass("Mui-selected");
   });
 });

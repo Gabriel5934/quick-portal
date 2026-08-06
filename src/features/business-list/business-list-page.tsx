@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Box,
   Button,
@@ -15,6 +15,7 @@ import {
   TablePagination,
   TableRow,
   TextField,
+  Tooltip,
   Typography,
 } from "@mui/material";
 import {
@@ -27,6 +28,7 @@ import {
 import { useNavigate } from "@tanstack/react-router";
 import {
   useBusinesses,
+  useAllBusinesses,
   type BusinessStatus,
   type BusinessType,
 } from "#hooks/quickApi/useBusinesses";
@@ -126,6 +128,12 @@ export function BusinessList() {
     name?: string;
     trade_name?: string;
   }>({});
+  const { data: hierarchy = [] } = useAllBusinesses();
+  const businessesById = useMemo(
+    () => new Map(hierarchy.map((item) => [item.id, item])),
+    [hierarchy],
+  );
+  const showResellerColumn = business?.type === "RESELLER";
 
   const { data, isLoading, error } = useBusinesses({
     ...activeFilters,
@@ -321,6 +329,7 @@ export function BusinessList() {
                   <TableCell>CPF/CNPJ</TableCell>
                   <TableCell>Razão Social</TableCell>
                   <TableCell>Nome Fantasia</TableCell>
+                  {showResellerColumn ? <TableCell>Revenda</TableCell> : null}
                   <TableCell>Tipo</TableCell>
                   <TableCell>Status</TableCell>
                   <TableCell>E-mail</TableCell>
@@ -330,51 +339,81 @@ export function BusinessList() {
               </TableHead>
               <TableBody>
                 {data?.results?.length ? (
-                  data.results.map((biz) => (
-                    <TableRow key={biz.id} hover>
-                      <TableCell>
-                        <Typography variant="body2" sx={{ fontWeight: "bold" }}>
-                          {displayValue(formatDocument(biz.document))}
-                        </Typography>
-                      </TableCell>
-                      <TableCell>{displayValue(biz.name)}</TableCell>
-                      <TableCell>{displayValue(biz.trade_name)}</TableCell>
-                      <TableCell>{businessTypeLabel(biz.type)}</TableCell>
-                      <TableCell>
-                        <Typography
-                          variant="body2"
-                          color={statusColor(biz.status)}
-                          sx={{ fontWeight: 500 }}
-                        >
-                          {statusLabel(biz.status)}
-                        </Typography>
-                      </TableCell>
-                      <TableCell>{displayValue(biz.email)}</TableCell>
-                      <TableCell>
-                        {displayValue(formatPhone(biz.phone))}
-                      </TableCell>
-                      <TableCell>
-                        {biz.type === "STORE" &&
-                          biz.status === "NOT_STARTED" && (
-                            <Button
-                              size="small"
-                              variant="outlined"
-                              onClick={() =>
-                                void navigate({
-                                  to: "/completar-ec",
-                                  search: { id: biz.id },
-                                })
-                              }
-                            >
-                              Completar
-                            </Button>
-                          )}
-                      </TableCell>
-                    </TableRow>
-                  ))
+                  data.results.map((biz) => {
+                    const parent = biz.parent
+                      ? businessesById.get(biz.parent)
+                      : undefined;
+                    const resellerName =
+                      parent?.type === "RE_RESELLER"
+                        ? parent.trade_name || parent.name
+                        : null;
+
+                    return (
+                      <TableRow key={biz.id} hover>
+                        <TableCell>
+                          <Typography
+                            variant="body2"
+                            sx={{ fontWeight: "bold" }}
+                          >
+                            {displayValue(formatDocument(biz.document))}
+                          </Typography>
+                        </TableCell>
+                        <TableCell>{displayValue(biz.name)}</TableCell>
+                        <TableCell>{displayValue(biz.trade_name)}</TableCell>
+                        {showResellerColumn ? (
+                          <TableCell sx={{ maxWidth: 180 }}>
+                            {resellerName ? (
+                              <Tooltip title={resellerName}>
+                                <Typography variant="body2" noWrap>
+                                  {resellerName}
+                                </Typography>
+                              </Tooltip>
+                            ) : (
+                              "-"
+                            )}
+                          </TableCell>
+                        ) : null}
+                        <TableCell>{businessTypeLabel(biz.type)}</TableCell>
+                        <TableCell>
+                          <Typography
+                            variant="body2"
+                            color={statusColor(biz.status)}
+                            sx={{ fontWeight: 500 }}
+                          >
+                            {statusLabel(biz.status)}
+                          </Typography>
+                        </TableCell>
+                        <TableCell>{displayValue(biz.email)}</TableCell>
+                        <TableCell>
+                          {displayValue(formatPhone(biz.phone))}
+                        </TableCell>
+                        <TableCell>
+                          {biz.type === "STORE" &&
+                            biz.status === "NOT_STARTED" && (
+                              <Button
+                                size="small"
+                                variant="outlined"
+                                onClick={() =>
+                                  void navigate({
+                                    to: "/completar-ec",
+                                    search: { id: biz.id },
+                                  })
+                                }
+                              >
+                                Completar
+                              </Button>
+                            )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={8} align="center" sx={{ py: 6 }}>
+                    <TableCell
+                      colSpan={showResellerColumn ? 9 : 8}
+                      align="center"
+                      sx={{ py: 6 }}
+                    >
                       <Typography color="text.secondary">
                         Nenhum registro encontrado
                       </Typography>

@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactNode } from "react";
-import { Link, useNavigate } from "@tanstack/react-router";
+import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import AppBar from "@mui/material/AppBar";
 import Autocomplete from "@mui/material/Autocomplete";
 import Box from "@mui/material/Box";
@@ -31,24 +31,28 @@ function businessGroup(business: Business): "Estabelecimento" | "Revenda" {
 const navigation = [
   {
     to: "/sales",
+    activePaths: ["/sales"],
     label: "Vendas",
     icon: <PointOfSaleIcon />,
     nonStoreOnly: false,
   },
   {
     to: "/business-list",
+    activePaths: ["/business-list"],
     label: "Estabelecimentos",
     icon: <StoreIcon />,
     nonStoreOnly: true,
   },
   {
     to: "/novo-ec",
+    activePaths: ["/novo-ec", "/completar-ec"],
     label: "Credenciamento",
     icon: <AddIcon />,
     nonStoreOnly: true,
   },
   {
     to: "/planos-e-taxas",
+    activePaths: ["/planos-e-taxas", "/novo-plano"],
     label: "Planos e Taxas",
     icon: <RequestQuoteIcon />,
     nonStoreOnly: true,
@@ -57,6 +61,9 @@ const navigation = [
 
 export function BusinessLayout({ children }: BusinessLayoutProps) {
   const navigate = useNavigate();
+  const pathname = useRouterState({
+    select: (state) => state.location.pathname,
+  });
   const [business, setBusiness] = useState<Business | null | undefined>(
     undefined,
   );
@@ -145,7 +152,23 @@ export function BusinessLayout({ children }: BusinessLayoutProps) {
                 )
                 .map((item) => (
                   <ListItem key={item.to} disablePadding>
-                    <ListItemButton component={Link} to={item.to}>
+                    <ListItemButton
+                      component={Link}
+                      to={item.to}
+                      selected={item.activePaths.some(
+                        (activePath) => activePath === pathname,
+                      )}
+                      sx={{
+                        "&.Mui-selected": {
+                          bgcolor: "primary.main",
+                          color: "primary.contrastText",
+                          "&:hover": { bgcolor: "primary.main" },
+                          "& .MuiListItemIcon-root": {
+                            color: "primary.contrastText",
+                          },
+                        },
+                      }}
+                    >
                       <ListItemIcon>{item.icon}</ListItemIcon>
                       <ListItemText primary={item.label} />
                     </ListItemButton>

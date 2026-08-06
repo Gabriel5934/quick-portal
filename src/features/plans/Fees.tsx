@@ -35,8 +35,8 @@ const FILL_MODES = ["manual", "six"] as const;
 type FillMode = (typeof FILL_MODES)[number];
 
 const FILL_MODE_LABEL: Record<FillMode, string> = {
-  manual: "Por parcela",
-  six: "De 6 em 6",
+  manual: "Cesta por Parcela",
+  six: "Cesta por Bandeira",
 };
 
 function baseFeeAsPercent(value: string | null): number {
@@ -97,21 +97,23 @@ export function Fees() {
     isLoading: areNetworksLoading,
     error: networksError,
   } = useNetworks();
-  const editableNetworks = useMemo(
-    () =>
-      networkOptions.filter(
-        (option) => networkCode(option) !== "acquirer",
-      ),
-    [networkOptions],
-  );
+  const editableNetworks = useMemo(() => {
+    const networks = networkOptions.filter(
+      (option) => networkCode(option) !== "acquirer",
+    );
+    return networks.toSorted(
+      (left, right) =>
+        Number(networkCode(right) === "default") -
+        Number(networkCode(left) === "default"),
+    );
+  }, [networkOptions]);
   const paymentNetworks = useMemo(
     () =>
       editableNetworks.filter((option) => networkCode(option) !== "default"),
     [editableNetworks],
   );
   const cardNetworks = useMemo(
-    () =>
-      editableNetworks.filter((option) => networkCode(option) !== "pix"),
+    () => editableNetworks.filter((option) => networkCode(option) !== "pix"),
     [editableNetworks],
   );
   const { data: cnaeOptions = [], isLoading: areCnaesLoading } =
@@ -239,7 +241,11 @@ export function Fees() {
 
   if (networksError) {
     return (
-      <FormPaper title="Taxas" subtitle="Configure as taxas por rede" Icon={PercentIcon}>
+      <FormPaper
+        title="Taxas"
+        subtitle="Configure as taxas por rede"
+        Icon={PercentIcon}
+      >
         {acquirerField}
         {cnaeField}
         <Alert severity="error" sx={{ flexBasis: "100%" }}>
@@ -335,7 +341,7 @@ export function Fees() {
       <TextField
         select
         size="small"
-        label="Modo de preenchimento das parcelas"
+        label="Tipo de Cesta"
         value={fillMode}
         onChange={(event) => {
           const mode = event.target.value as FillMode;
@@ -364,25 +370,31 @@ export function Fees() {
           {editableNetworks.map((option) => {
             const code = networkCode(option);
             return (
-            <Tab
-              key={option.id}
-              value={code}
-              label={
-                <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
-                  <Box
-                    aria-hidden="true"
-                    sx={{
-                      width: 8,
-                      height: 8,
-                      borderRadius: "50%",
-                      bgcolor: option.color || "text.disabled",
-                      flexShrink: 0,
-                    }}
-                  />
-                  <Box component="span">{option.name}</Box>
-                </Stack>
-              }
-            />
+              <Tab
+                key={option.id}
+                value={code}
+                label={
+                  <Stack
+                    direction="row"
+                    spacing={1}
+                    sx={{ alignItems: "center" }}
+                  >
+                    <Box
+                      aria-hidden="true"
+                      sx={{
+                        width: 8,
+                        height: 8,
+                        borderRadius: "50%",
+                        bgcolor: option.color || "text.disabled",
+                        flexShrink: 0,
+                      }}
+                    />
+                    <Box component="span">
+                      {code === "default" ? "Padrão" : option.name}
+                    </Box>
+                  </Stack>
+                }
+              />
             );
           })}
         </Tabs>
@@ -418,7 +430,9 @@ export function Fees() {
   );
 }
 
-type FormControl = ReturnType<typeof useFormContext<NewPlanFormValues>>["control"];
+type FormControl = ReturnType<
+  typeof useFormContext<NewPlanFormValues>
+>["control"];
 type FeeCatalog = NonNullable<ReturnType<typeof useFees>["data"]>;
 
 type UpfrontTableProps = {
@@ -446,7 +460,13 @@ function UpfrontTable({
     baseFee: string | null;
   }[] =
     network === "pix"
-      ? [{ label: "Pix", paymentType: "pix", baseFee: feeCatalog.pix?.[-1]?.value ?? null }]
+      ? [
+          {
+            label: "Pix",
+            paymentType: "pix",
+            baseFee: feeCatalog.pix?.[-1]?.value ?? null,
+          },
+        ]
       : [
           {
             label: "Débito",
@@ -585,8 +605,13 @@ function InstallmentsTable({
                   : field;
               const baseFees: (string | null)[] = [];
               const totals: number[] = [];
-              for (let installments = row.from; installments <= row.to; installments++) {
-                const baseFee = feeCatalog[network]?.[installments]?.value ?? null;
+              for (
+                let installments = row.from;
+                installments <= row.to;
+                installments++
+              ) {
+                const baseFee =
+                  feeCatalog[network]?.[installments]?.value ?? null;
                 baseFees.push(baseFee);
                 totals.push(
                   computeTotal(
@@ -661,9 +686,7 @@ function FeeInput({ control, name, disabled, placeholder }: FeeInputProps) {
           slotProps={{
             htmlInput: { step: "0.01", min: "0" },
             input: {
-              endAdornment: (
-                <InputAdornment position="end">%</InputAdornment>
-              ),
+              endAdornment: <InputAdornment position="end">%</InputAdornment>,
             },
           }}
           error={Boolean(fieldState.error)}
