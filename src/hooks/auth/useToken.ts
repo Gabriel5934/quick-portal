@@ -1,5 +1,10 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { getRefreshToken, setTokens, setRefreshToken } from "#hooks/storage";
+import {
+  getRefreshToken,
+  setTokens,
+  setRefreshToken,
+  setUserEmail,
+} from "#hooks/storage";
 import type { ValidationErrors } from "#hooks/types";
 
 type LoginRequest = {
@@ -42,8 +47,9 @@ async function fetchLogin(payload: LoginRequest): Promise<LoginResponse> {
 export function useLogin() {
   return useMutation({
     mutationFn: fetchLogin,
-    onSuccess(data) {
+    onSuccess(data, variables) {
       setTokens(data.access, data.token);
+      setUserEmail(variables.email);
     },
   });
 }

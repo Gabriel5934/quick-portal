@@ -12,11 +12,12 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as AuthRoutesRouteRouteImport } from './routes/_authRoutes/route'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AuthRoutesSalesRouteImport } from './routes/_authRoutes/sales'
 import { Route as AuthRoutesPlanosETaxasRouteImport } from './routes/_authRoutes/planos-e-taxas'
 import { Route as AuthRoutesNovoPlanoRouteImport } from './routes/_authRoutes/novo-plano'
 import { Route as AuthRoutesNovoEcRouteImport } from './routes/_authRoutes/novo-ec'
-import { Route as AuthRoutesHomeRouteImport } from './routes/_authRoutes/home'
 import { Route as AuthRoutesCompletarEcRouteImport } from './routes/_authRoutes/completar-ec'
+import { Route as AuthRoutesBusinessListRouteImport } from './routes/_authRoutes/business-list'
 
 const SignupRoute = SignupRouteImport.update({
   id: '/signup',
@@ -31,6 +32,11 @@ const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
+} as any)
+const AuthRoutesSalesRoute = AuthRoutesSalesRouteImport.update({
+  id: '/sales',
+  path: '/sales',
+  getParentRoute: () => AuthRoutesRouteRoute,
 } as any)
 const AuthRoutesPlanosETaxasRoute = AuthRoutesPlanosETaxasRouteImport.update({
   id: '/planos-e-taxas',
@@ -47,75 +53,81 @@ const AuthRoutesNovoEcRoute = AuthRoutesNovoEcRouteImport.update({
   path: '/novo-ec',
   getParentRoute: () => AuthRoutesRouteRoute,
 } as any)
-const AuthRoutesHomeRoute = AuthRoutesHomeRouteImport.update({
-  id: '/home',
-  path: '/home',
-  getParentRoute: () => AuthRoutesRouteRoute,
-} as any)
 const AuthRoutesCompletarEcRoute = AuthRoutesCompletarEcRouteImport.update({
   id: '/completar-ec',
   path: '/completar-ec',
+  getParentRoute: () => AuthRoutesRouteRoute,
+} as any)
+const AuthRoutesBusinessListRoute = AuthRoutesBusinessListRouteImport.update({
+  id: '/business-list',
+  path: '/business-list',
   getParentRoute: () => AuthRoutesRouteRoute,
 } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/signup': typeof SignupRoute
+  '/business-list': typeof AuthRoutesBusinessListRoute
   '/completar-ec': typeof AuthRoutesCompletarEcRoute
-  '/home': typeof AuthRoutesHomeRoute
   '/novo-ec': typeof AuthRoutesNovoEcRoute
   '/novo-plano': typeof AuthRoutesNovoPlanoRoute
   '/planos-e-taxas': typeof AuthRoutesPlanosETaxasRoute
+  '/sales': typeof AuthRoutesSalesRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/signup': typeof SignupRoute
+  '/business-list': typeof AuthRoutesBusinessListRoute
   '/completar-ec': typeof AuthRoutesCompletarEcRoute
-  '/home': typeof AuthRoutesHomeRoute
   '/novo-ec': typeof AuthRoutesNovoEcRoute
   '/novo-plano': typeof AuthRoutesNovoPlanoRoute
   '/planos-e-taxas': typeof AuthRoutesPlanosETaxasRoute
+  '/sales': typeof AuthRoutesSalesRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/_authRoutes': typeof AuthRoutesRouteRouteWithChildren
   '/signup': typeof SignupRoute
+  '/_authRoutes/business-list': typeof AuthRoutesBusinessListRoute
   '/_authRoutes/completar-ec': typeof AuthRoutesCompletarEcRoute
-  '/_authRoutes/home': typeof AuthRoutesHomeRoute
   '/_authRoutes/novo-ec': typeof AuthRoutesNovoEcRoute
   '/_authRoutes/novo-plano': typeof AuthRoutesNovoPlanoRoute
   '/_authRoutes/planos-e-taxas': typeof AuthRoutesPlanosETaxasRoute
+  '/_authRoutes/sales': typeof AuthRoutesSalesRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
     | '/signup'
+    | '/business-list'
     | '/completar-ec'
-    | '/home'
     | '/novo-ec'
     | '/novo-plano'
     | '/planos-e-taxas'
+    | '/sales'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/signup'
+    | '/business-list'
     | '/completar-ec'
-    | '/home'
     | '/novo-ec'
     | '/novo-plano'
     | '/planos-e-taxas'
+    | '/sales'
   id:
     | '__root__'
     | '/'
     | '/_authRoutes'
     | '/signup'
+    | '/_authRoutes/business-list'
     | '/_authRoutes/completar-ec'
-    | '/_authRoutes/home'
     | '/_authRoutes/novo-ec'
     | '/_authRoutes/novo-plano'
     | '/_authRoutes/planos-e-taxas'
+    | '/_authRoutes/sales'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -147,6 +159,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authRoutes/sales': {
+      id: '/_authRoutes/sales'
+      path: '/sales'
+      fullPath: '/sales'
+      preLoaderRoute: typeof AuthRoutesSalesRouteImport
+      parentRoute: typeof AuthRoutesRouteRoute
+    }
     '/_authRoutes/planos-e-taxas': {
       id: '/_authRoutes/planos-e-taxas'
       path: '/planos-e-taxas'
@@ -168,13 +187,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthRoutesNovoEcRouteImport
       parentRoute: typeof AuthRoutesRouteRoute
     }
-    '/_authRoutes/home': {
-      id: '/_authRoutes/home'
-      path: '/home'
-      fullPath: '/home'
-      preLoaderRoute: typeof AuthRoutesHomeRouteImport
-      parentRoute: typeof AuthRoutesRouteRoute
-    }
     '/_authRoutes/completar-ec': {
       id: '/_authRoutes/completar-ec'
       path: '/completar-ec'
@@ -182,23 +194,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthRoutesCompletarEcRouteImport
       parentRoute: typeof AuthRoutesRouteRoute
     }
+    '/_authRoutes/business-list': {
+      id: '/_authRoutes/business-list'
+      path: '/business-list'
+      fullPath: '/business-list'
+      preLoaderRoute: typeof AuthRoutesBusinessListRouteImport
+      parentRoute: typeof AuthRoutesRouteRoute
+    }
   }
 }
 
 interface AuthRoutesRouteRouteChildren {
+  AuthRoutesBusinessListRoute: typeof AuthRoutesBusinessListRoute
   AuthRoutesCompletarEcRoute: typeof AuthRoutesCompletarEcRoute
-  AuthRoutesHomeRoute: typeof AuthRoutesHomeRoute
   AuthRoutesNovoEcRoute: typeof AuthRoutesNovoEcRoute
   AuthRoutesNovoPlanoRoute: typeof AuthRoutesNovoPlanoRoute
   AuthRoutesPlanosETaxasRoute: typeof AuthRoutesPlanosETaxasRoute
+  AuthRoutesSalesRoute: typeof AuthRoutesSalesRoute
 }
 
 const AuthRoutesRouteRouteChildren: AuthRoutesRouteRouteChildren = {
+  AuthRoutesBusinessListRoute: AuthRoutesBusinessListRoute,
   AuthRoutesCompletarEcRoute: AuthRoutesCompletarEcRoute,
-  AuthRoutesHomeRoute: AuthRoutesHomeRoute,
   AuthRoutesNovoEcRoute: AuthRoutesNovoEcRoute,
   AuthRoutesNovoPlanoRoute: AuthRoutesNovoPlanoRoute,
   AuthRoutesPlanosETaxasRoute: AuthRoutesPlanosETaxasRoute,
+  AuthRoutesSalesRoute: AuthRoutesSalesRoute,
 }
 
 const AuthRoutesRouteRouteWithChildren = AuthRoutesRouteRoute._addFileChildren(

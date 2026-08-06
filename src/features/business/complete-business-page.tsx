@@ -95,7 +95,7 @@ export function CompleteBusiness({ id }: { id?: number }) {
     completeBusiness(
       { id: id ?? 0, ...data },
       {
-        onSuccess: () => void navigate({ to: "/home" }),
+        onSuccess: () => void navigate({ to: "/business-list" }),
         onError: (err) => methods.setError("root", { message: err.message }),
       },
     );
@@ -132,7 +132,7 @@ export function CompleteBusiness({ id }: { id?: number }) {
   return (
     <FormProvider {...methods}>
       <FormPage
-        breadcrumbs={[{ to: "/home", label: "Início" }]}
+        breadcrumbs={[{ to: "/business-list", label: "Início" }]}
         currentLabel="Completar EC"
         title="Completar Cadastro do EC"
         subtitle="Complete as informações do estabelecimento comercial para finalizar o credenciamento."
@@ -159,11 +159,10 @@ export function CompleteBusiness({ id }: { id?: number }) {
             <Button
               variant="outlined"
               color="error"
-              onClick={() => void navigate({ to: "/home" })}
+              onClick={() => void navigate({ to: "/business-list" })}
             >
               Cancelar
             </Button>
-            <Button variant="outlined">Salvar Rascunho</Button>
             <Button
               variant="contained"
               disabled={step === 1}

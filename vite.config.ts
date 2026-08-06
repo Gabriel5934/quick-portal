@@ -1,4 +1,4 @@
-import { defineConfig } from "vite";
+import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
 import { tanstackRouter } from "@tanstack/router-plugin/vite";
 import { fileURLToPath } from "node:url";
@@ -21,5 +21,10 @@ export default defineConfig({
       "#features": fileURLToPath(new URL("./src/features", import.meta.url)),
       "#hooks": fileURLToPath(new URL("./src/hooks", import.meta.url)),
     },
+  },
+  test: {
+    environment: "jsdom",
+    globals: true,
+    setupFiles: "./src/test/setup.ts",
   },
 });

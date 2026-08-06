@@ -28,7 +28,9 @@ import { useNavigate } from "@tanstack/react-router";
 import {
   useBusinesses,
   type BusinessStatus,
+  type BusinessType,
 } from "#hooks/quickApi/useBusinesses";
+import { useBusinessScope } from "../../layout/business-context";
 
 interface StatCardProps {
   icon: React.ReactNode;
@@ -77,6 +79,12 @@ function statusColor(status: BusinessStatus): string {
   return "info.main";
 }
 
+function businessTypeLabel(type: BusinessType): string {
+  if (type === "RESELLER") return "Revendedor";
+  if (type === "RE_RESELLER") return "Sub-revendedor";
+  return "Loja";
+}
+
 function formatDocument(document: string): string {
   const digits = document.replace(/\D/g, "");
 
@@ -105,8 +113,9 @@ function displayValue(value: string | null | undefined): string {
   return value == null || value.trim() === "" ? "-" : value;
 }
 
-export function Home() {
+export function BusinessList() {
   const navigate = useNavigate();
+  const { business } = useBusinessScope();
   const [document, setDocument] = useState("");
   const [legalName, setLegalName] = useState("");
   const [tradeName, setTradeName] = useState("");
@@ -120,6 +129,7 @@ export function Home() {
 
   const { data, isLoading, error } = useBusinesses({
     ...activeFilters,
+    parent: business?.id,
     page: page + 1,
     page_size: rowsPerPage,
   });
@@ -311,6 +321,7 @@ export function Home() {
                   <TableCell>CPF/CNPJ</TableCell>
                   <TableCell>Razão Social</TableCell>
                   <TableCell>Nome Fantasia</TableCell>
+                  <TableCell>Tipo</TableCell>
                   <TableCell>Status</TableCell>
                   <TableCell>E-mail</TableCell>
                   <TableCell>Telefone</TableCell>
@@ -328,6 +339,7 @@ export function Home() {
                       </TableCell>
                       <TableCell>{displayValue(biz.name)}</TableCell>
                       <TableCell>{displayValue(biz.trade_name)}</TableCell>
+                      <TableCell>{businessTypeLabel(biz.type)}</TableCell>
                       <TableCell>
                         <Typography
                           variant="body2"
@@ -338,28 +350,31 @@ export function Home() {
                         </Typography>
                       </TableCell>
                       <TableCell>{displayValue(biz.email)}</TableCell>
-                      <TableCell>{displayValue(formatPhone(biz.phone))}</TableCell>
                       <TableCell>
-                        {biz.status === "NOT_STARTED" && (
-                          <Button
-                            size="small"
-                            variant="outlined"
-                            onClick={() =>
-                              void navigate({
-                                to: "/completar-ec",
-                                search: { id: biz.id },
-                              })
-                            }
-                          >
-                            Completar
-                          </Button>
-                        )}
+                        {displayValue(formatPhone(biz.phone))}
+                      </TableCell>
+                      <TableCell>
+                        {biz.type === "STORE" &&
+                          biz.status === "NOT_STARTED" && (
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              onClick={() =>
+                                void navigate({
+                                  to: "/completar-ec",
+                                  search: { id: biz.id },
+                                })
+                              }
+                            >
+                              Completar
+                            </Button>
+                          )}
                       </TableCell>
                     </TableRow>
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={7} align="center" sx={{ py: 6 }}>
+                    <TableCell colSpan={8} align="center" sx={{ py: 6 }}>
                       <Typography color="text.secondary">
                         Nenhum registro encontrado
                       </Typography>

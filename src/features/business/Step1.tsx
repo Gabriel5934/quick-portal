@@ -5,6 +5,7 @@ import FormControlLabel from "@mui/material/FormControlLabel";
 import FormLabel from "@mui/material/FormLabel";
 import Radio from "@mui/material/Radio";
 import RadioGroup from "@mui/material/RadioGroup";
+import Switch from "@mui/material/Switch";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import BadgeIcon from "@mui/icons-material/Badge";
@@ -14,6 +15,7 @@ import { PatternFormat } from "react-number-format";
 import { useEffect } from "react";
 import { useAllCnaes } from "#hooks/quickApi/useCnaes";
 import { useCnpj } from "#hooks/brasilApi/useCnpj";
+import { useBusinessScope } from "../../layout/business-context";
 import { FormPaper } from "./FormPaper";
 import type { NewBusinessFormValues } from "./types";
 
@@ -39,6 +41,7 @@ function ReadOnlyField({ label, value }: { label: string; value: string }) {
 
 export function Step1() {
   const { data: cnaeOptions = [], isLoading: areCnaesLoading } = useAllCnaes();
+  const { business } = useBusinessScope();
   const {
     register,
     control,
@@ -57,6 +60,7 @@ export function Step1() {
   const isCnpj = documentType === "CNPJ";
   const isCpf = documentType === "CPF";
   const { data: cnpjData, error: cnpjError } = useCnpj(document, isCnpj);
+  const canCreateReseller = business?.type === "RESELLER";
   useEffect(() => {
     if (!cnpjData && !cnpjError) return;
     reset({
@@ -66,6 +70,9 @@ export function Step1() {
       cnaeId: undefined,
     });
   }, [cnpjData, cnpjError, reset, getValues]);
+  useEffect(() => {
+    if (!canCreateReseller) setValue("isReseller", false);
+  }, [canCreateReseller, setValue]);
 
   const handleDocumentTypeChange = (
     fieldOnChange: (...event: unknown[]) => void,
@@ -87,6 +94,26 @@ export function Step1() {
         subtitle="Informações básicas do estabelecimento comercial"
         Icon={BadgeIcon}
       >
+        {canCreateReseller ? (
+          <Controller
+            name="isReseller"
+            control={control}
+            render={({ field: { value, onChange, ...field } }) => (
+              <FormControlLabel
+                control={
+                  <Switch
+                    {...field}
+                    checked={value}
+                    onChange={(_, checked) => onChange(checked)}
+                  />
+                }
+                label="Revenda"
+                sx={{ flexBasis: "100%" }}
+              />
+            )}
+          />
+        ) : null}
+
         <FormControl sx={{ flexBasis: "100%" }}>
           <FormLabel>CNPJ/CPF</FormLabel>
           <Controller

@@ -52,6 +52,7 @@ function refineDocument(
 }
 
 const step1BaseSchema = z.object({
+  isReseller: z.boolean(),
   documentType: z.enum(["CNPJ", "CPF"]),
   document: z.string(),
   name: z.string(), // used for razao social for cnpjs and full name for cpfs

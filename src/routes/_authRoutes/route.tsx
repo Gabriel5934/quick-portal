@@ -1,5 +1,6 @@
 import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
 import { AppLayout } from "../../layout/app";
+import { BusinessLayout } from "../../layout/business-layout";
 import { getRefreshToken } from "#hooks/storage";
 import { useToken } from "#hooks/auth/useToken";
 
@@ -25,7 +26,9 @@ function RouteComponent() {
 
   return (
     <AppLayout>
-      <Outlet />
+      <BusinessLayout>
+        <Outlet />
+      </BusinessLayout>
     </AppLayout>
   );
 }

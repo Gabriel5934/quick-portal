@@ -5,10 +5,14 @@ import type { ValidationErrors } from "#hooks/types";
 import { useToken } from "#hooks/auth/useToken";
 
 type Step1Data = z.infer<typeof step1Schema>;
+type CreateBusinessPayload = Step1Data & {
+  parentId: number;
+  type: "RE_RESELLER" | "STORE";
+};
 type CreateBusinessResponse = { id: number };
 
 async function fetchCreateBusiness(
-  payload: Step1Data,
+  payload: CreateBusinessPayload,
   token: string,
 ): Promise<CreateBusinessResponse> {
   const res = await fetch(
@@ -20,6 +24,8 @@ async function fetchCreateBusiness(
         Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify({
+        type: payload.type,
+        parent: payload.parentId,
         document_type: payload.documentType,
         document: payload.document.replace(/\D/g, ""),
         email: payload.email,
@@ -56,5 +62,8 @@ async function fetchCreateBusiness(
 
 export function useCreateBusiness() {
   const { data: token } = useToken();
-  return useMutation({ mutationFn: (payload: Step1Data) => fetchCreateBusiness(payload, token!) });
+  return useMutation({
+    mutationFn: (payload: CreateBusinessPayload) =>
+      fetchCreateBusiness(payload, token!),
+  });
 }

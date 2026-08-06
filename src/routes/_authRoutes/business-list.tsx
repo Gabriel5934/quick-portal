@@ -1,15 +1,15 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { NewBusiness } from "../../features/business/new-business-page";
+import { BusinessList } from "../../features/business-list";
 import { NonStoreBusinessGuard } from "../../layout/non-store-business-guard";
 
-export const Route = createFileRoute("/_authRoutes/novo-ec")({
+export const Route = createFileRoute("/_authRoutes/business-list")({
   component: RouteComponent,
 });
 
 function RouteComponent() {
   return (
     <NonStoreBusinessGuard>
-      <NewBusiness />
+      <BusinessList />
     </NonStoreBusinessGuard>
   );
 }

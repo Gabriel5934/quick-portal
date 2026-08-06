@@ -1,5 +1,5 @@
 import { keepPreviousData } from "@tanstack/react-query";
-import { useAuthQuery } from "../auth/useAuthQuery";
+import { ApiError, useAuthQuery } from "../auth/useAuthQuery";
 import { useToken } from "#hooks/auth/useToken";
 
 export type BusinessStatus =
@@ -8,8 +8,12 @@ export type BusinessStatus =
   | "IN_VALIDATION"
   | "COMPLETED";
 
+export type BusinessType = "RESELLER" | "RE_RESELLER" | "STORE";
+
 export interface Business {
   id: number;
+  type: BusinessType;
+  parent: number | null;
   document_type: string;
   document: string;
   name: string;
@@ -30,6 +34,7 @@ export interface BusinessesResponse {
 }
 
 interface BusinessQuery {
+  parent?: number;
   document?: string;
   name?: string;
   trade_name?: string;
@@ -42,6 +47,7 @@ async function fetchBusinesses(
   token: string,
 ): Promise<BusinessesResponse> {
   const params = new URLSearchParams();
+  if (query.parent) params.set("parent", String(query.parent));
   if (query.document) {
     const document = query.document.replace(/\D/g, "");
     if (document) params.set("document", document);
@@ -69,6 +75,39 @@ export function useBusinesses(query: BusinessQuery = {}) {
     queryKey: ["businesses", query],
     queryFn: () => fetchBusinesses(query, token!),
     placeholderData: keepPreviousData,
+    enabled: !!token,
+  });
+}
+
+async function fetchAllBusinesses(token: string): Promise<Business[]> {
+  let url: string | null =
+    `${import.meta.env.VITE_API_BASE_URL}/api/businesses/?page_size=100`;
+  const businesses: Business[] = [];
+
+  while (url) {
+    const res = await fetch(url, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) {
+      throw new ApiError(
+        res.status,
+        "Erro ao carregar a hierarquia de empresas.",
+      );
+    }
+
+    const page = (await res.json()) as BusinessesResponse;
+    businesses.push(...page.results);
+    url = page.next;
+  }
+
+  return businesses;
+}
+
+export function useAllBusinesses() {
+  const { data: token } = useToken();
+  return useAuthQuery<Business[]>({
+    queryKey: ["businesses", "all"],
+    queryFn: () => fetchAllBusinesses(token!),
     enabled: !!token,
   });
 }

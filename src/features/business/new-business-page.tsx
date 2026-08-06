@@ -8,12 +8,15 @@ import { FormProvider, useForm, type Resolver } from "react-hook-form";
 import { useCreateBusiness } from "#hooks/quickApi/useCreateBusiness";
 import { useCnpj } from "#hooks/brasilApi/useCnpj";
 import { FormPage } from "../../layout/form-page";
+import { useBusinessScope } from "../../layout/business-context";
 import { step1Schema } from "./schemas";
 import { Step1 } from "./Step1";
 import type { NewBusinessFormValues } from "./types";
+import { childBusinessType } from "./business-rules";
 
 export function NewBusiness() {
   const navigate = useNavigate();
+  const { business } = useBusinessScope();
   const { mutate: createBusiness, isPending } = useCreateBusiness();
 
   const cnpjErrorRef = useRef<Error | null>(null);
@@ -34,6 +37,7 @@ export function NewBusiness() {
   const methods = useForm<NewBusinessFormValues>({
     resolver,
     defaultValues: {
+      isReseller: false,
       documentType: "CNPJ",
       document: "",
       name: "",
@@ -57,20 +61,32 @@ export function NewBusiness() {
   }, [cnpjError, documentType, methods]);
 
   function onSubmit(data: NewBusinessFormValues) {
-    createBusiness(data, {
-      onSuccess: () => {
-        void navigate({ to: "/home" });
+    if (!business) {
+      methods.setError("root", { message: "Selecione um perfil responsável." });
+      return;
+    }
+
+    createBusiness(
+      {
+        ...data,
+        parentId: business.id,
+        type: childBusinessType(business.type, data.isReseller),
       },
-      onError: (err) => {
-        methods.setError("root", { message: err.message });
+      {
+        onSuccess: () => {
+          void navigate({ to: "/business-list" });
+        },
+        onError: (err) => {
+          methods.setError("root", { message: err.message });
+        },
       },
-    });
+    );
   }
 
   return (
     <FormProvider {...methods}>
       <FormPage
-        breadcrumbs={[{ to: "/home", label: "Início" }]}
+        breadcrumbs={[{ to: "/business-list", label: "Início" }]}
         currentLabel="Cadastro de EC"
         title="Novo Estabelecimento Comercial"
         subtitle="Preencha os dados iniciais para criar o cadastro do EC. Após salvar, você poderá completar o credenciamento."
@@ -92,14 +108,14 @@ export function NewBusiness() {
           <Button
             variant="outlined"
             color="error"
-            onClick={() => void navigate({ to: "/home" })}
+            onClick={() => void navigate({ to: "/business-list" })}
           >
             Cancelar
           </Button>
           <Button
             variant="contained"
             loading={isPending}
-            onClick={methods.handleSubmit(onSubmit)}
+            onClick={() => void methods.handleSubmit(onSubmit)()}
           >
             Salvar
           </Button>

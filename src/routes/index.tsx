@@ -5,7 +5,7 @@ export const Route = createFileRoute("/")({
   beforeLoad: async ({ location }) => {
     if (localStorage.getItem("token")) {
       throw redirect({
-        to: "/home",
+        to: "/business-list",
         search: {
           // Use the current location to power a redirect after login
           // (Do not use `router.state.resolvedLocation` as it can
