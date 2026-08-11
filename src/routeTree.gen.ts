@@ -13,11 +13,18 @@ import { Route as SignupRouteImport } from './routes/signup'
 import { Route as AuthRoutesRouteRouteImport } from './routes/_authRoutes/route'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthRoutesSalesRouteImport } from './routes/_authRoutes/sales'
+import { Route as AuthRoutesRecurringFeesRouteImport } from './routes/_authRoutes/recurring-fees'
 import { Route as AuthRoutesPlanosETaxasRouteImport } from './routes/_authRoutes/planos-e-taxas'
 import { Route as AuthRoutesNovoPlanoRouteImport } from './routes/_authRoutes/novo-plano'
 import { Route as AuthRoutesNovoEcRouteImport } from './routes/_authRoutes/novo-ec'
 import { Route as AuthRoutesCompletarEcRouteImport } from './routes/_authRoutes/completar-ec'
 import { Route as AuthRoutesBusinessListRouteImport } from './routes/_authRoutes/business-list'
+import { Route as AuthRoutesRecurringFeesIndexRouteImport } from './routes/_authRoutes/recurring-fees.index'
+import { Route as AuthRoutesRecurringFeesNewTargetsRouteImport } from './routes/_authRoutes/recurring-fees.new.targets'
+import { Route as AuthRoutesRecurringFeesNewScheduleRouteImport } from './routes/_authRoutes/recurring-fees.new.schedule'
+import { Route as AuthRoutesRecurringFeesNewReviewRouteImport } from './routes/_authRoutes/recurring-fees.new.review'
+import { Route as AuthRoutesRecurringFeesNewPricingRouteImport } from './routes/_authRoutes/recurring-fees.new.pricing'
+import { Route as AuthRoutesRecurringFeesNewDetailsRouteImport } from './routes/_authRoutes/recurring-fees.new.details'
 
 const SignupRoute = SignupRouteImport.update({
   id: '/signup',
@@ -36,6 +43,11 @@ const IndexRoute = IndexRouteImport.update({
 const AuthRoutesSalesRoute = AuthRoutesSalesRouteImport.update({
   id: '/sales',
   path: '/sales',
+  getParentRoute: () => AuthRoutesRouteRoute,
+} as any)
+const AuthRoutesRecurringFeesRoute = AuthRoutesRecurringFeesRouteImport.update({
+  id: '/recurring-fees',
+  path: '/recurring-fees',
   getParentRoute: () => AuthRoutesRouteRoute,
 } as any)
 const AuthRoutesPlanosETaxasRoute = AuthRoutesPlanosETaxasRouteImport.update({
@@ -63,6 +75,42 @@ const AuthRoutesBusinessListRoute = AuthRoutesBusinessListRouteImport.update({
   path: '/business-list',
   getParentRoute: () => AuthRoutesRouteRoute,
 } as any)
+const AuthRoutesRecurringFeesIndexRoute =
+  AuthRoutesRecurringFeesIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => AuthRoutesRecurringFeesRoute,
+  } as any)
+const AuthRoutesRecurringFeesNewTargetsRoute =
+  AuthRoutesRecurringFeesNewTargetsRouteImport.update({
+    id: '/new/targets',
+    path: '/new/targets',
+    getParentRoute: () => AuthRoutesRecurringFeesRoute,
+  } as any)
+const AuthRoutesRecurringFeesNewScheduleRoute =
+  AuthRoutesRecurringFeesNewScheduleRouteImport.update({
+    id: '/new/schedule',
+    path: '/new/schedule',
+    getParentRoute: () => AuthRoutesRecurringFeesRoute,
+  } as any)
+const AuthRoutesRecurringFeesNewReviewRoute =
+  AuthRoutesRecurringFeesNewReviewRouteImport.update({
+    id: '/new/review',
+    path: '/new/review',
+    getParentRoute: () => AuthRoutesRecurringFeesRoute,
+  } as any)
+const AuthRoutesRecurringFeesNewPricingRoute =
+  AuthRoutesRecurringFeesNewPricingRouteImport.update({
+    id: '/new/pricing',
+    path: '/new/pricing',
+    getParentRoute: () => AuthRoutesRecurringFeesRoute,
+  } as any)
+const AuthRoutesRecurringFeesNewDetailsRoute =
+  AuthRoutesRecurringFeesNewDetailsRouteImport.update({
+    id: '/new/details',
+    path: '/new/details',
+    getParentRoute: () => AuthRoutesRecurringFeesRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -72,7 +120,14 @@ export interface FileRoutesByFullPath {
   '/novo-ec': typeof AuthRoutesNovoEcRoute
   '/novo-plano': typeof AuthRoutesNovoPlanoRoute
   '/planos-e-taxas': typeof AuthRoutesPlanosETaxasRoute
+  '/recurring-fees': typeof AuthRoutesRecurringFeesRouteWithChildren
   '/sales': typeof AuthRoutesSalesRoute
+  '/recurring-fees/': typeof AuthRoutesRecurringFeesIndexRoute
+  '/recurring-fees/new/details': typeof AuthRoutesRecurringFeesNewDetailsRoute
+  '/recurring-fees/new/pricing': typeof AuthRoutesRecurringFeesNewPricingRoute
+  '/recurring-fees/new/review': typeof AuthRoutesRecurringFeesNewReviewRoute
+  '/recurring-fees/new/schedule': typeof AuthRoutesRecurringFeesNewScheduleRoute
+  '/recurring-fees/new/targets': typeof AuthRoutesRecurringFeesNewTargetsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -83,6 +138,12 @@ export interface FileRoutesByTo {
   '/novo-plano': typeof AuthRoutesNovoPlanoRoute
   '/planos-e-taxas': typeof AuthRoutesPlanosETaxasRoute
   '/sales': typeof AuthRoutesSalesRoute
+  '/recurring-fees': typeof AuthRoutesRecurringFeesIndexRoute
+  '/recurring-fees/new/details': typeof AuthRoutesRecurringFeesNewDetailsRoute
+  '/recurring-fees/new/pricing': typeof AuthRoutesRecurringFeesNewPricingRoute
+  '/recurring-fees/new/review': typeof AuthRoutesRecurringFeesNewReviewRoute
+  '/recurring-fees/new/schedule': typeof AuthRoutesRecurringFeesNewScheduleRoute
+  '/recurring-fees/new/targets': typeof AuthRoutesRecurringFeesNewTargetsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -94,7 +155,14 @@ export interface FileRoutesById {
   '/_authRoutes/novo-ec': typeof AuthRoutesNovoEcRoute
   '/_authRoutes/novo-plano': typeof AuthRoutesNovoPlanoRoute
   '/_authRoutes/planos-e-taxas': typeof AuthRoutesPlanosETaxasRoute
+  '/_authRoutes/recurring-fees': typeof AuthRoutesRecurringFeesRouteWithChildren
   '/_authRoutes/sales': typeof AuthRoutesSalesRoute
+  '/_authRoutes/recurring-fees/': typeof AuthRoutesRecurringFeesIndexRoute
+  '/_authRoutes/recurring-fees/new/details': typeof AuthRoutesRecurringFeesNewDetailsRoute
+  '/_authRoutes/recurring-fees/new/pricing': typeof AuthRoutesRecurringFeesNewPricingRoute
+  '/_authRoutes/recurring-fees/new/review': typeof AuthRoutesRecurringFeesNewReviewRoute
+  '/_authRoutes/recurring-fees/new/schedule': typeof AuthRoutesRecurringFeesNewScheduleRoute
+  '/_authRoutes/recurring-fees/new/targets': typeof AuthRoutesRecurringFeesNewTargetsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -106,7 +174,14 @@ export interface FileRouteTypes {
     | '/novo-ec'
     | '/novo-plano'
     | '/planos-e-taxas'
+    | '/recurring-fees'
     | '/sales'
+    | '/recurring-fees/'
+    | '/recurring-fees/new/details'
+    | '/recurring-fees/new/pricing'
+    | '/recurring-fees/new/review'
+    | '/recurring-fees/new/schedule'
+    | '/recurring-fees/new/targets'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -117,6 +192,12 @@ export interface FileRouteTypes {
     | '/novo-plano'
     | '/planos-e-taxas'
     | '/sales'
+    | '/recurring-fees'
+    | '/recurring-fees/new/details'
+    | '/recurring-fees/new/pricing'
+    | '/recurring-fees/new/review'
+    | '/recurring-fees/new/schedule'
+    | '/recurring-fees/new/targets'
   id:
     | '__root__'
     | '/'
@@ -127,7 +208,14 @@ export interface FileRouteTypes {
     | '/_authRoutes/novo-ec'
     | '/_authRoutes/novo-plano'
     | '/_authRoutes/planos-e-taxas'
+    | '/_authRoutes/recurring-fees'
     | '/_authRoutes/sales'
+    | '/_authRoutes/recurring-fees/'
+    | '/_authRoutes/recurring-fees/new/details'
+    | '/_authRoutes/recurring-fees/new/pricing'
+    | '/_authRoutes/recurring-fees/new/review'
+    | '/_authRoutes/recurring-fees/new/schedule'
+    | '/_authRoutes/recurring-fees/new/targets'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -166,6 +254,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthRoutesSalesRouteImport
       parentRoute: typeof AuthRoutesRouteRoute
     }
+    '/_authRoutes/recurring-fees': {
+      id: '/_authRoutes/recurring-fees'
+      path: '/recurring-fees'
+      fullPath: '/recurring-fees'
+      preLoaderRoute: typeof AuthRoutesRecurringFeesRouteImport
+      parentRoute: typeof AuthRoutesRouteRoute
+    }
     '/_authRoutes/planos-e-taxas': {
       id: '/_authRoutes/planos-e-taxas'
       path: '/planos-e-taxas'
@@ -201,8 +296,79 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthRoutesBusinessListRouteImport
       parentRoute: typeof AuthRoutesRouteRoute
     }
+    '/_authRoutes/recurring-fees/': {
+      id: '/_authRoutes/recurring-fees/'
+      path: '/'
+      fullPath: '/recurring-fees/'
+      preLoaderRoute: typeof AuthRoutesRecurringFeesIndexRouteImport
+      parentRoute: typeof AuthRoutesRecurringFeesRoute
+    }
+    '/_authRoutes/recurring-fees/new/targets': {
+      id: '/_authRoutes/recurring-fees/new/targets'
+      path: '/new/targets'
+      fullPath: '/recurring-fees/new/targets'
+      preLoaderRoute: typeof AuthRoutesRecurringFeesNewTargetsRouteImport
+      parentRoute: typeof AuthRoutesRecurringFeesRoute
+    }
+    '/_authRoutes/recurring-fees/new/schedule': {
+      id: '/_authRoutes/recurring-fees/new/schedule'
+      path: '/new/schedule'
+      fullPath: '/recurring-fees/new/schedule'
+      preLoaderRoute: typeof AuthRoutesRecurringFeesNewScheduleRouteImport
+      parentRoute: typeof AuthRoutesRecurringFeesRoute
+    }
+    '/_authRoutes/recurring-fees/new/review': {
+      id: '/_authRoutes/recurring-fees/new/review'
+      path: '/new/review'
+      fullPath: '/recurring-fees/new/review'
+      preLoaderRoute: typeof AuthRoutesRecurringFeesNewReviewRouteImport
+      parentRoute: typeof AuthRoutesRecurringFeesRoute
+    }
+    '/_authRoutes/recurring-fees/new/pricing': {
+      id: '/_authRoutes/recurring-fees/new/pricing'
+      path: '/new/pricing'
+      fullPath: '/recurring-fees/new/pricing'
+      preLoaderRoute: typeof AuthRoutesRecurringFeesNewPricingRouteImport
+      parentRoute: typeof AuthRoutesRecurringFeesRoute
+    }
+    '/_authRoutes/recurring-fees/new/details': {
+      id: '/_authRoutes/recurring-fees/new/details'
+      path: '/new/details'
+      fullPath: '/recurring-fees/new/details'
+      preLoaderRoute: typeof AuthRoutesRecurringFeesNewDetailsRouteImport
+      parentRoute: typeof AuthRoutesRecurringFeesRoute
+    }
   }
 }
+
+interface AuthRoutesRecurringFeesRouteChildren {
+  AuthRoutesRecurringFeesIndexRoute: typeof AuthRoutesRecurringFeesIndexRoute
+  AuthRoutesRecurringFeesNewDetailsRoute: typeof AuthRoutesRecurringFeesNewDetailsRoute
+  AuthRoutesRecurringFeesNewPricingRoute: typeof AuthRoutesRecurringFeesNewPricingRoute
+  AuthRoutesRecurringFeesNewReviewRoute: typeof AuthRoutesRecurringFeesNewReviewRoute
+  AuthRoutesRecurringFeesNewScheduleRoute: typeof AuthRoutesRecurringFeesNewScheduleRoute
+  AuthRoutesRecurringFeesNewTargetsRoute: typeof AuthRoutesRecurringFeesNewTargetsRoute
+}
+
+const AuthRoutesRecurringFeesRouteChildren: AuthRoutesRecurringFeesRouteChildren =
+  {
+    AuthRoutesRecurringFeesIndexRoute: AuthRoutesRecurringFeesIndexRoute,
+    AuthRoutesRecurringFeesNewDetailsRoute:
+      AuthRoutesRecurringFeesNewDetailsRoute,
+    AuthRoutesRecurringFeesNewPricingRoute:
+      AuthRoutesRecurringFeesNewPricingRoute,
+    AuthRoutesRecurringFeesNewReviewRoute:
+      AuthRoutesRecurringFeesNewReviewRoute,
+    AuthRoutesRecurringFeesNewScheduleRoute:
+      AuthRoutesRecurringFeesNewScheduleRoute,
+    AuthRoutesRecurringFeesNewTargetsRoute:
+      AuthRoutesRecurringFeesNewTargetsRoute,
+  }
+
+const AuthRoutesRecurringFeesRouteWithChildren =
+  AuthRoutesRecurringFeesRoute._addFileChildren(
+    AuthRoutesRecurringFeesRouteChildren,
+  )
 
 interface AuthRoutesRouteRouteChildren {
   AuthRoutesBusinessListRoute: typeof AuthRoutesBusinessListRoute
@@ -210,6 +376,7 @@ interface AuthRoutesRouteRouteChildren {
   AuthRoutesNovoEcRoute: typeof AuthRoutesNovoEcRoute
   AuthRoutesNovoPlanoRoute: typeof AuthRoutesNovoPlanoRoute
   AuthRoutesPlanosETaxasRoute: typeof AuthRoutesPlanosETaxasRoute
+  AuthRoutesRecurringFeesRoute: typeof AuthRoutesRecurringFeesRouteWithChildren
   AuthRoutesSalesRoute: typeof AuthRoutesSalesRoute
 }
 
@@ -219,6 +386,7 @@ const AuthRoutesRouteRouteChildren: AuthRoutesRouteRouteChildren = {
   AuthRoutesNovoEcRoute: AuthRoutesNovoEcRoute,
   AuthRoutesNovoPlanoRoute: AuthRoutesNovoPlanoRoute,
   AuthRoutesPlanosETaxasRoute: AuthRoutesPlanosETaxasRoute,
+  AuthRoutesRecurringFeesRoute: AuthRoutesRecurringFeesRouteWithChildren,
   AuthRoutesSalesRoute: AuthRoutesSalesRoute,
 }
 

@@ -14,6 +14,7 @@ import Toolbar from "@mui/material/Toolbar";
 import AddIcon from "@mui/icons-material/Add";
 import StoreIcon from "@mui/icons-material/Store";
 import RequestQuoteIcon from "@mui/icons-material/RequestQuote";
+import AutorenewIcon from "@mui/icons-material/Autorenew";
 import PointOfSaleIcon from "@mui/icons-material/PointOfSale";
 import { useAllBusinesses, type Business } from "#hooks/quickApi/useBusinesses";
 import { BusinessScopeContext } from "./business-context";
@@ -48,6 +49,20 @@ const navigation = [
     activePaths: ["/novo-ec", "/completar-ec"],
     label: "Credenciamento",
     icon: <AddIcon />,
+    nonStoreOnly: true,
+  },
+  {
+    to: "/recurring-fees",
+    activePaths: [
+      "/recurring-fees",
+      "/recurring-fees/new/details",
+      "/recurring-fees/new/pricing",
+      "/recurring-fees/new/schedule",
+      "/recurring-fees/new/targets",
+      "/recurring-fees/new/review",
+    ],
+    label: "Taxas Recorrentes",
+    icon: <AutorenewIcon />,
     nonStoreOnly: true,
   },
   {
