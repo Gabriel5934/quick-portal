@@ -1,13 +1,20 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import Box from "@mui/material/Box";
-import Button from "@mui/material/Button";
+import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef } from "react";
-import { FormProvider, useForm, type Resolver } from "react-hook-form";
+import {
+  FormProvider,
+  useForm,
+  useWatch,
+  type Resolver,
+} from "react-hook-form";
 import { useCreateBusiness } from "#hooks/quickApi/useCreateBusiness";
 import { useCnpj } from "#hooks/brasilApi/useCnpj";
-import { FormPage } from "../../layout/form-page";
+import {
+  MultiStepFormShell,
+  WizardActions,
+} from "../../components/multi-step-form";
 import { useBusinessScope } from "../../layout/business-context";
 import { step1Schema } from "./schemas";
 import { Step1 } from "./Step1";
@@ -49,13 +56,16 @@ export function NewBusiness() {
     },
   });
 
-  const documentType = methods.watch("documentType");
-  const document = methods.watch("document") ?? "";
+  const documentType = useWatch({
+    control: methods.control,
+    name: "documentType",
+  });
+  const document =
+    useWatch({ control: methods.control, name: "document" }) ?? "";
   const { error: cnpjError } = useCnpj(document, documentType === "CNPJ");
 
-  cnpjErrorRef.current = cnpjError ?? null;
-
   useEffect(() => {
+    cnpjErrorRef.current = cnpjError ?? null;
     if (documentType !== "CNPJ" || !cnpjError) return;
     void methods.trigger("document");
   }, [cnpjError, documentType, methods]);
@@ -85,16 +95,19 @@ export function NewBusiness() {
 
   return (
     <FormProvider {...methods}>
-      <FormPage
-        breadcrumbs={[{ to: "/business-list", label: "Início" }]}
+      <MultiStepFormShell
+        breadcrumb={{ to: "/business-list", label: "Estabelecimentos" }}
         currentLabel="Cadastro de EC"
         title="Novo Estabelecimento Comercial"
-        subtitle="Preencha os dados iniciais para criar o cadastro do EC. Após salvar, você poderá completar o credenciamento."
+        subtitle="Preencha os dados iniciais para cadastrar o EC. Após salvar, você poderá completar o cadastro."
+        steps={["Dados cadastrais"]}
+        currentStep={0}
       >
-        <Box
-          sx={{ display: "flex", flexDirection: "column", gap: 2 }}
+        <Stack
           component="form"
           noValidate
+          spacing={2}
+          onSubmit={(event) => void methods.handleSubmit(onSubmit)(event)}
         >
           <Step1 />
           {methods.formState.errors.root && (
@@ -102,25 +115,13 @@ export function NewBusiness() {
               {methods.formState.errors.root.message}
             </Typography>
           )}
-        </Box>
-
-        <Box sx={{ display: "flex", justifyContent: "space-between" }}>
-          <Button
-            variant="outlined"
-            color="error"
-            onClick={() => void navigate({ to: "/business-list" })}
-          >
-            Cancelar
-          </Button>
-          <Button
-            variant="contained"
+          <WizardActions
+            onCancel={() => void navigate({ to: "/business-list" })}
+            submitLabel="Salvar"
             loading={isPending}
-            onClick={() => void methods.handleSubmit(onSubmit)()}
-          >
-            Salvar
-          </Button>
-        </Box>
-      </FormPage>
+          />
+        </Stack>
+      </MultiStepFormShell>
     </FormProvider>
   );
 }

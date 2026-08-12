@@ -24,6 +24,7 @@ import {
   AccessTimeOutlined,
   SyncOutlined,
   SearchOutlined,
+  AddOutlined,
 } from "@mui/icons-material";
 import { useNavigate } from "@tanstack/react-router";
 import {
@@ -174,19 +175,20 @@ export function BusinessList() {
       >
         <Box>
           <Typography variant="h5" sx={{ fontWeight: "bold" }}>
-            Estabelecimentos Credenciados
+            Estabelecimentos Cadastrados
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            Gerencie e consulte os ECs credenciados no sistema
+            Gerencie e consulte os ECs cadastrados no sistema
           </Typography>
         </Box>
         <Button
           variant="contained"
           size="large"
+          startIcon={<AddOutlined />}
           onClick={() => void navigate({ to: "/novo-ec" })}
           sx={{ whiteSpace: "nowrap" }}
         >
-          Novo Credenciamento
+          Novo
         </Button>
       </Box>
 

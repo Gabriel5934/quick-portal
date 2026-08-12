@@ -1,5 +1,4 @@
 import Autocomplete from "@mui/material/Autocomplete";
-import Box from "@mui/material/Box";
 import FormControl from "@mui/material/FormControl";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import FormLabel from "@mui/material/FormLabel";
@@ -7,36 +6,20 @@ import Radio from "@mui/material/Radio";
 import RadioGroup from "@mui/material/RadioGroup";
 import Switch from "@mui/material/Switch";
 import TextField from "@mui/material/TextField";
-import Typography from "@mui/material/Typography";
-import BadgeIcon from "@mui/icons-material/Badge";
-import MailIcon from "@mui/icons-material/Mail";
+import { useEffect } from "react";
 import { Controller, useFormContext } from "react-hook-form";
 import { PatternFormat } from "react-number-format";
-import { useEffect } from "react";
-import { useAllCnaes } from "#hooks/quickApi/useCnaes";
 import { useCnpj } from "#hooks/brasilApi/useCnpj";
+import { useAllCnaes } from "#hooks/quickApi/useCnaes";
+import { FormFieldPaper } from "../../components/multi-step-form";
 import { useBusinessScope } from "../../layout/business-context";
-import { FormPaper } from "./FormPaper";
 import type { NewBusinessFormValues } from "./types";
-
-const fieldSx = { flexGrow: 1, flexShrink: 1, flexBasis: "360px" };
 
 function formatCnae(value: string): string {
   const digits = value.replace(/\D/g, "");
   return digits.length === 7
     ? `${digits.slice(0, 4)}-${digits.slice(4, 5)}/${digits.slice(5)}`
     : value;
-}
-
-function ReadOnlyField({ label, value }: { label: string; value: string }) {
-  return (
-    <Box sx={fieldSx}>
-      <Typography variant="caption" color="text.secondary">
-        {label}
-      </Typography>
-      <Typography variant="body1">{value || "—"}</Typography>
-    </Box>
-  );
 }
 
 export function Step1() {
@@ -61,6 +44,7 @@ export function Step1() {
   const isCpf = documentType === "CPF";
   const { data: cnpjData, error: cnpjError } = useCnpj(document, isCnpj);
   const canCreateReseller = business?.type === "RESELLER";
+
   useEffect(() => {
     if (!cnpjData && !cnpjError) return;
     reset({
@@ -70,6 +54,7 @@ export function Step1() {
       cnaeId: undefined,
     });
   }, [cnpjData, cnpjError, reset, getValues]);
+
   useEffect(() => {
     if (!canCreateReseller) setValue("isReseller", false);
   }, [canCreateReseller, setValue]);
@@ -77,8 +62,8 @@ export function Step1() {
   const handleDocumentTypeChange = (
     fieldOnChange: (...event: unknown[]) => void,
   ) => {
-    return (e: React.ChangeEvent<HTMLInputElement>) => {
-      fieldOnChange(e);
+    return (event: React.ChangeEvent<HTMLInputElement>) => {
+      fieldOnChange(event);
       setValue("document", "");
       setValue("name", "");
       setValue("nomeFantasia", "");
@@ -89,12 +74,11 @@ export function Step1() {
 
   return (
     <>
-      <FormPaper
-        title="Dados Básicos"
-        subtitle="Informações básicas do estabelecimento comercial"
-        Icon={BadgeIcon}
-      >
-        {canCreateReseller ? (
+      {canCreateReseller && (
+        <FormFieldPaper
+          title="Tipo de estabelecimento"
+          description="Defina se o novo estabelecimento será uma revenda."
+        >
           <Controller
             name="isReseller"
             control={control}
@@ -108,13 +92,18 @@ export function Step1() {
                   />
                 }
                 label="Revenda"
-                sx={{ flexBasis: "100%" }}
               />
             )}
           />
-        ) : null}
+        </FormFieldPaper>
+      )}
 
-        <FormControl sx={{ flexBasis: "100%" }}>
+      <FormFieldPaper
+        title="Tipo de documento"
+        description="Selecione o documento usado no cadastro."
+        required
+      >
+        <FormControl>
           <FormLabel>CNPJ/CPF</FormLabel>
           <Controller
             name="documentType"
@@ -135,48 +124,86 @@ export function Step1() {
             )}
           />
         </FormControl>
+      </FormFieldPaper>
 
+      <FormFieldPaper
+        title="Documento"
+        description="Informe um CPF ou CNPJ válido."
+        error={Boolean(errors.document)}
+        required
+      >
         <Controller
           name="document"
           control={control}
-          render={({ field: { ref, onChange, value, ...restField } }) => (
+          render={({ field: { ref, onChange, value, ...field } }) => (
             <PatternFormat
-              {...restField}
+              {...field}
               value={value}
-              format={
-                documentType === "CPF" ? "###.###.###-##" : "##.###.###/####-##"
-              }
+              format={isCpf ? "###.###.###-##" : "##.###.###/####-##"}
               onValueChange={(values) => onChange(values.formattedValue)}
               customInput={TextField}
               getInputRef={ref}
+              variant="standard"
               label="Documento"
+              fullWidth
               required
               error={Boolean(errors.document)}
               helperText={errors.document?.message}
-              sx={fieldSx}
             />
           )}
         />
+      </FormFieldPaper>
 
-        {isCpf && (
+      {isCpf && (
+        <FormFieldPaper
+          title="Nome completo"
+          description="Informe o nome do responsável pelo CPF."
+          error={Boolean(errors.name)}
+          required
+        >
           <TextField
             {...register("name")}
+            variant="standard"
             label="Nome Completo"
+            fullWidth
             required
             error={Boolean(errors.name)}
             helperText={errors.name?.message}
-            sx={fieldSx}
           />
-        )}
+        </FormFieldPaper>
+      )}
 
-        {isCnpj && (
-          <>
-            <ReadOnlyField label="Razão Social" value={name} />
-            <ReadOnlyField label="Nome Fantasia" value={nomeFantasia} />
-          </>
-        )}
+      {isCnpj && (
+        <FormFieldPaper title="Razão social">
+          <TextField
+            variant="standard"
+            label="Razão Social"
+            value={name}
+            fullWidth
+            slotProps={{ input: { readOnly: true } }}
+          />
+        </FormFieldPaper>
+      )}
 
-        {isCpf && (
+      {isCnpj && (
+        <FormFieldPaper title="Nome fantasia">
+          <TextField
+            variant="standard"
+            label="Nome Fantasia"
+            value={nomeFantasia}
+            fullWidth
+            slotProps={{ input: { readOnly: true } }}
+          />
+        </FormFieldPaper>
+      )}
+
+      {isCpf && (
+        <FormFieldPaper
+          title="Categoria"
+          description="Selecione o MCC e CNAE do estabelecimento."
+          error={Boolean(errors.cnaeId)}
+          required
+        >
           <Controller
             name="cnaeId"
             control={control}
@@ -187,19 +214,22 @@ export function Step1() {
                 getOptionLabel={(option) =>
                   `${option.mcc} - ${formatCnae(option.code)} - ${option.description}`
                 }
-                isOptionEqualToValue={(option, val) => option.id === val.id}
+                isOptionEqualToValue={(option, selected) =>
+                  option.id === selected.id
+                }
                 value={
                   cnaeOptions.find((option) => option.id === value) ?? null
                 }
                 getOptionKey={(option) => option.id}
                 onChange={(_, selected) => onChange(selected?.id)}
-                sx={fieldSx}
                 renderInput={(params) => (
                   <TextField
                     {...params}
                     inputRef={ref}
+                    variant="standard"
                     label="Categoria"
                     placeholder="MCC, CNAE"
+                    fullWidth
                     required
                     error={Boolean(errors.cnaeId)}
                     helperText={errors.cnaeId?.message}
@@ -208,63 +238,80 @@ export function Step1() {
               />
             )}
           />
-        )}
-      </FormPaper>
+        </FormFieldPaper>
+      )}
 
-      <FormPaper
-        title="Dados de Contato"
-        subtitle="Informações para comunicação com o estabelecimento"
-        Icon={MailIcon}
+      <FormFieldPaper
+        title="Email"
+        description="Informe o endereço de email do estabelecimento."
+        error={Boolean(errors.email)}
+        required
       >
         <TextField
           {...register("email")}
           type="email"
+          variant="standard"
           label="Email"
+          fullWidth
           required
           error={Boolean(errors.email)}
           helperText={errors.email?.message}
-          sx={fieldSx}
         />
+      </FormFieldPaper>
 
+      <FormFieldPaper
+        title="Celular"
+        description="Informe o número de celular principal."
+        error={Boolean(errors.celular)}
+        required
+      >
         <Controller
           name="celular"
           control={control}
-          render={({ field: { ref, onChange, value, ...restField } }) => (
+          render={({ field: { ref, onChange, value, ...field } }) => (
             <PatternFormat
-              {...restField}
+              {...field}
               value={value}
               format="(##) #####-####"
               onValueChange={(values) => onChange(values.formattedValue)}
               customInput={TextField}
               getInputRef={ref}
+              variant="standard"
               label="Celular"
+              fullWidth
               required
               error={Boolean(errors.celular)}
               helperText={errors.celular?.message}
-              sx={fieldSx}
             />
           )}
         />
+      </FormFieldPaper>
 
+      <FormFieldPaper
+        title="Telefone"
+        description="Informe um telefone fixo, se houver."
+        error={Boolean(errors.telefone)}
+      >
         <Controller
           name="telefone"
           control={control}
-          render={({ field: { ref, onChange, value, ...restField } }) => (
+          render={({ field: { ref, onChange, value, ...field } }) => (
             <PatternFormat
-              {...restField}
+              {...field}
               value={value}
               format="(##) ####-####"
               onValueChange={(values) => onChange(values.formattedValue)}
               customInput={TextField}
               getInputRef={ref}
+              variant="standard"
               label="Telefone"
+              fullWidth
               error={Boolean(errors.telefone)}
               helperText={errors.telefone?.message}
-              sx={fieldSx}
             />
           )}
         />
-      </FormPaper>
+      </FormFieldPaper>
     </>
   );
 }

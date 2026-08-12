@@ -47,7 +47,7 @@ const navigation = [
   {
     to: "/novo-ec",
     activePaths: ["/novo-ec", "/completar-ec"],
-    label: "Credenciamento",
+    label: "Cadastro",
     icon: <AddIcon />,
     nonStoreOnly: true,
   },

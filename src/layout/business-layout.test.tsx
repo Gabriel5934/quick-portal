@@ -145,7 +145,7 @@ describe("BusinessLayout business selector", () => {
 
     expect(screen.getByText("Vendas")).toBeInTheDocument();
     expect(screen.queryByText("Estabelecimentos")).not.toBeInTheDocument();
-    expect(screen.queryByText("Credenciamento")).not.toBeInTheDocument();
+    expect(screen.queryByText("Cadastro")).not.toBeInTheDocument();
     expect(screen.queryByText("Planos e Taxas")).not.toBeInTheDocument();
   });
 

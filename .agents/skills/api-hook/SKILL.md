@@ -9,7 +9,7 @@ Every hook in `src/hooks/` follows this structure:
 1. **Request type** — fields sent in the request body
 2. **Response type** — fields expected from a successful response
 3. **Fetch function** — async function that:
-   - Calls `fetch` against `http://localhost:8000/<path>/`
+   - Calls `fetch` against `http://localhost:8080/<path>/`
    - Sets `Content-Type: application/json` and stringifies the body
    - Parses JSON with `.catch(() => null)` to avoid throwing on bad JSON
    - On `!res.ok`, casts data as `ValidationErrors`, reads `errors[keys[0]][0]`, and throws an `Error`
@@ -32,7 +32,7 @@ type <Name>Response = {
 };
 
 async function fetch<Name>(payload: <Name>Request): Promise<<Name>Response> {
-  const res = await fetch("http://localhost:8000/<endpoint>/", {
+  const res = await fetch("http://localhost:8080/<endpoint>/", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -78,6 +78,6 @@ Given the user's description of the endpoint (HTTP method, path, request fields,
 ## Notes
 
 - Always import `ValidationErrors` from `"./types"` for error handling
-- Never hardcode the base URL elsewhere — keep it inline as `http://localhost:8000`
+- Never hardcode the base URL elsewhere — keep it inline as `http://localhost:8080`
 - Do not add axios or other HTTP libraries; use native `fetch`
 - Do not add extra error handling beyond the DRF validation error pattern already established

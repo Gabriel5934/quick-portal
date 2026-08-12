@@ -6,6 +6,7 @@ import Step from "@mui/material/Step";
 import StepLabel from "@mui/material/StepLabel";
 import Stepper from "@mui/material/Stepper";
 import Typography from "@mui/material/Typography";
+import type { LinkProps } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import { FormPage } from "../../layout/form-page";
 
@@ -14,6 +15,8 @@ interface MultiStepFormShellProps {
   subtitle: string;
   steps: readonly string[];
   currentStep: number;
+  breadcrumb?: { to: LinkProps["to"]; label: string };
+  currentLabel?: string;
   children: ReactNode;
 }
 
@@ -22,14 +25,16 @@ export function MultiStepFormShell({
   subtitle,
   steps,
   currentStep,
+  breadcrumb = { to: "/recurring-fees", label: "Taxas Recorrentes" },
+  currentLabel,
   children,
 }: MultiStepFormShellProps) {
   const progress = ((currentStep + 1) / steps.length) * 100;
 
   return (
     <FormPage
-      breadcrumbs={[{ to: "/recurring-fees", label: "Taxas Recorrentes" }]}
-      currentLabel={steps[currentStep]}
+      breadcrumbs={[breadcrumb]}
+      currentLabel={currentLabel ?? steps[currentStep]}
       title={title}
       subtitle={subtitle}
     >

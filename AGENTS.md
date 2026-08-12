@@ -30,7 +30,7 @@ No test runner is configured.
 - `/_authRoutes/` — layout route that guards all authenticated pages; checks `localStorage.getItem("token")` in `beforeLoad` and redirects to `/` if absent
 - `/_authRoutes/home` → `routes/_authRoutes/home.tsx`
 
-**Auth flow:** Token is stored in `localStorage` under the key `"token"`. Login calls `POST /api/token/` (Django JWT endpoint), signup calls `POST /users/register/`. Both are wrapped as TanStack Query mutations in `src/hooks/useToken.ts` and `src/hooks/useRegister.ts`. API base is `http://localhost:8000`.
+**Auth flow:** Token is stored in `localStorage` under the key `"token"`. Login calls `POST /api/token/` (Django JWT endpoint), signup calls `POST /users/register/`. Both are wrapped as TanStack Query mutations in `src/hooks/useToken.ts` and `src/hooks/useRegister.ts`. API base is `http://localhost:8080`.
 
 **Feature modules** live in `src/features/<domain>/` with an `index.ts` barrel. Each feature owns its page components, form components, Zod schemas (`schemas.ts`), and TypeScript types (`types.ts`).
 
