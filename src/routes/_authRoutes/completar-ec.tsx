@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
-import { CompleteBusiness } from "../../features/business/complete-business-page";
+import { CompleteBusiness } from "../../features/business/complete-business/complete-business-page";
 import { NonStoreBusinessGuard } from "../../layout/non-store-business-guard";
 
 const searchSchema = z.object({

@@ -1,5 +1,5 @@
 import { useMutation } from "@tanstack/react-query";
-import type { CompleteBusinessFormValues } from "#features/business/types";
+import type { CompleteBusinessFormValues } from "#features/business/complete-business/types";
 import type { ValidationErrors } from "#hooks/types";
 import { useToken } from "#hooks/auth/useToken";
 
@@ -27,7 +27,10 @@ async function throwResponseError(res: Response): Promise<never> {
   throw new Error("Resposta inesperada do servidor.");
 }
 
-async function fetchCompleteBusiness({ id, ...data }: Payload, token: string): Promise<void> {
+async function fetchCompleteBusiness(
+  { id, ...data }: Payload,
+  token: string,
+): Promise<void> {
   const headers = {
     "Content-Type": "application/json",
     Authorization: `Bearer ${token}`,
@@ -81,5 +84,7 @@ async function fetchCompleteBusiness({ id, ...data }: Payload, token: string): P
 
 export function useCompleteBusiness() {
   const { data: token } = useToken();
-  return useMutation({ mutationFn: (payload: Payload) => fetchCompleteBusiness(payload, token!) });
+  return useMutation({
+    mutationFn: (payload: Payload) => fetchCompleteBusiness(payload, token!),
+  });
 }

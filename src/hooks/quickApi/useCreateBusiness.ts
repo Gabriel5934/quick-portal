@@ -1,11 +1,9 @@
 import { useMutation } from "@tanstack/react-query";
-import type { z } from "zod";
-import type { step1Schema } from "#features/business/schemas";
+import type { NewBusinessFormValues } from "#features/business/new-business/types";
 import type { ValidationErrors } from "#hooks/types";
 import { useToken } from "#hooks/auth/useToken";
 
-type Step1Data = z.infer<typeof step1Schema>;
-type CreateBusinessPayload = Step1Data & {
+type CreateBusinessPayload = NewBusinessFormValues & {
   parentId: number;
   type: "RE_RESELLER" | "STORE";
 };
