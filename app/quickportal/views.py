@@ -11,6 +11,7 @@ from rest_framework_simplejwt.views import TokenObtainPairView
 
 from quickportal.models import (
     Acquirer,
+    BusinessColorPreference,
     BusinessDetails,
     BusinessMembership,
     BusinessRole,
@@ -27,6 +28,7 @@ from quickportal.models import (
 from quickportal.serializers import (
     AcquirerSerializer,
     BusinessReadSerializer,
+    BusinessColorPreferenceSerializer,
     BusinessDetailsSerializer,
     BusinessMembershipReadSerializer,
     BusinessMembershipWriteSerializer,
@@ -325,7 +327,7 @@ class BusinessListCreateView(APIView):
         }
         paginator = BusinessPagination()
         page = paginator.paginate_queryset(businesses, request)
-        serializer = BusinessReadSerializer(page, many=True)
+        serializer = BusinessReadSerializer(page, many=True, context={"request": request})
         return Response({
             "count": paginator.page.paginator.count,
             "next": paginator.get_next_link(),
@@ -350,7 +352,10 @@ class BusinessListCreateView(APIView):
             business = serializer.save()
         except BrasilApiError as exc:
             return _brasil_api_error_response(exc)
-        return Response(BusinessReadSerializer(business).data, status=status.HTTP_201_CREATED)
+        return Response(
+            BusinessReadSerializer(business, context={"request": request}).data,
+            status=status.HTTP_201_CREATED,
+        )
 
 
 class BusinessDetailView(APIView):
@@ -361,7 +366,7 @@ class BusinessDetailView(APIView):
 
     def get(self, request, pk):
         business = self._get_object(request.user, pk)
-        return Response(BusinessReadSerializer(business).data)
+        return Response(BusinessReadSerializer(business, context={"request": request}).data)
 
     def put(self, request, pk):
         business = self._get_object(request.user, pk)
@@ -373,7 +378,7 @@ class BusinessDetailView(APIView):
             business = serializer.save()
         except BrasilApiError as exc:
             return _brasil_api_error_response(exc)
-        return Response(BusinessReadSerializer(business).data)
+        return Response(BusinessReadSerializer(business, context={"request": request}).data)
 
     def patch(self, request, pk):
         business = self._get_object(request.user, pk)
@@ -385,7 +390,7 @@ class BusinessDetailView(APIView):
             business = serializer.save()
         except BrasilApiError as exc:
             return _brasil_api_error_response(exc)
-        return Response(BusinessReadSerializer(business).data)
+        return Response(BusinessReadSerializer(business, context={"request": request}).data)
 
     def delete(self, request, pk):
         business = self._get_object(request.user, pk)
@@ -426,8 +431,23 @@ class BusinessChildrenListView(APIView):
         paginator = BusinessPagination()
         page = paginator.paginate_queryset(children, request)
         return paginator.get_paginated_response(
-            BusinessReadSerializer(page, many=True).data
+            BusinessReadSerializer(page, many=True, context={"request": request}).data
         )
+
+
+class BusinessColorPreferenceView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def put(self, request, pk):
+        business = get_accessible_business_or_404(request.user, pk)
+        serializer = BusinessColorPreferenceSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        preference, _ = BusinessColorPreference.objects.update_or_create(
+            user=request.user,
+            business=business,
+            defaults={"color": serializer.validated_data["color"]},
+        )
+        return Response({"color": preference.color})
 
 
 class RecurringFeeListCreateView(APIView):

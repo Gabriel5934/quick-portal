@@ -7,7 +7,8 @@ from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
 from quickportal.models import (
-    Acquirer, Business, BusinessDetails, BusinessMembership, BusinessType, Cnae,
+    Acquirer, Business, BusinessColor, BusinessColorPreference, BusinessDetails,
+    BusinessMembership, BusinessType, Cnae,
     DocumentType, Fee, Network, Plan, PlanFee, PosDevice, PosModel, RecurringFee,
     RecurringFeeTarget,
 )
@@ -297,12 +298,32 @@ class PlanWriteSerializer(serializers.ModelSerializer):
 
 
 class BusinessReadSerializer(serializers.ModelSerializer):
+    color = serializers.SerializerMethodField()
+
+    def get_color(self, business):
+        request = self.context.get("request")
+        if request is None:
+            return BusinessColor.BLUE
+        colors = self.context.get("business_colors")
+        if colors is None:
+            colors = dict(
+                BusinessColorPreference.objects.filter(user=request.user)
+                .values_list("business_id", "color")
+            )
+            self.context["business_colors"] = colors
+        return colors.get(business.id, BusinessColor.BLUE)
+
     class Meta:
         model = Business
         fields = [
             "id", "type", "parent", "document_type", "document", "name",
             "trade_name", "cnae", "email", "phone", "landline", "status",
+            "color",
         ]
+
+
+class BusinessColorPreferenceSerializer(serializers.Serializer):
+    color = serializers.ChoiceField(choices=BusinessColor.choices)
 
 
 class RecurringFeeBusinessSerializer(serializers.ModelSerializer):

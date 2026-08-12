@@ -20,6 +20,7 @@ from rest_framework.test import APITestCase
 from quickportal.models import (
     Acquirer,
     Business,
+    BusinessColorPreference,
     BusinessMembership,
     BusinessRole,
     BusinessType,
@@ -785,6 +786,70 @@ class BusinessAuthorizationApiTests(APITestCase):
                 self.nested_store.id,
             },
         )
+
+    def test_business_colors_are_user_specific_and_default_to_blue(self):
+        BusinessMembership.objects.create(
+            user=self.user, business=self.reseller, role=BusinessRole.VIEWER
+        )
+        response = self.client.get(reverse("business_list_create"))
+        self.assertTrue(
+            all(item["color"] == "blue" for item in response.data["results"])
+        )
+
+        response = self.client.put(
+            reverse("business_color_preference", args=[self.nested_store.id]),
+            {"color": "purple"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data, {"color": "purple"})
+        self.assertTrue(
+            BusinessColorPreference.objects.filter(
+                user=self.user,
+                business=self.nested_store,
+                color="purple",
+            ).exists()
+        )
+
+        other_user = User.objects.create_user(username="other-user")
+        BusinessMembership.objects.create(
+            user=other_user,
+            business=self.reseller,
+            role=BusinessRole.VIEWER,
+        )
+        self.client.force_authenticate(other_user)
+        response = self.client.get(
+            reverse("business_detail", args=[self.nested_store.id])
+        )
+        self.assertEqual(response.data["color"], "blue")
+
+    def test_business_color_rejects_invalid_color_and_inaccessible_business(self):
+        BusinessMembership.objects.create(
+            user=self.user, business=self.reseller, role=BusinessRole.VIEWER
+        )
+        response = self.client.put(
+            reverse("business_color_preference", args=[self.reseller.id]),
+            {"color": "red"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+        response = self.client.put(
+            reverse("business_color_preference", args=[self.unrelated_store.id]),
+            {"color": "green"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_business_color_preference_validates_on_direct_save(self):
+        preference = BusinessColorPreference(
+            user=self.user,
+            business=self.reseller,
+            color="red",
+        )
+
+        with self.assertRaises(ValidationError):
+            preference.save()
 
     def test_business_list_can_be_filtered_to_a_business_branch(self):
         BusinessMembership.objects.create(

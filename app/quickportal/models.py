@@ -31,6 +31,14 @@ class BusinessRole(models.TextChoices):
     VIEWER = "VIEWER", "Viewer"
 
 
+class BusinessColor(models.TextChoices):
+    BLUE = "blue", "Blue"
+    GREEN = "green", "Green"
+    YELLOW = "yellow", "Yellow"
+    PURPLE = "purple", "Purple"
+    ORANGE = "orange", "Orange"
+
+
 class RecurringFeePricingMode(models.TextChoices):
     FIXED = "FIXED", "Fixed"
     GOAL = "GOAL", "Goal-based"
@@ -262,6 +270,40 @@ class BusinessMembership(models.Model):
 
     def __str__(self):
         return f"{self.user_id} / {self.business_id} / {self.role}"
+
+
+class BusinessColorPreference(models.Model):
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="business_color_preferences",
+    )
+    business = models.ForeignKey(
+        Business,
+        on_delete=models.CASCADE,
+        related_name="color_preferences",
+    )
+    color = models.CharField(
+        max_length=10,
+        choices=BusinessColor.choices,
+        default=BusinessColor.BLUE,
+    )
+
+    class Meta:
+        db_table = "business_color_preference"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "business"],
+                name="unique_user_business_color_preference",
+            )
+        ]
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        return super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.user_id} / {self.business_id} / {self.color}"
 
 
 class RecurringFee(models.Model):
