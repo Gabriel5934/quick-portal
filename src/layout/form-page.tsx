@@ -34,7 +34,7 @@ export function FormPage({
         flexDirection: "column",
         gap: 2,
         height: "100%",
-        justifyContent: "space-between",
+        justifyContent: "flex-start",
       }}
     >
       <Box>

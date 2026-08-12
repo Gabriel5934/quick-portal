@@ -74,5 +74,11 @@ export function updateRecurringFeeDraft(
 }
 
 export function resetRecurringFeeDraft(state: GlobalState): GlobalState {
-  return { ...state, recurringFeeDraft: { ...initialRecurringFeeDraft } };
+  return {
+    ...state,
+    recurringFeeDraft: {
+      ...initialRecurringFeeDraft,
+      ownerId: state.recurringFeeDraft.ownerId,
+    },
+  };
 }

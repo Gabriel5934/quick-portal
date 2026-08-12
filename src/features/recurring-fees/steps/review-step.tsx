@@ -23,6 +23,21 @@ function money(value: string) {
   return parsed.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
+const recurrenceLabels = {
+  DAY: ["dia", "dias"],
+  WEEK: ["semana", "semanas"],
+  MONTH: ["mês", "meses"],
+  YEAR: ["ano", "anos"],
+} as const;
+
+function recurrenceSummary(
+  interval: number,
+  unit: keyof typeof recurrenceLabels,
+) {
+  const [singular, plural] = recurrenceLabels[unit];
+  return `A cada ${interval} ${interval === 1 ? singular : plural}`;
+}
+
 export function ReviewStep() {
   const navigate = useNavigate();
   const { business } = useBusinessScope();
@@ -120,7 +135,7 @@ export function ReviewStep() {
       </FormFieldPaper>
       <FormFieldPaper title="Recorrência">
         <Typography>
-          A cada {draft.recurrenceInterval} {draft.recurrenceUnit.toLowerCase()}
+          {recurrenceSummary(draft.recurrenceInterval, draft.recurrenceUnit)}
         </Typography>
         <Typography>
           Vigência:{" "}
