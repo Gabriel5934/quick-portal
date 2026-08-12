@@ -1,4 +1,8 @@
-import { keepPreviousData } from "@tanstack/react-query";
+import {
+  keepPreviousData,
+  useMutation,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { ApiError, useAuthQuery } from "../auth/useAuthQuery";
 import { useToken } from "#hooks/auth/useToken";
 
@@ -9,6 +13,7 @@ export type BusinessStatus =
   | "COMPLETED";
 
 export type BusinessType = "RESELLER" | "RE_RESELLER" | "STORE";
+export type BusinessColor = "blue" | "green" | "yellow" | "purple" | "orange";
 
 export interface Business {
   id: number;
@@ -23,6 +28,7 @@ export interface Business {
   phone: string;
   landline: string;
   status: BusinessStatus;
+  color: BusinessColor;
 }
 
 export interface BusinessesResponse {
@@ -128,5 +134,45 @@ export function useBusiness(id: number | undefined) {
     queryKey: ["business", id],
     queryFn: () => fetchBusiness(id!, token!),
     enabled: !!token && !!id,
+  });
+}
+
+async function updateBusinessColor(
+  id: number,
+  color: BusinessColor,
+  token: string,
+): Promise<{ color: BusinessColor }> {
+  const res = await fetch(
+    `${import.meta.env.VITE_API_BASE_URL}/api/businesses/${id}/color/`,
+    {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ color }),
+    },
+  );
+  if (!res.ok) throw new Error("Erro ao salvar a cor da empresa.");
+  return res.json() as Promise<{ color: BusinessColor }>;
+}
+
+export function useBusinessColor() {
+  const { data: token } = useToken();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, color }: { id: number; color: BusinessColor }) =>
+      updateBusinessColor(id, color, token!),
+    onSuccess: ({ color }, { id }) => {
+      queryClient.setQueryData<Business[]>(["businesses", "all"], (current) =>
+        current?.map((business) =>
+          business.id === id ? { ...business, color } : business,
+        ),
+      );
+      queryClient.setQueryData<Business>(["business", id], (current) =>
+        current ? { ...current, color } : current,
+      );
+    },
   });
 }

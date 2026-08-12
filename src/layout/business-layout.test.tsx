@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Business } from "#hooks/quickApi/useBusinesses";
 import { useAllBusinesses } from "#hooks/quickApi/useBusinesses";
+import { useBusinessColor } from "#hooks/quickApi/useBusinesses";
 import { BusinessLayout } from "./business-layout";
 
 const navigate = vi.hoisted(() => vi.fn());
@@ -24,7 +25,11 @@ vi.mock("@tanstack/react-router", () => ({
 vi.mock("#hooks/quickApi/useBusinesses", async (importOriginal) => {
   const original =
     await importOriginal<typeof import("#hooks/quickApi/useBusinesses")>();
-  return { ...original, useAllBusinesses: vi.fn() };
+  return {
+    ...original,
+    useAllBusinesses: vi.fn(),
+    useBusinessColor: vi.fn(),
+  };
 });
 
 function business(
@@ -46,6 +51,7 @@ function business(
     phone: "11999999999",
     landline: "",
     status: "NOT_STARTED",
+    color: "blue",
   };
 }
 
@@ -58,11 +64,14 @@ const hierarchy = [
   business(6, "Segundo estabelecimento", "STORE", 3),
 ];
 
-function renderHierarchy(businesses: Business[]) {
+function renderHierarchy(businesses: Business[], mutate = vi.fn()) {
   vi.mocked(useAllBusinesses).mockReturnValue({
     data: businesses,
     isLoading: false,
   } as ReturnType<typeof useAllBusinesses>);
+  vi.mocked(useBusinessColor).mockReturnValue({
+    mutate,
+  } as unknown as ReturnType<typeof useBusinessColor>);
 
   render(
     <BusinessLayout>
@@ -153,5 +162,30 @@ describe("BusinessLayout business selector", () => {
     renderHierarchy(hierarchy);
 
     expect(screen.getByText("Vendas").closest("a")).toHaveClass("Mui-selected");
+  });
+
+  it("expands the color choices and saves the selected color", async () => {
+    const mutate = vi.fn();
+    renderHierarchy(hierarchy, mutate);
+    const user = userEvent.setup();
+
+    expect(screen.getAllByRole("radio")).toHaveLength(1);
+    await user.click(screen.getByRole("radio", { name: "blue" }));
+    expect(screen.getAllByRole("radio")).toHaveLength(5);
+    await user.click(screen.getByRole("radio", { name: "purple" }));
+
+    expect(mutate).toHaveBeenCalledWith({ id: 1, color: "purple" });
+    expect(screen.getAllByRole("radio")).toHaveLength(1);
+  });
+
+  it("closes the color choices when the current color is clicked again", async () => {
+    renderHierarchy(hierarchy);
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole("radio", { name: "blue" }));
+    expect(screen.getAllByRole("radio")).toHaveLength(5);
+    await user.click(screen.getByRole("radio", { name: "blue" }));
+
+    expect(screen.getAllByRole("radio")).toHaveLength(1);
   });
 });
