@@ -5,6 +5,7 @@ import { NonStoreBusinessGuard } from "../../layout/non-store-business-guard";
 
 const searchSchema = z.object({
   id: z.number().optional(),
+  acquirer: z.number().int().positive(),
 });
 
 export const Route = createFileRoute("/_authRoutes/completar-ec")({
@@ -13,10 +14,10 @@ export const Route = createFileRoute("/_authRoutes/completar-ec")({
 });
 
 function RouteComponent() {
-  const { id } = Route.useSearch();
+  const { id, acquirer } = Route.useSearch();
   return (
     <NonStoreBusinessGuard>
-      <CompleteBusiness id={id} />
+      <CompleteBusiness id={id} acquirerId={acquirer} />
     </NonStoreBusinessGuard>
   );
 }

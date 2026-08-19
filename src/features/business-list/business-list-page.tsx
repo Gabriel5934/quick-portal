@@ -2,10 +2,13 @@ import { useMemo, useState } from "react";
 import {
   Box,
   Button,
+  ButtonGroup,
   Card,
   CardContent,
   CircularProgress,
   Grid,
+  Menu,
+  MenuItem,
   Paper,
   Table,
   TableBody,
@@ -25,6 +28,7 @@ import {
   SyncOutlined,
   SearchOutlined,
   AddOutlined,
+  ArrowDropDown,
 } from "@mui/icons-material";
 import { useNavigate } from "@tanstack/react-router";
 import {
@@ -34,6 +38,66 @@ import {
   type BusinessType,
 } from "#hooks/quickApi/useBusinesses";
 import { useBusinessScope } from "../../layout/business-context";
+import {
+  useAcquirers,
+  type AcquirerOption,
+} from "#hooks/quickApi/useAcquirers";
+
+interface CredentialButtonProps {
+  businessId: number;
+  acquirers: AcquirerOption[];
+  loading: boolean;
+}
+
+function CredentialButton({
+  businessId,
+  acquirers,
+  loading,
+}: CredentialButtonProps) {
+  const navigate = useNavigate();
+  const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
+
+  function selectAcquirer(acquirerId: number) {
+    setAnchorEl(null);
+    void navigate({
+      to: "/completar-ec",
+      search: { id: businessId, acquirer: acquirerId },
+    });
+  }
+
+  return (
+    <>
+      <ButtonGroup variant="outlined" size="small">
+        <Button
+          endIcon={<ArrowDropDown />}
+          disabled={loading || acquirers.length === 0}
+          aria-haspopup="menu"
+          aria-expanded={anchorEl ? "true" : undefined}
+          onClick={(event) => setAnchorEl(event.currentTarget)}
+        >
+          Credenciar
+        </Button>
+      </ButtonGroup>
+      <Menu
+        anchorEl={anchorEl}
+        open={Boolean(anchorEl)}
+        onClose={() => setAnchorEl(null)}
+      >
+        <MenuItem selected disabled>
+          Credenciar
+        </MenuItem>
+        {acquirers.map((acquirer) => (
+          <MenuItem
+            key={acquirer.id}
+            onClick={() => selectAcquirer(acquirer.id)}
+          >
+            {acquirer.name}
+          </MenuItem>
+        ))}
+      </Menu>
+    </>
+  );
+}
 
 interface StatCardProps {
   icon: React.ReactNode;
@@ -130,6 +194,7 @@ export function BusinessList() {
     trade_name?: string;
   }>({});
   const { data: hierarchy = [] } = useAllBusinesses();
+  const { data: acquirers = [], isLoading: acquirersLoading } = useAcquirers();
   const businessesById = useMemo(
     () => new Map(hierarchy.map((item) => [item.id, item])),
     [hierarchy],
@@ -392,18 +457,11 @@ export function BusinessList() {
                         <TableCell>
                           {biz.type === "STORE" &&
                             biz.status === "NOT_STARTED" && (
-                              <Button
-                                size="small"
-                                variant="outlined"
-                                onClick={() =>
-                                  void navigate({
-                                    to: "/completar-ec",
-                                    search: { id: biz.id },
-                                  })
-                                }
-                              >
-                                Completar
-                              </Button>
+                              <CredentialButton
+                                businessId={biz.id}
+                                acquirers={acquirers}
+                                loading={acquirersLoading}
+                              />
                             )}
                         </TableCell>
                       </TableRow>

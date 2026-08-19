@@ -38,7 +38,13 @@ const validationSchemas = [
   commercialPlanSchema,
 ] as const;
 
-export function CompleteBusiness({ id }: { id?: number }) {
+export function CompleteBusiness({
+  id,
+  acquirerId,
+}: {
+  id?: number;
+  acquirerId: number;
+}) {
   const [currentStep, setCurrentStep] = useState(0);
   const navigate = useNavigate();
   const completeBusiness = useCompleteBusiness();
@@ -59,7 +65,7 @@ export function CompleteBusiness({ id }: { id?: number }) {
       number: "",
       complement: "",
       posDevices: [{ model: "", serialNumber: "" }],
-      acquirerId: undefined,
+      acquirerId,
       planId: undefined,
       expectedRevenue: "",
       commitedRevenue: "",

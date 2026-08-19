@@ -6,7 +6,6 @@ import { Link as RouterLink } from "@tanstack/react-router";
 import { useEffect, useMemo } from "react";
 import { Controller, useFormContext, useWatch } from "react-hook-form";
 import { NumericFormat } from "react-number-format";
-import { useAcquirers } from "#hooks/quickApi/useAcquirers";
 import { usePlans } from "#hooks/quickApi/usePlans";
 import { FormFieldPaper } from "../../../components/multi-step-form";
 import type { CompleteBusinessFormValues } from "./types";
@@ -20,7 +19,6 @@ export function CommercialPlanStep({
   businessCnae,
   isBusinessLoading,
 }: CommercialPlanStepProps) {
-  const { data: acquirers = [], isLoading: acquirersLoading } = useAcquirers();
   const { data: plans = [] } = usePlans();
   const {
     control,
@@ -77,37 +75,6 @@ export function CommercialPlanStep({
 
   return (
     <>
-      <FormFieldPaper title="Adquirente" error={!!errors.acquirerId} required>
-        <Controller
-          name="acquirerId"
-          control={control}
-          render={({ field: { onChange, value, ref } }) => (
-            <Autocomplete
-              options={acquirers}
-              loading={acquirersLoading}
-              getOptionLabel={(option) => option.name}
-              getOptionKey={(option) => option.id}
-              isOptionEqualToValue={(option, selected) =>
-                option.id === selected.id
-              }
-              value={acquirers.find((option) => option.id === value) ?? null}
-              onChange={(_, selected) => onChange(selected?.id)}
-              renderInput={(params) => (
-                <TextField
-                  {...params}
-                  inputRef={ref}
-                  variant="standard"
-                  label="Adquirente"
-                  fullWidth
-                  required
-                  error={!!errors.acquirerId}
-                  helperText={errors.acquirerId?.message}
-                />
-              )}
-            />
-          )}
-        />
-      </FormFieldPaper>
       <FormFieldPaper
         title="Plano"
         description="Selecione um plano compatível com o CNAE e adquirente."
