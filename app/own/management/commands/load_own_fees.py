@@ -7,10 +7,10 @@ from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
-from own.models import OwnChannel, OwnFee, OwnMethod, OwnNetwork
+from own.models import OwnBasket, OwnChannel, OwnFee, OwnMethod, OwnNetwork
 
 
-NETWORK_NAMES = ("Visa", "Elo", "Mastercard")
+NETWORK_NAMES = ("Visa", "Elo", "Mastercard", "Default")
 CHANNEL_NAMES = ("Physical", "Ecommerce")
 METHOD_NAMES = (
     "Pix",
@@ -25,6 +25,11 @@ BASKET_NAMES = {117: "Bandeira", 333: "Parcela"}
 
 
 def normalize(value):
+    """Return an uppercase ASCII representation suitable for product parsing.
+
+    ``value`` is any string-compatible source value. The returned string has
+    accents and punctuation removed and whitespace normalized.
+    """
     value = unicodedata.normalize("NFKD", str(value))
     value = "".join(
         character for character in value if not unicodedata.combining(character)
@@ -33,6 +38,11 @@ def normalize(value):
 
 
 def extract_records(payload):
+    """Return the consultarCesta records found within ``payload``.
+
+    ``payload`` may be the record list, one record, or a nested mapping. A
+    ``CommandError`` is raised when no compatible record collection exists.
+    """
     if isinstance(payload, list):
         if all(isinstance(item, dict) for item in payload):
             return payload
@@ -48,6 +58,10 @@ def extract_records(payload):
 
 
 def parse_network(product):
+    """Return the OWN network name parsed from normalized ``product`` text.
+
+    Returns ``None`` when the product does not identify a supported network.
+    """
     if re.search(r"\bVISA\b", product):
         return "Visa"
     if re.search(r"\bELO\b", product):
@@ -58,6 +72,10 @@ def parse_network(product):
 
 
 def parse_method(product):
+    """Return the payment method parsed from normalized ``product`` text.
+
+    Raises ``CommandError`` when no supported method can be determined.
+    """
     if "VOUCHER" in product or "VALE" in product:
         return "Visa Voucher"
     if "TOP BANK" in product or "TOPBANK" in product:
@@ -82,6 +100,12 @@ def parse_method(product):
 
 
 def parse_installments(product, method):
+    """Return the lower and optional upper installment values for a product.
+
+    ``product`` is normalized product text and ``method`` is its parsed method.
+    Non-installment methods return ``(None, None)``. A ``CommandError`` is
+    raised when an installment product contains no usable installment number.
+    """
     if method != "Installments":
         return None, None
     values = [int(value) for value in re.findall(r"\b0*(\d+)\s*X\b", product)]
@@ -95,6 +119,10 @@ def parse_installments(product, method):
 
 
 def float_field(record, field):
+    """Return ``field`` from ``record`` as a float.
+
+    Raises ``CommandError`` when the field is absent or is not numeric.
+    """
     try:
         return float(record[field])
     except (KeyError, TypeError, ValueError) as exc:
@@ -102,6 +130,11 @@ def float_field(record, field):
 
 
 def transform_record(record):
+    """Transform one raw consultarCesta ``record`` into OWN fee attributes.
+
+    Returns a dictionary ready for reference-object resolution. ``CommandError``
+    is raised for missing values, unsupported baskets, methods, or installments.
+    """
     try:
         basket_id = int(record["cestaId"])
         fee_id = int(record["cestaValorId"])
@@ -121,7 +154,6 @@ def transform_record(record):
     return {
         "id": fee_id,
         "basketId": basket_id,
-        "basketName": BASKET_NAMES[basket_id],
         "value": float_field(record, "valor"),
         "baseMdr": float_field(record, "valorMinimo"),
         "network": network,
@@ -139,17 +171,23 @@ def transform_record(record):
 
 
 def validate_fees(fees):
+    """Validate the expected IDs and basket/network distribution in ``fees``.
+
+    The function returns ``None`` when valid and raises ``CommandError`` with
+    all detected distribution problems otherwise.
+    """
     errors = []
     if len(fees) != 181:
         errors.append(f"expected 181 fees, found {len(fees)}")
     if len({fee["id"] for fee in fees}) != len(fees):
         errors.append("cestaValorId values are not unique")
     expected = {
-        "Bandeira": {None: 5, "Visa": 12, "Elo": 12, "Mastercard": 12},
-        "Parcela": {None: 2, "Visa": 46, "Elo": 46, "Mastercard": 46},
+        117: {None: 5, "Visa": 12, "Elo": 12, "Mastercard": 12},
+        333: {None: 2, "Visa": 46, "Elo": 46, "Mastercard": 46},
     }
-    for basket_name, network_counts in expected.items():
-        basket_fees = [fee for fee in fees if fee["basketName"] == basket_name]
+    for basket_id, network_counts in expected.items():
+        basket_fees = [fee for fee in fees if fee["basketId"] == basket_id]
+        basket_name = BASKET_NAMES[basket_id]
         expected_total = sum(network_counts.values())
         if len(basket_fees) != expected_total:
             errors.append(
@@ -167,9 +205,16 @@ def validate_fees(fees):
 
 
 class Command(BaseCommand):
-    help = "Destructively replace OWN fees from /app/load-consultar-cesta.json."
+    help = (
+        "Synchronize OWN fees from /app/load-consultar-cesta.json, retaining "
+        "obsolete fees that are referenced by plans."
+    )
 
     def add_arguments(self, parser):
+        """Register the optional source-file argument on ``parser``.
+
+        Returns ``None`` after configuring the command-line parser.
+        """
         parser.add_argument(
             "--file",
             type=Path,
@@ -178,6 +223,13 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
+        """Load, validate, and synchronize OWN fees from the selected JSON file.
+
+        ``args`` contains unused positional arguments and ``options`` contains
+        the parsed file path. Invalid or unreadable input raises ``CommandError``.
+        Existing rows are updated by fee ID; obsolete referenced rows are kept,
+        while obsolete unreferenced rows are deleted. Returns ``None``.
+        """
         path = options["file"]
         try:
             with path.open(encoding="utf-8-sig") as source:
@@ -203,18 +255,30 @@ class Command(BaseCommand):
                 name: OwnMethod.objects.get_or_create(name=name)[0]
                 for name in METHOD_NAMES
             }
-            OwnFee.objects.all().delete()
-            OwnFee.objects.bulk_create(
-                OwnFee(
-                    **{
-                        **fee,
+            baskets = {
+                basket_id: OwnBasket.objects.update_or_create(
+                    id=basket_id, defaults={"name": basket_name}
+                )[0]
+                for basket_id, basket_name in BASKET_NAMES.items()
+            }
+            incoming_ids = []
+            for fee in fees:
+                fee_id = fee["id"]
+                incoming_ids.append(fee_id)
+                fee_values = {key: value for key, value in fee.items() if key != "id"}
+                OwnFee.objects.update_or_create(
+                    id=fee_id,
+                    defaults={
+                        **fee_values,
+                        "basketId": baskets[fee["basketId"]],
                         "network": networks.get(fee["network"]),
                         "channel": channels.get(fee["channel"]),
                         "method": methods[fee["method"]],
-                    }
+                    },
                 )
-                for fee in fees
-            )
+            OwnFee.objects.exclude(id__in=incoming_ids).filter(
+                plan_fees__isnull=True
+            ).delete()
 
         self.stdout.write(
             self.style.SUCCESS(f"Loaded {len(fees)} OWN fees from {path}.")

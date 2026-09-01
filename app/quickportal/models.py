@@ -308,7 +308,11 @@ class BusinessColorPreference(models.Model):
         return super().save(*args, **kwargs)
 
     def __str__(self):
-        """Return ``user_id / business_id / color`` for this preference."""
+        """Return this preference's user, business, and color display string.
+
+        ``self`` is the preference being displayed. The result has the form
+        ``user_id / business_id / color``.
+        """
         return f"{self.user_id} / {self.business_id} / {self.color}"
 
 

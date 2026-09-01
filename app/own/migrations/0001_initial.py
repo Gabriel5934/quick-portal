@@ -3,6 +3,16 @@ import django.db.models.deletion
 
 
 def load_reference_data(apps, schema_editor):
+    """Create the initial OWN network, channel, and method reference data.
+
+    Args:
+        apps: Django's migration app registry, used to access historical models.
+        schema_editor: Schema editor for the active database connection. It is
+            required by the migration callable interface but is not used.
+
+    Returns:
+        None.
+    """
     OwnNetwork = apps.get_model("own", "OwnNetwork")
     OwnChannel = apps.get_model("own", "OwnChannel")
     OwnMethod = apps.get_model("own", "OwnMethod")
