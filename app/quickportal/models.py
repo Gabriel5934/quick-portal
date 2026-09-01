@@ -299,10 +299,16 @@ class BusinessColorPreference(models.Model):
         ]
 
     def save(self, *args, **kwargs):
+        """Validate and persist this preference.
+
+        ``*args`` and ``**kwargs`` are forwarded to Django's model ``save``.
+        Returns the value returned by the parent ``save`` implementation.
+        """
         self.full_clean()
         return super().save(*args, **kwargs)
 
     def __str__(self):
+        """Return ``user_id / business_id / color`` for this preference."""
         return f"{self.user_id} / {self.business_id} / {self.color}"
 
 

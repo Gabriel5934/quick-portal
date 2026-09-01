@@ -301,13 +301,26 @@ class BusinessReadSerializer(serializers.ModelSerializer):
     color = serializers.SerializerMethodField()
 
     def get_color(self, business):
+        """Return the requesting user's color for ``business``.
+
+        ``business`` is the object currently being serialized. The optional
+        ``request`` context identifies the user, while ``business_ids`` limits
+        preference loading to the list or detail objects being serialized.
+        The resulting ID-to-color mapping is cached in the shared
+        ``business_colors`` serializer context. ``BusinessColor.BLUE`` is
+        returned when there is no request or no preference for this business.
+        """
         request = self.context.get("request")
         if request is None:
             return BusinessColor.BLUE
         colors = self.context.get("business_colors")
         if colors is None:
+            business_ids = self.context.get("business_ids", [business.id])
             colors = dict(
-                BusinessColorPreference.objects.filter(user=request.user)
+                BusinessColorPreference.objects.filter(
+                    user=request.user,
+                    business_id__in=business_ids,
+                )
                 .values_list("business_id", "color")
             )
             self.context["business_colors"] = colors

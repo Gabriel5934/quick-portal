@@ -788,10 +788,28 @@ class BusinessAuthorizationApiTests(APITestCase):
         )
 
     def test_business_colors_are_user_specific_and_default_to_blue(self):
+        """Verify color defaults and preferences remain scoped per user.
+
+        The ``setUp`` fixture supplies the authenticated ``self.user`` and a
+        reseller hierarchy containing ``self.nested_store``. This parameterless
+        test first checks the blue default, saves a purple preference, then
+        authenticates another related user and confirms that user's default is
+        still blue. It performs assertions and returns ``None``.
+        """
         BusinessMembership.objects.create(
             user=self.user, business=self.reseller, role=BusinessRole.VIEWER
         )
         response = self.client.get(reverse("business_list_create"))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertSetEqual(
+            {item["id"] for item in response.data["results"]},
+            {
+                self.reseller.id,
+                self.re_reseller.id,
+                self.direct_store.id,
+                self.nested_store.id,
+            },
+        )
         self.assertTrue(
             all(item["color"] == "blue" for item in response.data["results"])
         )
@@ -824,6 +842,14 @@ class BusinessAuthorizationApiTests(APITestCase):
         self.assertEqual(response.data["color"], "blue")
 
     def test_business_color_rejects_invalid_color_and_inaccessible_business(self):
+        """Reject invalid choices and preferences for inaccessible businesses.
+
+        The ``setUp`` fixture provides authenticated ``self.user``, accessible
+        ``self.reseller``, and inaccessible ``self.unrelated_store``. This
+        parameterless test expects HTTP 400 for an invalid color and HTTP 404
+        for an out-of-scope business. It performs assertions and returns
+        ``None``.
+        """
         BusinessMembership.objects.create(
             user=self.user, business=self.reseller, role=BusinessRole.VIEWER
         )
@@ -842,6 +868,13 @@ class BusinessAuthorizationApiTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_business_color_preference_validates_on_direct_save(self):
+        """Ensure direct preference persistence runs model validation.
+
+        Using ``self.user`` and ``self.reseller`` from ``setUp``, this
+        parameterless test constructs a preference with an unsupported color
+        and verifies that ``save`` raises Django ``ValidationError``. It
+        performs assertions and returns ``None``.
+        """
         preference = BusinessColorPreference(
             user=self.user,
             business=self.reseller,

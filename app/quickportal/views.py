@@ -312,6 +312,16 @@ class BusinessListCreateView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        """List businesses accessible to the authenticated user.
+
+        ``request`` may provide ``parent``, ``document``, and case-insensitive
+        ``name`` query parameters. ``parent`` includes both children and
+        grandchildren of that business. Results use ``BusinessPagination``
+        and return ``count``, ``next``, ``previous``, ``results``, and
+        ``count_by_status`` for the filtered accessible queryset.
+
+        Returns a DRF ``Response`` containing the paginated business data.
+        """
         businesses = accessible_businesses(request.user).order_by("id")
         if parent := request.query_params.get("parent"):
             businesses = businesses.filter(
@@ -327,7 +337,11 @@ class BusinessListCreateView(APIView):
         }
         paginator = BusinessPagination()
         page = paginator.paginate_queryset(businesses, request)
-        serializer = BusinessReadSerializer(page, many=True, context={"request": request})
+        serializer = BusinessReadSerializer(
+            page,
+            many=True,
+            context={"request": request, "business_ids": [item.id for item in page]},
+        )
         return Response({
             "count": paginator.page.paginator.count,
             "next": paginator.get_next_link(),
@@ -337,6 +351,13 @@ class BusinessListCreateView(APIView):
         })
 
     def post(self, request):
+        """Create a business from ``request.data``.
+
+        Root businesses require a superuser. Child businesses require the
+        authenticated user to have admin access to the requested parent.
+        BrasilAPI validation failures are translated to API errors. Returns a
+        DRF ``Response`` with the created business and HTTP 201.
+        """
         serializer = BusinessWriteSerializer(data=request.data)
         try:
             serializer.is_valid(raise_exception=True)
@@ -353,7 +374,10 @@ class BusinessListCreateView(APIView):
         except BrasilApiError as exc:
             return _brasil_api_error_response(exc)
         return Response(
-            BusinessReadSerializer(business, context={"request": request}).data,
+            BusinessReadSerializer(
+                business,
+                context={"request": request, "business_ids": [business.id]},
+            ).data,
             status=status.HTTP_201_CREATED,
         )
 
@@ -365,10 +389,27 @@ class BusinessDetailView(APIView):
         return get_accessible_business_or_404(user, pk)
 
     def get(self, request, pk):
+        """Return business ``pk`` when it is accessible to ``request.user``.
+
+        ``pk`` is the business path parameter. No request body is used.
+        Inaccessible or missing businesses return the scoped not-found error;
+        otherwise the returned DRF ``Response`` contains the business data.
+        """
         business = self._get_object(request.user, pk)
-        return Response(BusinessReadSerializer(business, context={"request": request}).data)
+        return Response(
+            BusinessReadSerializer(
+                business,
+                context={"request": request, "business_ids": [business.id]},
+            ).data
+        )
 
     def put(self, request, pk):
+        """Fully update accessible business ``pk`` from ``request.data``.
+
+        The user needs a write role, with admin-level checks for hierarchy
+        changes. Managed CNPJ data may be validated through BrasilAPI. Returns
+        a DRF ``Response`` containing the updated business.
+        """
         business = self._get_object(request.user, pk)
         _require_business_role(request.user, business, WRITE_ROLES)
         serializer = BusinessWriteSerializer(business, data=request.data)
@@ -378,9 +419,20 @@ class BusinessDetailView(APIView):
             business = serializer.save()
         except BrasilApiError as exc:
             return _brasil_api_error_response(exc)
-        return Response(BusinessReadSerializer(business, context={"request": request}).data)
+        return Response(
+            BusinessReadSerializer(
+                business,
+                context={"request": request, "business_ids": [business.id]},
+            ).data
+        )
 
     def patch(self, request, pk):
+        """Partially update accessible business ``pk`` from ``request.data``.
+
+        The user needs a write role, with admin-level checks for hierarchy
+        changes. Only supplied fields are updated. Returns a DRF ``Response``
+        containing the updated business.
+        """
         business = self._get_object(request.user, pk)
         _require_business_role(request.user, business, WRITE_ROLES)
         serializer = BusinessWriteSerializer(business, data=request.data, partial=True)
@@ -390,7 +442,12 @@ class BusinessDetailView(APIView):
             business = serializer.save()
         except BrasilApiError as exc:
             return _brasil_api_error_response(exc)
-        return Response(BusinessReadSerializer(business, context={"request": request}).data)
+        return Response(
+            BusinessReadSerializer(
+                business,
+                context={"request": request, "business_ids": [business.id]},
+            ).data
+        )
 
     def delete(self, request, pk):
         business = self._get_object(request.user, pk)
@@ -425,13 +482,26 @@ class BusinessChildrenListView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, owner_id):
-        """Return the accessible direct children of a recurring-fee owner."""
+        """Return accessible direct children of recurring-fee ``owner_id``.
+
+        The owner path parameter must identify an accessible reseller or
+        re-reseller. Results are ordered by name and use
+        ``BusinessPagination`` (including its ``page`` and ``page_size`` query
+        parameters). Returns the standard paginated DRF response.
+        """
         owner = _get_recurring_fee_owner(request.user, owner_id)
         children = accessible_businesses(request.user).filter(parent=owner).order_by("name")
         paginator = BusinessPagination()
         page = paginator.paginate_queryset(children, request)
         return paginator.get_paginated_response(
-            BusinessReadSerializer(page, many=True, context={"request": request}).data
+            BusinessReadSerializer(
+                page,
+                many=True,
+                context={
+                    "request": request,
+                    "business_ids": [item.id for item in page],
+                },
+            ).data
         )
 
 
@@ -439,6 +509,13 @@ class BusinessColorPreferenceView(APIView):
     permission_classes = [IsAuthenticated]
 
     def put(self, request, pk):
+        """Set the authenticated user's color preference for business ``pk``.
+
+        The business path parameter must be accessible to the user, and
+        ``request.data.color`` must be a valid ``BusinessColor`` choice. The
+        preference is created or updated for that user/business pair. Returns
+        a DRF ``Response`` containing the saved ``color``.
+        """
         business = get_accessible_business_or_404(request.user, pk)
         serializer = BusinessColorPreferenceSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
