@@ -83,7 +83,7 @@ POST
   "numConta": "785985",
   "digConta": "9",
   "protocoloCore": "",
-  "hashAceite": "",
+  "hashAceite": "X",
   "documentosSocios": [
     {
       "identificacao": "51802678468",
@@ -173,8 +173,27 @@ POST
 | Field | Required | Description |
 |---|---|---|
 | `antecipacaoAutomatica` | Yes | Indicates whether automatic anticipation is enabled (`S` or `N`). |
-| `taxaAntecipacao` | Conditional | Anticipation fee. |
+| `taxaAntecipacao` | Yes | Anticipation fee. Always include it; send `0` when `antecipacaoAutomatica` is `N`. |
 | `tipoAntecipacao` | Conditional | Anticipation frequency. |
+
+### Required anticipation fee
+
+Always include the top-level `taxaAntecipacao` field, even when automatic
+anticipation is disabled:
+
+```json
+{
+  "antecipacaoAutomatica": "N",
+  "taxaAntecipacao": 0
+}
+```
+
+When automatic anticipation is enabled (`S`), send the configured anticipation
+fee. In a registration request tested on 2026-09-08, omitting `taxaAntecipacao`
+with anticipation disabled caused HTTP 400 with
+`Cannot invoke "java.math.BigDecimal.compareTo(java.math.BigDecimal)" because "valorPct" is null`.
+Adding `taxaAntecipacao: 0` resolved that error. `valorPct` is an internal error
+variable, not an additional request field.
 
 ### Allowed `tipoAntecipacao` values
 
@@ -264,7 +283,7 @@ Currently supported:
 |---|---|
 | `cnpjOrigem` | Send empty string (`""`). |
 | `codConfiguracao` | Send empty string (`""`). |
-| `hashAceite` | Send empty string (`""`). |
+| `hashAceite` | Required: always send the hardcoded string `"X"`. |
 
 ---
 
@@ -316,5 +335,6 @@ Currently supported:
 - Supports White Label integrations.
 - File attachments must be Base64 encoded.
 - `tipoContrato` must always be `W`.
-- Deprecated fields should be sent as empty strings.
+- `hashAceite` must always be `"X"`, despite being deprecated.
+- Always include `taxaAntecipacao`; send `0` when automatic anticipation is disabled.
 - Successful requests return a protocol number for status tracking.

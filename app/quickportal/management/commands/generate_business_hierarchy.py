@@ -82,7 +82,6 @@ class Command(BaseCommand):
             rng,
             BusinessType.STORE,
             parent=re_reseller,
-            cnae=plan.cnae,
         )
         details = self.create_details(rng, store, plan)
 
@@ -140,7 +139,7 @@ class Command(BaseCommand):
         )
 
     @staticmethod
-    def create_business(rng, business_type, parent=None, cnae=None):
+    def create_business(rng, business_type, parent=None):
         prefix = rng.choice(COMPANY_PREFIXES)
         city = rng.choice(CITIES)
         suffixes = (
@@ -166,7 +165,6 @@ class Command(BaseCommand):
             document=document,
             name=name,
             trade_name=trade_name,
-            cnae=cnae,
             email=f"contato.{slug}.{document[-6:]}@example.com",
             phone=f"{ddd}9{rng.randrange(10**8):08d}",
             landline=f"{ddd}3{rng.randrange(10**7):07d}",

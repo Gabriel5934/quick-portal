@@ -115,6 +115,7 @@ class BusinessWriteSerializer(serializers.ModelSerializer):
     name = serializers.CharField(required=False, allow_blank=False)
     trade_name = serializers.CharField(required=False, allow_blank=True, default="")
     landline = serializers.CharField(required=False, allow_blank=True, default="")
+    cnae = serializers.JSONField(required=False, write_only=True)
 
     class Meta:
         model = Business
@@ -138,7 +139,25 @@ class BusinessWriteSerializer(serializers.ModelSerializer):
     def validate_landline(self, value):
         return self._validate_digits(value, "landline")
 
+    def validate_cnae(self, value):
+        """Reject legacy generic-business CNAE ``value`` with a field error.
+
+        CNAE is now supplied through an acquirer-specific signup, so this
+        validator always raises ``serializers.ValidationError`` and never
+        returns the submitted value.
+        """
+        raise serializers.ValidationError(
+            "CNAE belongs to the acquirer-specific business signup."
+        )
+
     def validate(self, attrs):
+        """Validate and return business attribute mapping ``attrs``.
+
+        The method enforces immutable document fields, hierarchy rules, and
+        document-type-specific name management. It enriches new CNPJ records
+        from BrasilAPI and raises ``serializers.ValidationError`` for invalid
+        hierarchy, missing CPF names, or client-supplied managed CNPJ fields.
+        """
         if self.instance is not None:
             immutable_errors = {}
             for field in ("document", "document_type"):
@@ -148,7 +167,6 @@ class BusinessWriteSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError(immutable_errors)
 
         document_type = attrs.get("document_type") or getattr(self.instance, "document_type", None)
-        cnae = attrs.get("cnae")
         business_type = attrs.get("type") or getattr(self.instance, "type", None)
         parent = attrs.get("parent", getattr(self.instance, "parent", None))
 
@@ -191,12 +209,10 @@ class BusinessWriteSerializer(serializers.ModelSerializer):
             errors = {}
             if not attrs.get("name") and not getattr(self.instance, "name", None):
                 errors["name"] = "This field is required when document_type is CPF."
-            if not cnae and not getattr(self.instance, "cnae", None):
-                errors["cnae"] = "This field is required when document_type is CPF."
             if errors:
                 raise serializers.ValidationError(errors)
         elif document_type == DocumentType.CNPJ:
-            managed_fields = ("name", "trade_name", "cnae")
+            managed_fields = ("name", "trade_name")
             conflicting = [f for f in managed_fields if f in self.initial_data]
             if conflicting:
                 raise serializers.ValidationError({
@@ -206,12 +222,6 @@ class BusinessWriteSerializer(serializers.ModelSerializer):
             document = attrs.get("document") or getattr(self.instance, "document", None)
             if document and self.instance is None:
                 info = fetch_cnpj_info(document)
-                try:
-                    attrs["cnae"] = Cnae.objects.get(code=info["cod_cnae"])
-                except Cnae.DoesNotExist as exc:
-                    raise serializers.ValidationError(
-                        {"cnae": "The CNAE returned for this CNPJ is not registered."}
-                    ) from exc
                 attrs["trade_name"] = info["trade_name"]
                 attrs["name"] = info["name"]
 
@@ -290,10 +300,13 @@ class PlanWriteSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         fees_data = validated_data.pop("fees")
-        plan = Plan.objects.create(**validated_data)
-        PlanFee.objects.bulk_create(
-            [PlanFee(plan=plan, **fee) for fee in fees_data]
-        )
+        with transaction.atomic():
+            plan = Plan(**validated_data)
+            plan.full_clean()
+            plan.save()
+            PlanFee.objects.bulk_create(
+                [PlanFee(plan=plan, **fee) for fee in fees_data]
+            )
         return plan
 
 
@@ -315,7 +328,14 @@ class BusinessReadSerializer(serializers.ModelSerializer):
             return BusinessColor.BLUE
         colors = self.context.get("business_colors")
         if colors is None:
-            business_ids = self.context.get("business_ids", [business.id])
+            business_ids = self.context.get("business_ids")
+            if business_ids is None:
+                instances = getattr(self.parent, "instance", None)
+                business_ids = (
+                    [item.id for item in instances]
+                    if instances is not None
+                    else [business.id]
+                )
             colors = dict(
                 BusinessColorPreference.objects.filter(
                     user=request.user,
@@ -330,7 +350,7 @@ class BusinessReadSerializer(serializers.ModelSerializer):
         model = Business
         fields = [
             "id", "type", "parent", "document_type", "document", "name",
-            "trade_name", "cnae", "email", "phone", "landline", "status",
+            "trade_name", "email", "phone", "landline", "status",
             "color",
         ]
 

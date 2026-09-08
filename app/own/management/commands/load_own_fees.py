@@ -1,26 +1,16 @@
 import json
 import re
 import unicodedata
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
-from own.models import OwnBasket, OwnChannel, OwnFee, OwnMethod, OwnNetwork
+from own.models import OwnBasket, OwnFee
 
 
-NETWORK_NAMES = ("Visa", "Elo", "Mastercard", "Default")
-CHANNEL_NAMES = ("Physical", "Ecommerce")
-METHOD_NAMES = (
-    "Pix",
-    "Debit",
-    "Credit",
-    "Installments",
-    "POS Rent",
-    "Top Bank",
-    "Visa Voucher",
-)
 BASKET_NAMES = {117: "Bandeira", 333: "Parcela"}
 
 
@@ -119,20 +109,20 @@ def parse_installments(product, method):
 
 
 def float_field(record, field):
-    """Return ``field`` from ``record`` as a float.
+    """Return ``field`` from ``record`` as an exact decimal value.
 
     Raises ``CommandError`` when the field is absent or is not numeric.
     """
     try:
-        return float(record[field])
-    except (KeyError, TypeError, ValueError) as exc:
+        return Decimal(str(record[field]))
+    except (KeyError, TypeError, ValueError, InvalidOperation) as exc:
         raise CommandError(f"Invalid {field!r} in record {record!r}.") from exc
 
 
 def transform_record(record):
     """Transform one raw consultarCesta ``record`` into OWN fee attributes.
 
-    Returns a dictionary ready for reference-object resolution. ``CommandError``
+    Returns a dictionary ready for basket-object resolution. ``CommandError``
     is raised for missing values, unsupported baskets, methods, or installments.
     """
     try:
@@ -243,18 +233,6 @@ class Command(BaseCommand):
         validate_fees(fees)
 
         with transaction.atomic():
-            networks = {
-                name: OwnNetwork.objects.get_or_create(name=name)[0]
-                for name in NETWORK_NAMES
-            }
-            channels = {
-                name: OwnChannel.objects.get_or_create(name=name)[0]
-                for name in CHANNEL_NAMES
-            }
-            methods = {
-                name: OwnMethod.objects.get_or_create(name=name)[0]
-                for name in METHOD_NAMES
-            }
             baskets = {
                 basket_id: OwnBasket.objects.update_or_create(
                     id=basket_id, defaults={"name": basket_name}
@@ -266,16 +244,17 @@ class Command(BaseCommand):
                 fee_id = fee["id"]
                 incoming_ids.append(fee_id)
                 fee_values = {key: value for key, value in fee.items() if key != "id"}
-                OwnFee.objects.update_or_create(
-                    id=fee_id,
-                    defaults={
-                        **fee_values,
-                        "basketId": baskets[fee["basketId"]],
-                        "network": networks.get(fee["network"]),
-                        "channel": channels.get(fee["channel"]),
-                        "method": methods[fee["method"]],
-                    },
-                )
+                values = {
+                    **fee_values,
+                    "basketId": baskets[fee["basketId"]],
+                }
+                instance = OwnFee.objects.filter(id=fee_id).first()
+                if instance is None:
+                    instance = OwnFee(id=fee_id)
+                for field, value in values.items():
+                    setattr(instance, field, value)
+                instance.full_clean()
+                instance.save()
             OwnFee.objects.exclude(id__in=incoming_ids).filter(
                 plan_fees__isnull=True
             ).delete()

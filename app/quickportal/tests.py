@@ -1001,31 +1001,3 @@ class BusinessAuthorizationApiTests(APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("business", response.data)
-
-    @patch("quickportal.views.register_merchant")
-    def test_merchant_registration_requires_store_write_access_and_strips_business(
-        self, register_merchant
-    ):
-        register_merchant.return_value = {"status": "ok"}
-        BusinessMembership.objects.create(
-            user=self.user,
-            business=self.direct_store,
-            role=BusinessRole.MANAGER,
-        )
-        response = self.client.post(
-            reverse("own_merchant_register"),
-            {"business": self.direct_store.id, "merchant": "payload"},
-            format="json",
-        )
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        register_merchant.assert_called_once_with({"merchant": "payload"})
-
-        BusinessMembership.objects.filter(user=self.user).update(
-            role=BusinessRole.VIEWER
-        )
-        response = self.client.post(
-            reverse("own_merchant_register"),
-            {"business": self.direct_store.id, "merchant": "payload"},
-            format="json",
-        )
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)

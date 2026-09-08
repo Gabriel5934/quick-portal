@@ -63,7 +63,6 @@ class GenerateBusinessHierarchyCommandTests(TestCase):
         self.assertFalse(hasattr(reseller, "details"))
         self.assertFalse(hasattr(re_reseller, "details"))
         self.assertEqual(BusinessDetails.objects.get().business, store)
-        self.assertEqual(store.cnae, store.details.plan.cnae)
         self.assertRegex(reseller.document, r"^\d{14}$")
         self.assertIn("Generated business hierarchy", output.getvalue())
 

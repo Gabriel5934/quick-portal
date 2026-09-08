@@ -11,7 +11,6 @@ COLUMNS = (
     ("DOC", lambda business: business.document, 8),
     ("NAME", lambda business: business.name, 12),
     ("TRADE", lambda business: business.trade_name or "—", 6),
-    ("CNAE", lambda business: business.cnae.code if business.cnae else "—", 7),
     ("EMAIL", lambda business: business.email, 10),
     ("PHONE", lambda business: business.phone, 8),
     ("LAND", lambda business: business.landline or "—", 4),
@@ -54,7 +53,7 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         businesses = list(
-            Business.objects.select_related("parent", "cnae").order_by("id")
+            Business.objects.select_related("parent").order_by("id")
         )
         if not businesses:
             self.stdout.write("No businesses found.")

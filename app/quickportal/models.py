@@ -187,13 +187,6 @@ class Business(models.Model):
     document = models.CharField(max_length=20)
     name = models.CharField(max_length=200)
     trade_name = models.CharField(max_length=200, blank=True)
-    cnae = models.ForeignKey(
-        Cnae,
-        on_delete=models.PROTECT,
-        related_name="businesses",
-        null=True,
-        blank=True,
-    )
     email = models.EmailField()
     phone = models.CharField(max_length=20)
     landline = models.CharField(max_length=20, blank=True)

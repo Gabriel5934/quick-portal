@@ -9,7 +9,17 @@ from own.models import OwnActivity
 
 
 def extract_records(payload):
-    if isinstance(payload, list) and all(isinstance(item, dict) for item in payload):
+    """Return activity dictionaries found recursively in JSON ``payload``.
+
+    A non-empty list of dictionaries or a single activity mapping is accepted.
+    Nested mapping values are searched recursively. ``CommandError`` is raised
+    when no valid record collection can be found.
+    """
+    if (
+        isinstance(payload, list)
+        and payload
+        and all(isinstance(item, dict) for item in payload)
+    ):
         return payload
     if isinstance(payload, dict):
         if {"codCnae", "descCnae", "codMcc"}.issubset(payload):
@@ -46,7 +56,7 @@ def transform_unique_records(records):
 
 
 class Command(BaseCommand):
-    help = "Destructively replace OWN activities from load_consultar_atividades.json."
+    help = "Refresh OWN activities from load_consultar_atividades.json."
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -57,6 +67,13 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
+        """Validate the selected JSON file and refresh OWN activity records.
+
+        ``options['file']`` identifies the source file. Incoming activities are
+        validated and upserted; stale unreferenced rows are removed. A success
+        message is written and ``None`` returned. File, JSON, and record errors
+        raise ``CommandError`` without deleting existing data.
+        """
         path = options["file"]
         try:
             with path.open(encoding="utf-8-sig") as source:
@@ -67,12 +84,25 @@ class Command(BaseCommand):
             raise CommandError(f"Could not read {path}: {exc}") from exc
 
         activities = transform_unique_records(extract_records(payload))
+        incoming_cnaes = {activity["cnae"] for activity in activities}
 
         with transaction.atomic():
-            OwnActivity.objects.all().delete()
-            OwnActivity.objects.bulk_create(
-                OwnActivity(**activity) for activity in activities
-            )
+            for activity in activities:
+                values = activity.copy()
+                cnae = values.pop("cnae")
+                instance = OwnActivity.objects.filter(cnae=cnae).first()
+                if instance is None:
+                    instance = OwnActivity(cnae=cnae)
+                for field, value in values.items():
+                    setattr(instance, field, value)
+                instance.full_clean()
+                instance.save()
+            OwnActivity.objects.filter(
+                plans__isnull=True,
+                businesses__isnull=True,
+            ).exclude(
+                cnae__in=incoming_cnaes
+            ).delete()
 
         self.stdout.write(
             self.style.SUCCESS(f"Loaded {len(activities)} OWN activities from {path}.")

@@ -1,4 +1,6 @@
+import base64
 import json
+from datetime import timedelta
 from decimal import Decimal
 from io import StringIO
 from pathlib import Path
@@ -6,22 +8,481 @@ from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
 from django.contrib.auth.models import User
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.exceptions import ValidationError
 from django.core.management import call_command, CommandError
-from django.test import TestCase
+from django.db import IntegrityError, transaction
+from django.test import override_settings, TestCase
+from django.utils import timezone
 from rest_framework.test import APIClient
 
 from own.management.commands.load_own_fees import transform_record, validate_fees
 from own.models import (
     OwnActivity,
     OwnBasket,
+    OwnBusiness,
+    OwnBusinessAttachment,
+    OwnBusinessAttachmentType,
+    OwnBusinessPartner,
     OwnChannel,
     OwnFee,
     OwnMethod,
     OwnNetwork,
     OwnPlan,
     OwnPlanFee,
+    OwnPartnerAttachment,
+    OwnPartnerAttachmentType,
+    OwnRegistrationStatus,
 )
+from quickportal.models import (
+    Business,
+    BusinessMembership,
+    BusinessRole,
+    BusinessType,
+    DocumentType,
+    Status,
+)
+from quickportal.services.own_merchant import MerchantRegistrationError
+
+
+class OwnBusinessModelTests(TestCase):
+    def setUp(self):
+        """Create a generic business, OWN activity, plan, and fee for each test."""
+        self.user = User.objects.create_user("own-business-owner")
+        self.business = Business.objects.create(
+            type=BusinessType.STORE,
+            document_type=DocumentType.CNPJ,
+            document="12345678000195",
+            name="Example Store Ltda.",
+            trade_name="Example Store",
+            email="store@example.com",
+            phone="12999999999",
+        )
+        self.activity = OwnActivity.objects.create(
+            cnae="4711-3/02",
+            description="Retail",
+            mcc=5411,
+        )
+        self.plan = OwnPlan.objects.create(
+            created_by=self.user,
+            updated_by=self.user,
+            title="Retail plan",
+            activity=self.activity,
+            basketId=OwnBasket.objects.get(pk=117),
+        )
+        fee = OwnFee.objects.create(
+            id=800,
+            basketId=OwnBasket.objects.get(pk=117),
+            value="1.5",
+            baseMdr="1.0",
+            method=OwnMethod.CREDIT,
+        )
+        OwnPlanFee.objects.create(plan=self.plan, fee=fee, value="1.75")
+
+    def create_own_business(self, **overrides):
+        """Create and return an OWN business using optional field ``overrides``."""
+        values = {
+            "business": self.business,
+            "cnae": self.activity,
+            "plan": self.plan,
+            "signatory_name": "Maria Silva",
+            "signatory_cpf": "52998224725",
+            "signatory_email": "maria@example.com",
+            "forecast_revenue": "10000.00",
+            "contract_revenue": "8000.00",
+            "postal_code": "12244867",
+            "street": "Rua Milton Martins",
+            "address_number": "100A",
+            "neighborhood": "Urbanova",
+            "city": "São José dos Campos",
+            "state": "SP",
+            "pos_quantity": 2,
+            "bank_code": "001",
+            "bank_branch": "0123",
+            "bank_branch_digit": "4",
+            "bank_account": "00123456",
+            "bank_account_digit": "7",
+        }
+        values.update(overrides)
+        return OwnBusiness.objects.create(**values)
+
+    def test_creates_one_own_business_for_a_generic_business(self):
+        """Verify one-to-one signup creation and duplicate rejection; return ``None``."""
+        own_business = self.create_own_business()
+
+        self.assertEqual(self.business.own_business, own_business)
+        self.assertEqual(own_business.cnae, self.activity)
+        self.assertEqual(own_business.plan, self.plan)
+        with self.assertRaises(ValidationError):
+            self.create_own_business()
+
+    def test_rejects_a_plan_for_a_different_activity(self):
+        other_activity = OwnActivity.objects.create(
+            cnae="6201-5/01",
+            description="Software development",
+            mcc=7372,
+        )
+        other_plan = OwnPlan.objects.create(
+            created_by=self.user,
+            updated_by=self.user,
+            title="Software plan",
+            activity=other_activity,
+            basketId=OwnBasket.objects.get(pk=117),
+        )
+
+        with self.assertRaisesMessage(
+            ValidationError,
+            "The plan activity must match the business CNAE.",
+        ):
+            self.create_own_business(plan=other_plan)
+
+    def test_full_clean_reports_an_invalid_plan_id(self):
+        own_business = self.create_own_business()
+        own_business.plan_id = 999999
+
+        with self.assertRaises(ValidationError) as error:
+            own_business.full_clean()
+
+        self.assertIn("plan", error.exception.message_dict)
+
+    def test_partner_save_validates_duplicate_cpf(self):
+        """Verify normal saves reject a repeated partner CPF; return ``None``."""
+        own_business = self.create_own_business()
+        OwnBusinessPartner.objects.create(
+            own_business=own_business,
+            cpf="11144477735",
+        )
+
+        with self.assertRaises(ValidationError):
+            OwnBusinessPartner.objects.create(
+                own_business=own_business,
+                cpf="11144477735",
+            )
+
+    def test_database_rejects_duplicate_partner_cpf(self):
+        """Verify the database rejects bulk-created duplicate CPFs; return ``None``."""
+        own_business = self.create_own_business()
+        OwnBusinessPartner.objects.create(
+            own_business=own_business,
+            cpf="11144477735",
+        )
+
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            OwnBusinessPartner.objects.bulk_create(
+                [
+                    OwnBusinessPartner(
+                        own_business=own_business,
+                        cpf="11144477735",
+                    )
+                ]
+            )
+
+    def test_attachments_use_django_file_storage(self):
+        """Verify partner and business documents use file storage; return ``None``."""
+        own_business = self.create_own_business()
+        partner = OwnBusinessPartner.objects.create(
+            own_business=own_business,
+            cpf="11144477735",
+        )
+
+        with TemporaryDirectory() as media_root, override_settings(MEDIA_ROOT=media_root):
+            partner_attachment = OwnPartnerAttachment.objects.create(
+                partner=partner,
+                file=SimpleUploadedFile("cpf.pdf", b"partner document"),
+                original_name="cpf.pdf",
+                type=OwnPartnerAttachmentType.CPF,
+            )
+            business_attachment = OwnBusinessAttachment.objects.create(
+                own_business=own_business,
+                file=SimpleUploadedFile("contract.pdf", b"contract"),
+                original_name="contract.pdf",
+                type=OwnBusinessAttachmentType.ARTICLES_OF_ASSOCIATION,
+            )
+
+            self.assertTrue(partner_attachment.file.name.startswith("own/partners/"))
+            self.assertTrue(
+                business_attachment.file.name.startswith("own/businesses/")
+            )
+
+
+class OwnBusinessSignupEndpointTests(TestCase):
+    def setUp(self):
+        """Create an authenticated manager and signup dependencies for each test."""
+        self.user = User.objects.create_user("own-signup-user")
+        self.business = Business.objects.create(
+            type=BusinessType.STORE,
+            document_type=DocumentType.CNPJ,
+            document="12345678000195",
+            name="Example Store Ltda.",
+            trade_name="Example Store",
+            email="store@example.com",
+            phone="12999999999",
+            landline="1233334444",
+        )
+        BusinessMembership.objects.create(
+            user=self.user,
+            business=self.business,
+            role=BusinessRole.MANAGER,
+        )
+        self.activity = OwnActivity.objects.create(
+            cnae="4711-3/02",
+            description="Retail",
+            mcc=5411,
+        )
+        self.plan = OwnPlan.objects.create(
+            created_by=self.user,
+            updated_by=self.user,
+            title="Retail plan",
+            activity=self.activity,
+            basketId=OwnBasket.objects.get(pk=117),
+        )
+        fee = OwnFee.objects.create(
+            id=801,
+            basketId=OwnBasket.objects.get(pk=117),
+            value="1.5",
+            baseMdr="1.0",
+            method=OwnMethod.CREDIT,
+        )
+        OwnPlanFee.objects.create(plan=self.plan, fee=fee, value="1.75")
+        self.client = APIClient()
+        self.client.force_authenticate(self.user)
+
+    def payload(self):
+        """Return a complete valid OWN signup request payload."""
+        encoded_file = base64.b64encode(b"document contents").decode("ascii")
+        return {
+            "business": self.business.pk,
+            "cnae": self.activity.pk,
+            "plan": self.plan.pk,
+            "signatory_name": "Maria Silva",
+            "signatory_cpf": "52998224725",
+            "signatory_email": "maria@example.com",
+            "forecast_revenue": "10000.00",
+            "contract_revenue": "8000.00",
+            "postal_code": "12244867",
+            "address_number": "100A",
+            "address_complement": "Suite 1",
+            "pos_quantity": 2,
+            "bank_code": "001",
+            "bank_branch": "0123",
+            "bank_branch_digit": "4",
+            "bank_account": "00123456",
+            "bank_account_digit": "7",
+            "partners": [
+                {
+                    "cpf": "11144477735",
+                    "attachments": [
+                        {"name": "cpf.pdf", "content": encoded_file, "type": "CPF"}
+                    ],
+                }
+            ],
+            "attachments": [
+                {
+                    "name": "contract.pdf",
+                    "content": encoded_file,
+                    "type": "CONTRATO_SOCIAL",
+                }
+            ],
+        }
+
+    @patch("own.views.register_merchant")
+    @patch("own.serializers.fetch_cep_info")
+    def test_creates_records_and_sends_derived_own_payload(
+        self,
+        fetch_cep_info,
+        register_merchant,
+    ):
+        fetch_cep_info.return_value = {
+            "street": "Rua Milton Martins",
+            "neighborhood": "Urbanova",
+            "city": "São José dos Campos",
+            "state": "SP",
+        }
+        register_merchant.return_value = {"protocolo": "PROTO-1", "status": "ok"}
+
+        with TemporaryDirectory() as media_root, override_settings(MEDIA_ROOT=media_root):
+            response = self.client.post("/own/businesses/", self.payload(), format="json")
+
+        self.assertEqual(response.status_code, 201, response.data)
+        own_business = OwnBusiness.objects.get()
+        self.business.refresh_from_db()
+        self.assertEqual(own_business.core_protocol, "PROTO-1")
+        self.assertEqual(
+            own_business.registration_status,
+            OwnRegistrationStatus.REGISTERED,
+        )
+        self.assertEqual(self.business.status, Status.PENDING)
+        self.assertEqual(own_business.partners.count(), 1)
+        self.assertEqual(own_business.attachments.count(), 1)
+        sent_payload = register_merchant.call_args.args[0]
+        self.assertEqual(sent_payload["cnpj"], self.business.document)
+        self.assertEqual(sent_payload["cnae"], self.activity.pk)
+        self.assertEqual(sent_payload["mcc"], self.activity.mcc)
+        self.assertEqual(sent_payload["idCesta"], self.plan.basketId_id)
+        self.assertEqual(sent_payload["documentosSocios"][0]["identificacao"], "11144477735")
+        self.assertEqual(
+            sent_payload["documentosSocios"][0]["anexos"][0]["conteudo"],
+            base64.b64encode(b"document contents").decode("ascii"),
+        )
+
+    @patch("own.views.register_merchant")
+    @patch("own.serializers.fetch_cep_info")
+    def test_preserves_failed_signup_for_safe_retry_when_own_rejects_it(
+        self,
+        fetch_cep_info,
+        register_merchant,
+    ):
+        fetch_cep_info.return_value = {
+            "street": "Rua Milton Martins",
+            "neighborhood": "Urbanova",
+            "city": "São José dos Campos",
+            "state": "SP",
+        }
+        register_merchant.side_effect = MerchantRegistrationError(
+            "rejected",
+            status_code=400,
+            response_body="invalid merchant",
+        )
+
+        with TemporaryDirectory() as media_root, override_settings(MEDIA_ROOT=media_root):
+            response = self.client.post("/own/businesses/", self.payload(), format="json")
+            self.assertEqual(
+                len([path for path in Path(media_root).rglob("*") if path.is_file()]),
+                2,
+            )
+
+        self.assertEqual(response.status_code, 400)
+        own_business = OwnBusiness.objects.get()
+        self.assertEqual(
+            own_business.registration_status,
+            OwnRegistrationStatus.FAILED,
+        )
+        self.business.refresh_from_db()
+        self.assertEqual(self.business.status, Status.NOT_STARTED)
+
+    def test_requires_authentication(self):
+        """Verify unauthenticated signup listing is rejected; return ``None``."""
+        self.client.force_authenticate(user=None)
+        response = self.client.get("/own/businesses/")
+        self.assertEqual(response.status_code, 401)
+
+    def test_malformed_attachment_shapes_return_validation_errors(self):
+        """Verify malformed nested file values return HTTP 400; return ``None``."""
+        payload = self.payload()
+        payload["partners"] = "not-a-list"
+        payload["attachments"] = "not-a-list"
+
+        response = self.client.post("/own/businesses/", payload, format="json")
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("partners", response.data)
+        self.assertIn("attachments", response.data)
+
+    @patch("own.views.register_merchant")
+    @patch("own.serializers.fetch_cep_info")
+    def test_unknown_registration_requires_reconciliation_before_retry(
+        self,
+        fetch_cep_info,
+        register_merchant,
+    ):
+        fetch_cep_info.return_value = {
+            "street": "Rua Milton Martins",
+            "neighborhood": "Urbanova",
+            "city": "São José dos Campos",
+            "state": "SP",
+        }
+        register_merchant.side_effect = MerchantRegistrationError("connection lost")
+
+        with TemporaryDirectory() as media_root, override_settings(MEDIA_ROOT=media_root):
+            response = self.client.post("/own/businesses/", self.payload(), format="json")
+            own_business = OwnBusiness.objects.get()
+            self.assertEqual(response.status_code, 502)
+            self.assertEqual(
+                own_business.registration_status,
+                OwnRegistrationStatus.UNKNOWN,
+            )
+
+            retry_response = self.client.post(
+                f"/own/businesses/{own_business.pk}/retry/"
+            )
+            self.assertEqual(retry_response.status_code, 409)
+
+            reconcile_response = self.client.post(
+                f"/own/businesses/{own_business.pk}/reconcile/",
+                {"registered": False},
+                format="json",
+            )
+            self.assertEqual(reconcile_response.status_code, 200)
+
+            register_merchant.side_effect = None
+            register_merchant.return_value = {
+                "protocolo": "RETRY-1",
+                "status": "ok",
+            }
+            retry_response = self.client.post(
+                f"/own/businesses/{own_business.pk}/retry/"
+            )
+
+        self.assertEqual(retry_response.status_code, 200)
+        own_business.refresh_from_db()
+        self.assertEqual(
+            own_business.registration_status,
+            OwnRegistrationStatus.REGISTERED,
+        )
+        self.assertEqual(own_business.core_protocol, "RETRY-1")
+
+    @patch("own.views.register_merchant")
+    @patch("own.serializers.fetch_cep_info")
+    def test_retries_an_interrupted_pending_registration(
+        self,
+        fetch_cep_info,
+        register_merchant,
+    ):
+        fetch_cep_info.return_value = {
+            "street": "Rua Milton Martins",
+            "neighborhood": "Urbanova",
+            "city": "São José dos Campos",
+            "state": "SP",
+        }
+        register_merchant.side_effect = MerchantRegistrationError(
+            "rejected",
+            status_code=400,
+        )
+
+        with TemporaryDirectory() as media_root, override_settings(MEDIA_ROOT=media_root):
+            self.client.post("/own/businesses/", self.payload(), format="json")
+            own_business = OwnBusiness.objects.get()
+            OwnBusiness.objects.filter(pk=own_business.pk).update(
+                registration_status=OwnRegistrationStatus.PENDING,
+                updated_at=timezone.now() - timedelta(minutes=6),
+            )
+            register_merchant.side_effect = None
+            register_merchant.return_value = {"protocolo": "RESUMED-1"}
+
+            response = self.client.post(
+                f"/own/businesses/{own_business.pk}/retry/"
+            )
+
+        self.assertEqual(response.status_code, 200)
+        own_business.refresh_from_db()
+        self.assertEqual(
+            own_business.registration_status,
+            OwnRegistrationStatus.REGISTERED,
+        )
+        self.assertEqual(own_business.core_protocol, "RESUMED-1")
+
+    @patch("own.serializers.fetch_cep_info")
+    def test_rejects_invalid_cpf_check_digits(self, fetch_cep_info):
+        payload = self.payload()
+        payload["signatory_cpf"] = "11111111111"
+        payload["partners"][0]["cpf"] = "12345678901"
+
+        response = self.client.post("/own/businesses/", payload, format="json")
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("signatory_cpf", response.data)
+        self.assertIn("partners", response.data)
+        fetch_cep_info.assert_not_called()
 
 
 class OwnFeeTransformTests(TestCase):
@@ -40,8 +501,8 @@ class OwnFeeTransformTests(TestCase):
         self.assertEqual(fee["channel"], "Ecommerce")
         self.assertEqual(fee["method"], "Installments")
         self.assertEqual((fee["installment"], fee["upperInstallment"]), (2, 6))
-        self.assertIsInstance(fee["value"], float)
-        self.assertIsInstance(fee["baseMdr"], float)
+        self.assertIsInstance(fee["value"], Decimal)
+        self.assertIsInstance(fee["baseMdr"], Decimal)
 
     def test_defaults_to_physical_and_allows_no_network(self):
         """Use ``self`` to verify physical products may omit a network; return ``None``."""
@@ -104,9 +565,9 @@ class OwnFeeTransformTests(TestCase):
 
 class OwnFeeCommandTests(TestCase):
     def test_invalid_file_does_not_delete_existing_fees(self):
-        network = OwnNetwork.objects.get(name="Visa")
-        channel = OwnChannel.objects.get(name="Physical")
-        method = OwnMethod.objects.get(name="Credit")
+        network = OwnNetwork.VISA
+        channel = OwnChannel.PHYSICAL
+        method = OwnMethod.CREDIT
         OwnFee.objects.create(
             id=99, basketId=OwnBasket.objects.get(pk=117), value=1, baseMdr=1,
             network=network, channel=channel, method=method,
@@ -139,7 +600,7 @@ class OwnFeeCommandTests(TestCase):
             cnae="5829-8/00", description="Activity", mcc=2741
         )
         basket = OwnBasket.objects.get(pk=117)
-        method = OwnMethod.objects.get(name="Credit")
+        method = OwnMethod.CREDIT
         referenced = OwnFee.objects.create(
             id=90, basketId=basket, value=1, baseMdr=1, method=method
         )
@@ -174,9 +635,9 @@ class OwnFeeCommandTests(TestCase):
 
 class OwnFeeEndpointTests(TestCase):
     def test_endpoint_requires_authentication_and_returns_all_fees(self):
-        network = OwnNetwork.objects.get(name="Elo")
-        channel = OwnChannel.objects.get(name="Ecommerce")
-        method = OwnMethod.objects.get(name="Debit")
+        network = OwnNetwork.ELO
+        channel = OwnChannel.ECOMMERCE
+        method = OwnMethod.DEBIT
         OwnFee.objects.create(
             id=10, basketId=OwnBasket.objects.get(pk=117), value=2.5, baseMdr=2,
             network=network, channel=channel, method=method,
@@ -189,7 +650,7 @@ class OwnFeeEndpointTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.data), 1)
-        self.assertEqual(response.data[0]["network"]["name"], "Elo")
+        self.assertEqual(response.data[0]["network"], "Elo")
         self.assertEqual(response.data[0]["value"], "2.5000000000")
         self.assertEqual(response.data[0]["baseMdr"], "2.0000000000")
 
@@ -237,22 +698,59 @@ class OwnActivityCommandTests(TestCase):
         self.assertEqual(activity.description, "FIRST DESCRIPTION")
         self.assertEqual(activity.mcc, 5300)
 
+    def test_command_preserves_stale_activities_referenced_by_plans(self):
+        """Verify refresh retains stale activities used by plans; return ``None``."""
+        user = User.objects.create_user("activity-plan-owner")
+        stale = OwnActivity.objects.create(
+            cnae="old",
+            description="Referenced activity",
+            mcc=1,
+        )
+        OwnPlan.objects.create(
+            created_by=user,
+            updated_by=user,
+            title="Existing plan",
+            activity=stale,
+            basketId=OwnBasket.objects.get(pk=117),
+        )
+        payload = [{"codCnae": "new", "descCnae": "New", "codMcc": 2}]
+
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "activities.json"
+            path.write_text(json.dumps(payload))
+            call_command("load_own_activities", file=path, stdout=StringIO())
+
+        self.assertTrue(OwnActivity.objects.filter(pk="old").exists())
+        self.assertTrue(OwnActivity.objects.filter(pk="new").exists())
+
+    def test_command_rejects_empty_payload_without_deleting_activities(self):
+        """Verify empty refresh input preserves current activities; return ``None``."""
+        OwnActivity.objects.create(cnae="existing", description="Existing", mcc=1)
+
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "activities.json"
+            path.write_text("[]")
+            with self.assertRaises(CommandError):
+                call_command("load_own_activities", file=path, stdout=StringIO())
+
+        self.assertTrue(OwnActivity.objects.filter(pk="existing").exists())
+
 
 class OwnAnticipationFeeCommandTests(TestCase):
     def test_command_creates_and_updates_both_fees(self):
         """Use ``self`` to verify both anticipation fees upsert; return ``None``."""
         call_command("load_own_anticipation_fee", "1.25", stdout=StringIO())
-        fees = OwnFee.objects.filter(method__name="Anticipation").order_by("basketId")
+        fees = OwnFee.objects.filter(method=OwnMethod.ANTICIPATION).order_by("basketId")
         self.assertEqual(list(fees.values_list("basketId", flat=True)), [117, 333])
         self.assertTrue(all(fee.baseMdr == Decimal("1.25") for fee in fees))
         self.assertTrue(all(fee.value == Decimal("0.0") for fee in fees))
         self.assertTrue(all(fee.network is None and fee.channel is None for fee in fees))
 
         call_command("load_own_anticipation_fee", "2.5", stdout=StringIO())
-        self.assertEqual(OwnFee.objects.filter(method__name="Anticipation").count(), 2)
+        self.assertEqual(OwnFee.objects.filter(method=OwnMethod.ANTICIPATION).count(), 2)
         self.assertTrue(all(
             fee.baseMdr == Decimal("2.5")
-            for fee in OwnFee.objects.filter(method__name="Anticipation")
+            for fee in OwnFee.objects.filter(method=OwnMethod.ANTICIPATION)
         ))
 
 
@@ -266,7 +764,7 @@ class OwnPlanEndpointTests(TestCase):
         )
         self.fee = OwnFee.objects.create(
             id=900, basketId=OwnBasket.objects.get(pk=117), value=0, baseMdr=1,
-            method=OwnMethod.objects.get(name="Credit"),
+            method=OwnMethod.CREDIT,
         )
         self.client = APIClient()
 

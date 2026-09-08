@@ -3,22 +3,24 @@ from django.contrib import admin
 from own.models import (
     OwnActivity,
     OwnBasket,
-    OwnChannel,
+    OwnBusiness,
+    OwnBusinessAttachment,
+    OwnBusinessPartner,
     OwnFee,
-    OwnMethod,
-    OwnNetwork,
     OwnPlan,
     OwnPlanFee,
+    OwnPartnerAttachment,
 )
 
 
 admin.site.register([
     OwnBasket,
-    OwnNetwork,
-    OwnChannel,
-    OwnMethod,
     OwnFee,
     OwnActivity,
     OwnPlan,
     OwnPlanFee,
+    OwnBusiness,
+    OwnBusinessPartner,
+    OwnPartnerAttachment,
+    OwnBusinessAttachment,
 ])

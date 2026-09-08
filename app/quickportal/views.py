@@ -52,7 +52,6 @@ from quickportal.services.business_access import (
     has_governing_ancestor_admin,
 )
 from quickportal.services.own_auth import get_own_token, OwnAuthError
-from quickportal.services.own_merchant import register_merchant, MerchantRegistrationError
 
 
 def _brasil_api_error_response(exc: BrasilApiError) -> Response:
@@ -124,51 +123,6 @@ class OwnAuthTokenView(APIView):
             },
             status=status.HTTP_200_OK,
         )
-
-
-class MerchantRegistrationView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    def post(self, request):
-        business_id = request.data.get("business")
-        if business_id is None:
-            return Response(
-                {"business": ["This field is required."]},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        business = get_accessible_business_or_404(request.user, business_id)
-        if business.type != BusinessType.STORE:
-            return Response(
-                {"business": ["Merchant registration requires a store."]},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        _require_business_role(request.user, business, WRITE_ROLES)
-        payload = request.data.copy()
-        payload.pop("business", None)
-        try:
-            result = register_merchant(payload)
-        except OwnAuthError as exc:
-            return Response(
-                {"error": "own_auth_failed", "detail": str(exc)},
-                status=status.HTTP_502_BAD_GATEWAY,
-            )
-        except MerchantRegistrationError as exc:
-            error_status = (
-                status.HTTP_502_BAD_GATEWAY
-                if exc.status_code is None
-                else status.HTTP_400_BAD_REQUEST
-            )
-            return Response(
-                {
-                    "error": "merchant_registration_failed",
-                    "detail": str(exc),
-                    "upstream_status": exc.status_code,
-                    "upstream_body": exc.response_body,
-                },
-                status=error_status,
-            )
-
-        return Response(result, status=status.HTTP_200_OK)
 
 
 class AcquirerListView(APIView):
@@ -386,6 +340,7 @@ class BusinessDetailView(APIView):
     permission_classes = [IsAuthenticated]
 
     def _get_object(self, user, pk):
+        """Return business ``pk`` when accessible to ``user``, otherwise raise 404."""
         return get_accessible_business_or_404(user, pk)
 
     def get(self, request, pk):
@@ -450,6 +405,12 @@ class BusinessDetailView(APIView):
         )
 
     def delete(self, request, pk):
+        """Delete accessible business ``pk`` for an administrator.
+
+        Returns HTTP 204 on success or HTTP 409 when protected children prevent
+        deletion. Missing access raises the normal scoped not-found or
+        permission response.
+        """
         business = self._get_object(request.user, pk)
         _require_business_role(request.user, business, {BusinessRole.ADMIN})
         try:
@@ -463,6 +424,12 @@ class BusinessDetailView(APIView):
 
     @staticmethod
     def _authorize_hierarchy_change(request, business, serializer):
+        """Authorize hierarchy changes validated by ``serializer`` for ``business``.
+
+        ``request`` supplies the acting user. The method returns ``None`` when
+        no hierarchy change is requested or authorization succeeds, and raises
+        permission/not-found exceptions for unauthorized target relationships.
+        """
         new_type = serializer.validated_data.get("type", business.type)
         new_parent = serializer.validated_data.get("parent", business.parent)
         if new_type == business.type and new_parent == business.parent:
@@ -531,6 +498,12 @@ class RecurringFeeListCreateView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, owner_id):
+        """List paginated fees for accessible recurring-fee owner ``owner_id``.
+
+        ``request`` supplies authentication and pagination values. Returns a
+        paginated DRF response; inaccessible or invalid owners raise the
+        scoped not-found or permission exception.
+        """
         owner = _get_recurring_fee_owner(request.user, owner_id)
         fees = (
             RecurringFee.objects.filter(owner=owner)
@@ -546,6 +519,12 @@ class RecurringFeeListCreateView(APIView):
         )
 
     def post(self, request, owner_id):
+        """Create a fee for ``owner_id`` from ``request.data``.
+
+        Returns the serialized fee with HTTP 201. Invalid data raises a
+        validation error, while missing owners or insufficient write access
+        raise the scoped not-found or permission exception.
+        """
         owner = _get_recurring_fee_owner(request.user, owner_id)
         _require_business_role(request.user, owner, WRITE_ROLES)
         serializer = RecurringFeeSerializer(
@@ -566,6 +545,11 @@ class RecurringFeeDetailView(APIView):
 
     @staticmethod
     def _get_object(owner, pk):
+        """Return fee record ``pk`` belonging to recurring-fee ``owner``.
+
+        Related targets are prefetched. ``NotFound`` is raised when the record
+        does not belong to the supplied owner.
+        """
         try:
             return (
                 RecurringFee.objects.select_related("owner", "created_by")
@@ -576,6 +560,7 @@ class RecurringFeeDetailView(APIView):
             raise NotFound() from exc
 
     def get(self, request, owner_id, pk):
+        """Return fee ``pk`` for accessible owner ``owner_id`` and ``request`` user."""
         owner = _get_recurring_fee_owner(request.user, owner_id)
         recurring_fee = self._get_object(owner, pk)
         return Response(
@@ -585,6 +570,12 @@ class RecurringFeeDetailView(APIView):
         )
 
     def patch(self, request, owner_id, pk):
+        """Partially update fee ``pk`` for writable owner ``owner_id``.
+
+        ``request.data`` supplies changes. Returns the updated serialized fee;
+        invalid data, missing records, and insufficient access raise their
+        standard DRF errors.
+        """
         owner = _get_recurring_fee_owner(request.user, owner_id)
         _require_business_role(request.user, owner, WRITE_ROLES)
         recurring_fee = self._get_object(owner, pk)
@@ -603,6 +594,7 @@ class RecurringFeeDetailView(APIView):
         )
 
     def delete(self, request, owner_id, pk):
+        """Delete fee ``pk`` for writable owner ``owner_id`` and return HTTP 204."""
         owner = _get_recurring_fee_owner(request.user, owner_id)
         _require_business_role(request.user, owner, {BusinessRole.ADMIN})
         self._get_object(owner, pk).delete()

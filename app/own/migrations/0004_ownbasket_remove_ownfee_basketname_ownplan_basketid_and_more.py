@@ -12,6 +12,18 @@ def load_baskets(apps, schema_editor):
     ])
 
 
+def remove_unsupported_fees(apps, schema_editor):
+    OwnFee = apps.get_model("own", "OwnFee")
+    OwnPlanFee = apps.get_model("own", "OwnPlanFee")
+    unsupported_fees = OwnFee.objects.exclude(basketId__in=[117, 333])
+
+    # These baskets cannot be represented after basketId becomes a foreign
+    # key. Their plan associations are therefore unsupported as well and must
+    # be removed first because OwnPlanFee.fee uses PROTECT.
+    OwnPlanFee.objects.filter(fee__in=unsupported_fees).delete()
+    unsupported_fees.delete()
+
+
 class Migration(migrations.Migration):
 
     dependencies = [
@@ -41,6 +53,7 @@ class Migration(migrations.Migration):
             field=models.ForeignKey(db_column='basketId', default=117, on_delete=django.db.models.deletion.PROTECT, related_name='plans', to='own.ownbasket'),
             preserve_default=False,
         ),
+        migrations.RunPython(remove_unsupported_fees, migrations.RunPython.noop),
         migrations.AlterField(
             model_name='ownfee',
             name='basketId',
