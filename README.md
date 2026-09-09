@@ -14,18 +14,20 @@ See `AGENTS.md` and each application's `AGENTS.md` for development conventions.
 
 ## Local development
 
-The root `docker-compose.yml` includes both applications' development Compose
+The root `docker-compose.yml` includes all three applications' development Compose
 files. Configure `quick-portal-api/.env.dev` using its `.env.example`, then run:
 
 ```sh
 docker compose up --build
 ```
 
-The API is available at `http://localhost:8080`. The frontend Compose file uses a
-dynamically allocated host port; find it with `docker compose port app 5173`.
-For the standard `http://localhost:5173` frontend origin, run `npm ci` and
-`npm run dev` from `quick-portal-web/` instead, with the backend development
-Compose stack running. Keep CORS origins consistent with the frontend URL.
+Documentation is available at `http://localhost:5174` with live reload.
+Run `docker compose up docs` to start only the documentation service.
+
+The API is available at `http://localhost:8080` and the frontend at
+`http://localhost:5173`. To run the frontend outside Docker, run `npm ci` and
+`npm run dev` from `quick-portal-web/` with the backend development Compose
+stack running. Keep CORS origins consistent with the frontend URL.
 
 ## Checks
 
