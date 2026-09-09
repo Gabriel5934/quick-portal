@@ -32,7 +32,7 @@ The Django manage.py lives at `app/manage.py`. The Docker volume mounts `./app` 
 
 ## Testing authenticated endpoints
 
-The development compose startup creates or updates a development user with email
+The development compose startup creates or updates a development superuser with email
 `root@email.com` and password `JustTesting593!`. Before testing an authenticated
 endpoint, request an access token with cURL:
 

@@ -11,6 +11,7 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument("email")
         parser.add_argument("password")
+        parser.add_argument("--superuser", action="store_true", help="Grant development admin access")
 
     @transaction.atomic
     def handle(self, *args, **options):
@@ -23,6 +24,9 @@ class Command(BaseCommand):
 
         user.email = email
         user.is_active = True
+        if options["superuser"]:
+            user.is_staff = True
+            user.is_superuser = True
         user.set_password(options["password"])
         user.save()
 
