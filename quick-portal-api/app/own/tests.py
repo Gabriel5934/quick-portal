@@ -327,6 +327,41 @@ class OwnBusinessSignupEndpointTests(TestCase):
 
     @patch("own.views.register_merchant")
     @patch("own.serializers.fetch_cep_info")
+    def _assert_optional_signup_arrays(self, fetch_cep_info, register_merchant, *, omitted):
+        """Verify optional arrays reach OWN as empty lists when absent or empty."""
+        fetch_cep_info.return_value = {
+            "street": "Rua Milton Martins",
+            "neighborhood": "Urbanova",
+            "city": "São José dos Campos",
+            "state": "SP",
+        }
+        register_merchant.return_value = {"protocolo": "PROTO-1", "status": "ok"}
+        payload = self.payload()
+        for field in ("partners", "attachments"):
+            if omitted:
+                payload.pop(field)
+            else:
+                payload[field] = []
+
+        response = self.client.post("/own/businesses/", payload, format="json")
+
+        self.assertEqual(response.status_code, 201, response.data)
+        own_business = OwnBusiness.objects.get()
+        self.assertFalse(own_business.partners.exists())
+        self.assertFalse(own_business.attachments.exists())
+        register_merchant.assert_called_once()
+        sent_payload = register_merchant.call_args.args[0]
+        self.assertEqual(sent_payload["documentosSocios"], [])
+        self.assertEqual(sent_payload["anexos"], [])
+
+    def test_omitted_signup_arrays_are_sent_to_own_as_empty_arrays(self):
+        self._assert_optional_signup_arrays(omitted=True)
+
+    def test_empty_signup_arrays_are_sent_to_own_as_empty_arrays(self):
+        self._assert_optional_signup_arrays(omitted=False)
+
+    @patch("own.views.register_merchant")
+    @patch("own.serializers.fetch_cep_info")
     def test_preserves_failed_signup_for_safe_retry_when_own_rejects_it(
         self,
         fetch_cep_info,

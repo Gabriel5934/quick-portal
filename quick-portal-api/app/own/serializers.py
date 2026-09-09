@@ -99,12 +99,16 @@ class OwnBusinessSignupSerializer(serializers.ModelSerializer):
     business = serializers.PrimaryKeyRelatedField(read_only=True)
     partners = OwnBusinessPartnerInputSerializer(
         many=True,
-        allow_empty=False,
+        allow_empty=True,
+        required=False,
+        default=list,
         write_only=True,
     )
     attachments = OwnBusinessAttachmentInputSerializer(
         many=True,
-        allow_empty=False,
+        allow_empty=True,
+        required=False,
+        default=list,
         write_only=True,
     )
     partner_documents = OwnBusinessPartnerReadSerializer(
