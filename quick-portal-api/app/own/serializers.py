@@ -226,10 +226,6 @@ class OwnBusinessSignupSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 {"plan": "The plan activity must match the business CNAE."}
             )
-        if not attrs["plan"].fees.exists():
-            raise serializers.ValidationError(
-                {"plan": "The plan must contain at least one fee."}
-            )
         all_attachments = list(attrs["attachments"])
         all_attachments.extend(
             attachment
