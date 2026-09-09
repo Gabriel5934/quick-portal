@@ -110,7 +110,7 @@ class OwnFee(models.Model):
 
 
 class OwnActivity(models.Model):
-    cnae = models.CharField(max_length=20, primary_key=True)
+    cnae = models.IntegerField(primary_key=True)
     description = models.TextField()
     mcc = models.IntegerField()
 

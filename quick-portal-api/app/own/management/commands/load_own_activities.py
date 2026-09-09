@@ -35,7 +35,7 @@ def extract_records(payload):
 def transform_record(record):
     try:
         return {
-            "cnae": str(record["codCnae"]),
+            "cnae": int(str(record["codCnae"]).translate(str.maketrans("", "", "./-"))),
             "description": str(record["descCnae"]),
             "mcc": int(record["codMcc"]),
         }

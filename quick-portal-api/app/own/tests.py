@@ -59,7 +59,7 @@ class OwnBusinessModelTests(TestCase):
             phone="12999999999",
         )
         self.activity = OwnActivity.objects.create(
-            cnae="4711-3/02",
+            cnae=4711302,
             description="Retail",
             mcc=5411,
         )
@@ -118,7 +118,7 @@ class OwnBusinessModelTests(TestCase):
 
     def test_rejects_a_plan_for_a_different_activity(self):
         other_activity = OwnActivity.objects.create(
-            cnae="6201-5/01",
+            cnae=6201501,
             description="Software development",
             mcc=7372,
         )
@@ -225,7 +225,7 @@ class OwnBusinessSignupEndpointTests(TestCase):
             role=BusinessRole.MANAGER,
         )
         self.activity = OwnActivity.objects.create(
-            cnae="4711-3/02",
+            cnae=4711302,
             description="Retail",
             mcc=5411,
         )
@@ -597,7 +597,7 @@ class OwnFeeCommandTests(TestCase):
         """Use ``self`` to verify referenced obsolete fees survive; return ``None``."""
         user = User.objects.create_user("fee-owner")
         activity = OwnActivity.objects.create(
-            cnae="5829-8/00", description="Activity", mcc=2741
+            cnae=5829800, description="Activity", mcc=2741
         )
         basket = OwnBasket.objects.get(pk=117)
         method = OwnMethod.CREDIT
@@ -658,9 +658,9 @@ class OwnFeeEndpointTests(TestCase):
 class OwnActivityCommandTests(TestCase):
     def test_command_destructively_loads_activities(self):
         """Use ``self`` to verify destructive activity loading; return ``None``."""
-        OwnActivity.objects.create(cnae="old", description="Old", mcc=1)
+        OwnActivity.objects.create(cnae=1, description="Old", mcc=1)
         payload = [{
-            "codCnae": "5829-8/00",
+            "codCnae": "58.29-8/00",
             "descCnae": "EDIÇÃO INTEGRADA",
             "codMcc": 2741,
         }]
@@ -669,9 +669,9 @@ class OwnActivityCommandTests(TestCase):
             path.write_text(json.dumps(payload))
             call_command("load_own_activities", file=path, stdout=StringIO())
 
-        self.assertFalse(OwnActivity.objects.filter(pk="old").exists())
+        self.assertFalse(OwnActivity.objects.filter(pk=1).exists())
         activity = OwnActivity.objects.get()
-        self.assertEqual(activity.cnae, "5829-8/00")
+        self.assertEqual(activity.cnae, 5829800)
         self.assertEqual(activity.description, "EDIÇÃO INTEGRADA")
         self.assertEqual(activity.mcc, 2741)
 
@@ -684,7 +684,7 @@ class OwnActivityCommandTests(TestCase):
                 "codMcc": 5300,
             },
             {
-                "codCnae": "4530-7/01",
+                "codCnae": 4530701,
                 "descCnae": "SECOND DESCRIPTION",
                 "codMcc": 9999,
             },
@@ -702,7 +702,7 @@ class OwnActivityCommandTests(TestCase):
         """Verify refresh retains stale activities used by plans; return ``None``."""
         user = User.objects.create_user("activity-plan-owner")
         stale = OwnActivity.objects.create(
-            cnae="old",
+            cnae=1,
             description="Referenced activity",
             mcc=1,
         )
@@ -713,19 +713,19 @@ class OwnActivityCommandTests(TestCase):
             activity=stale,
             basketId=OwnBasket.objects.get(pk=117),
         )
-        payload = [{"codCnae": "new", "descCnae": "New", "codMcc": 2}]
+        payload = [{"codCnae": "2", "descCnae": "New", "codMcc": 2}]
 
         with TemporaryDirectory() as directory:
             path = Path(directory) / "activities.json"
             path.write_text(json.dumps(payload))
             call_command("load_own_activities", file=path, stdout=StringIO())
 
-        self.assertTrue(OwnActivity.objects.filter(pk="old").exists())
-        self.assertTrue(OwnActivity.objects.filter(pk="new").exists())
+        self.assertTrue(OwnActivity.objects.filter(pk=1).exists())
+        self.assertTrue(OwnActivity.objects.filter(pk=2).exists())
 
     def test_command_rejects_empty_payload_without_deleting_activities(self):
         """Verify empty refresh input preserves current activities; return ``None``."""
-        OwnActivity.objects.create(cnae="existing", description="Existing", mcc=1)
+        OwnActivity.objects.create(cnae=3, description="Existing", mcc=1)
 
         with TemporaryDirectory() as directory:
             path = Path(directory) / "activities.json"
@@ -733,7 +733,7 @@ class OwnActivityCommandTests(TestCase):
             with self.assertRaises(CommandError):
                 call_command("load_own_activities", file=path, stdout=StringIO())
 
-        self.assertTrue(OwnActivity.objects.filter(pk="existing").exists())
+        self.assertTrue(OwnActivity.objects.filter(pk=3).exists())
 
 
 class OwnAnticipationFeeCommandTests(TestCase):
@@ -760,7 +760,7 @@ class OwnPlanEndpointTests(TestCase):
         self.user = User.objects.create_user("plan-user")
         self.other_user = User.objects.create_user("plan-editor")
         self.activity = OwnActivity.objects.create(
-            cnae="5829-8/00", description="Activity", mcc=2741
+            cnae=5829800, description="Activity", mcc=2741
         )
         self.fee = OwnFee.objects.create(
             id=900, basketId=OwnBasket.objects.get(pk=117), value=0, baseMdr=1,
