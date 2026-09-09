@@ -1,0 +1,3 @@
+include:
+  - ./quick-portal-api/docker-compose.dev.yml
+  - ./quick-portal-web/docker-compose.dev.yml

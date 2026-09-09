@@ -1,6 +1,7 @@
 # AGENTS.md
 
-This file provides guidance to Codex (Codex.ai/code) when working with code in this repository.
+This file provides guidance to Codex (Codex.ai/code) when working with code in this application. Run application commands from this
+directory and Git commands from the parent monorepo root.
 
 ## Commands
 
