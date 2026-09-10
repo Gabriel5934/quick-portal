@@ -7,7 +7,7 @@ import requests
 from django.conf import settings
 from django.utils import timezone
 
-from quickportal.services.own_auth import get_own_token
+from own.services.own_auth import get_own_token
 
 logger = logging.getLogger(__name__)
 
@@ -40,9 +40,7 @@ def _write_registration_trace(payload, url, *, response=None, error=None):
     try:
         trace_dir = Path(settings.OWN_REGISTRATION_TRACE_DIR)
         trace_dir.mkdir(parents=True, exist_ok=True)
-        filename = (
-            f"{timezone.now():%Y%m%dT%H%M%S%fZ}-{uuid.uuid4().hex}.json"
-        )
+        filename = f"{timezone.now():%Y%m%dT%H%M%S%fZ}-{uuid.uuid4().hex}.json"
         (trace_dir / filename).write_text(
             json.dumps(trace, ensure_ascii=False, indent=2, default=str),
             encoding="utf-8",
@@ -59,12 +57,7 @@ class MerchantRegistrationError(Exception):
 
 
 def register_merchant(payload: dict) -> dict:
-    """
-    Register a merchant in the OWN Acquiring platform.
-
-    Returns dict with 'protocolo' and 'status' on success.
-    Raises MerchantRegistrationError on API errors or OwnAuthError on auth failure.
-    """
+    """Register a merchant in OWN and return the upstream success payload."""
     token = get_own_token()
     url = f"{settings.OWN_BASE_URL}/cadastrarConveniada"
 

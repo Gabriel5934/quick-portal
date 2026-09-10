@@ -5,11 +5,7 @@ CONTRACT_TYPE = "W"
 
 
 def _encoded_file(stored_file):
-    """Read FileField ``stored_file`` in chunks and return Base64 text.
-
-    Storage access errors propagate to the caller. Request validation bounds
-    the file size before this helper is called.
-    """
+    """Read FileField ``stored_file`` in chunks and return Base64 text."""
     encoded_chunks = []
     with stored_file.open("rb"):
         for chunk in stored_file.chunks(chunk_size=57 * 1024):
@@ -18,10 +14,7 @@ def _encoded_file(stored_file):
 
 
 def _attachment_payload(attachment):
-    """Return stored ``attachment`` in OWN's name/content/type payload shape.
-
-    File storage read failures propagate from ``_encoded_file``.
-    """
+    """Return stored ``attachment`` in OWN's name/content/type payload shape."""
     return {
         "nomeArquivo": attachment.original_name,
         "conteudo": _encoded_file(attachment.file),
@@ -30,14 +23,7 @@ def _attachment_payload(attachment):
 
 
 def build_own_business_signup_payload(own_business):
-    """Build the complete ``/cadastrarConveniada`` request for ``own_business``.
-
-    The returned dictionary contains the required identity, activity, address,
-    contact, plan fee, banking, partner-document, contract-attachment, and
-    deprecated compatibility keys expected by OWN. Address complement and callback URL are always represented as strings.
-    Anticipation type, retry protocol, and contract keys are included when present.
-    The anticipation fee is always sent, defaulting to zero when disabled.
-    """
+    """Build the complete ``/cadastrarConveniada`` request for ``own_business``."""
     business = own_business.business
     plan = own_business.plan
     phone = business.phone
@@ -76,9 +62,7 @@ def build_own_business_signup_payload(own_business):
         "responsavelAssinatura": own_business.signatory_name,
         "quantidadePos": own_business.pos_quantity,
         "faturamentoContratado": format(own_business.contract_revenue, "f"),
-        "antecipacaoAutomatica": (
-            "N" if plan.anticipation_type == "None" else "S"
-        ),
+        "antecipacaoAutomatica": "N" if plan.anticipation_type == "None" else "S",
         "taxaAntecipacao": 0,
         "mcc": own_business.cnae.mcc,
         "tipoContrato": CONTRACT_TYPE,
@@ -117,8 +101,5 @@ def build_own_business_signup_payload(own_business):
         payload["numeroContrato"] = own_business.contract_number
     if plan.anticipation_type != "None":
         payload["tipoAntecipacao"] = "ROTATIVO"
-        payload["taxaAntecipacao"] = format(
-            plan.basketId.anticipation_fee,
-            "f",
-        )
+        payload["taxaAntecipacao"] = format(plan.basketId.anticipation_fee, "f")
     return payload

@@ -50,7 +50,6 @@ from quickportal.services.business_access import (
     has_business_role,
     has_governing_ancestor_admin,
 )
-from quickportal.services.own_auth import get_own_token, OwnAuthError
 
 
 def _brasil_api_error_response(exc: BrasilApiError) -> Response:
@@ -99,29 +98,6 @@ class UserRegistrationView(APIView):
 
 class EmailTokenObtainPairView(TokenObtainPairView):
     serializer_class = EmailTokenObtainPairSerializer
-
-
-class OwnAuthTokenView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    def post(self, request):
-        try:
-            token = get_own_token()
-        except OwnAuthError as exc:
-            return Response(
-                {"error": "own_auth_failed", "detail": str(exc)},
-                status=status.HTTP_502_BAD_GATEWAY,
-            )
-
-        masked = token[:10] + "..." if len(token) > 10 else token
-        return Response(
-            {
-                "status": "authenticated",
-                "token_preview": masked,
-                "message": "OWN Financial token acquired successfully.",
-            },
-            status=status.HTTP_200_OK,
-        )
 
 
 class AcquirerListView(APIView):

@@ -36,16 +36,39 @@ from quickportal.services.business_access import (
     accessible_businesses,
     get_accessible_business_or_404,
 )
-from quickportal.services.own_auth import OwnAuthError
-from quickportal.services.own_merchant import (
+from own.services.own_auth import OwnAuthError, get_own_token
+from own.services.own_merchant import (
     MerchantRegistrationError,
     register_merchant,
 )
-from quickportal.services.own_signup import build_own_business_signup_payload
+from own.services.own_signup import build_own_business_signup_payload
 
 
 WRITE_ROLES = {BusinessRole.ADMIN, BusinessRole.MANAGER}
 PENDING_RETRY_AFTER = timedelta(minutes=5)
+
+
+class OwnAuthTokenView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        try:
+            token = get_own_token()
+        except OwnAuthError as exc:
+            return Response(
+                {"error": "own_auth_failed", "detail": str(exc)},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+
+        masked = token[:10] + "..." if len(token) > 10 else token
+        return Response(
+            {
+                "status": "authenticated",
+                "token_preview": masked,
+                "message": "OWN Financial token acquired successfully.",
+            },
+            status=status.HTTP_200_OK,
+        )
 
 
 def _record_registration_state(own_business, registration_status, error=""):

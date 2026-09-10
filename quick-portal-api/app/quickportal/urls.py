@@ -15,7 +15,6 @@ from quickportal.views import (
     EmailTokenObtainPairView,
     FeeListView,
     NetworkListView,
-    OwnAuthTokenView,
     PlanDetailView,
     PlanListCreateView,
     PosModelListView,
@@ -29,7 +28,6 @@ from quickportal.views import (
 urlpatterns = [
     path("users/register/", UserRegistrationView.as_view()),
     path("api/token/", EmailTokenObtainPairView.as_view(), name="token_obtain_pair"),
-    path("own/auth/", OwnAuthTokenView.as_view(), name="own_auth"),
     path("api/cnaes/", CnaeListView.as_view(), name="cnae_list"),
     path(
         "api/cnaes-with-fees/",

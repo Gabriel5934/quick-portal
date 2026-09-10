@@ -38,6 +38,7 @@ from own.models import (
     OwnPartnerAttachmentType,
     OwnRegistrationStatus,
 )
+from own.services.own_auth import OwnAuthError
 from quickportal.models import (
     Business,
     BusinessMembership,
@@ -45,7 +46,50 @@ from quickportal.models import (
     BusinessType,
     DocumentType,
 )
-from quickportal.services.own_merchant import MerchantRegistrationError
+from own.services.own_merchant import MerchantRegistrationError
+
+
+class OwnAuthTokenEndpointTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user("own-auth-user")
+        self.client = APIClient()
+
+    def test_requires_authentication(self):
+        self.assertEqual(self.client.post("/own/auth/").status_code, 401)
+
+    @patch("own.views.get_own_token", return_value="abcdefghijk")
+    def test_returns_a_masked_token_preview(self, get_own_token):
+        self.client.force_authenticate(self.user)
+
+        response = self.client.post("/own/auth/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["token_preview"], "abcdefghij...")
+        get_own_token.assert_called_once_with()
+
+    @patch("own.views.get_own_token", side_effect=OwnAuthError("unavailable"))
+    def test_returns_gateway_error_when_own_auth_fails(self, get_own_token):
+        self.client.force_authenticate(self.user)
+
+        response = self.client.post("/own/auth/")
+
+        self.assertEqual(response.status_code, 502)
+        self.assertEqual(response.data["error"], "own_auth_failed")
+        get_own_token.assert_called_once_with()
+
+
+class OwnFeeChoiceTests(TestCase):
+    def test_rejects_the_retired_anticipation_method(self):
+        fee = OwnFee(
+            id=999,
+            basketId=OwnBasket.objects.get(pk=117),
+            value=0,
+            baseMdr=0,
+            method="Anticipation",
+        )
+
+        with self.assertRaises(ValidationError):
+            fee.full_clean()
 
 
 class OwnBusinessModelTests(TestCase):

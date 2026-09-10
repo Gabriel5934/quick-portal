@@ -57,14 +57,14 @@ Triggers OWN Financial authentication. Returns cached token if available, otherw
 
 ## Service Layer
 
-### `quickportal.services.own_auth.get_own_token() -> str`
+### `own.services.own_auth.get_own_token() -> str`
 
 Returns a valid OWN Financial access token. Checks cache first, fetches from OWN API on miss.
 
 **Usage in other views/services**:
 
 ```python
-from quickportal.services.own_auth import get_own_token, OwnAuthError
+from own.services.own_auth import get_own_token, OwnAuthError
 
 try:
     token = get_own_token()
@@ -112,9 +112,9 @@ OWN_SCOPE = os.environ.get('OWN_SCOPE', '')
 
 | File | Purpose |
 |------|---------|
-| `app/quickportal/services/own_auth.py` | Service layer: `get_own_token()`, `OwnAuthError` |
-| `app/quickportal/views.py` | `OwnAuthTokenView` class |
-| `app/quickportal/urls.py` | Route: `own/auth/` |
+| `app/own/services/own_auth.py` | Service layer: `get_own_token()`, `OwnAuthError` |
+| `app/own/views.py` | `OwnAuthTokenView` class |
+| `app/own/urls.py` | Route: `auth/` under the `/own/` prefix |
 | `app/config/settings.py` | Cache config, OWN env var bindings |
 
 ---
@@ -152,7 +152,7 @@ Authorization: Bearer <access_token>
 Example in Python:
 
 ```python
-from quickportal.services.own_auth import get_own_token
+from own.services.own_auth import get_own_token
 
 token = get_own_token()
 response = requests.get(

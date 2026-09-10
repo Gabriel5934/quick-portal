@@ -5,7 +5,7 @@ from unittest.mock import Mock, patch
 
 from django.test import SimpleTestCase, override_settings
 
-from quickportal.services.own_merchant import (
+from own.services.own_merchant import (
     MerchantRegistrationError,
     register_merchant,
 )
@@ -14,8 +14,8 @@ from quickportal.services.own_merchant import (
 class OwnMerchantTraceTests(SimpleTestCase):
     payload = {"cnpj": "61805098000149", "complemento": "Loja 1"}
 
-    @patch("quickportal.services.own_merchant.get_own_token", return_value="token")
-    @patch("quickportal.services.own_merchant.requests.post")
+    @patch("own.services.own_merchant.get_own_token", return_value="token")
+    @patch("own.services.own_merchant.requests.post")
     def test_writes_one_trace_with_the_payload_and_json_response(
         self, post, _get_own_token
     ):
@@ -43,8 +43,8 @@ class OwnMerchantTraceTests(SimpleTestCase):
             "body": {"payloadCallback": "registered"},
         })
 
-    @patch("quickportal.services.own_merchant.get_own_token", return_value="token")
-    @patch("quickportal.services.own_merchant.requests.post")
+    @patch("own.services.own_merchant.get_own_token", return_value="token")
+    @patch("own.services.own_merchant.requests.post")
     def test_writes_a_trace_for_an_upstream_rejection(
         self, post, _get_own_token
     ):
@@ -70,8 +70,8 @@ class OwnMerchantTraceTests(SimpleTestCase):
             "body": "invalid complemento",
         })
 
-    @patch("quickportal.services.own_merchant.get_own_token", return_value="token")
-    @patch("quickportal.services.own_merchant.requests.post")
+    @patch("own.services.own_merchant.get_own_token", return_value="token")
+    @patch("own.services.own_merchant.requests.post")
     def test_does_not_write_a_trace_when_disabled(self, post, _get_own_token):
         response = Mock(status_code=200)
         response.json.return_value = {}

@@ -55,7 +55,6 @@ class OwnMethod(models.TextChoices):
     POS_RENT = "POS Rent", "POS Rent"
     TOP_BANK = "Top Bank", "Top Bank"
     VISA_VOUCHER = "Visa Voucher", "Visa Voucher"
-    ANTICIPATION = "Anticipation", "Anticipation"
 
 
 class OwnBasket(models.Model):

@@ -5,7 +5,7 @@ from django.test import TransactionTestCase
 
 class OwnTextChoicesMigrationTests(TransactionTestCase):
     migrate_from = [("own", "0007_alter_ownbusiness_registration_status_and_more")]
-    migrate_to = [("own", "0008_own_fee_text_choices")]
+    migrate_to = [("own", "0013_alter_ownfee_method")]
 
     def migrate(self, targets):
         executor = MigrationExecutor(connection)
