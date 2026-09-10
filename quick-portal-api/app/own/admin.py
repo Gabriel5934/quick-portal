@@ -9,6 +9,7 @@ from own.models import (
     OwnFee,
     OwnPlan,
     OwnPlanFee,
+    OwnPos,
     OwnPartnerAttachment,
 )
 
@@ -19,6 +20,7 @@ admin.site.register([
     OwnActivity,
     OwnPlan,
     OwnPlanFee,
+    OwnPos,
     OwnBusiness,
     OwnBusinessPartner,
     OwnPartnerAttachment,

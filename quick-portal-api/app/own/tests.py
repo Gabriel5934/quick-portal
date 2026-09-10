@@ -34,6 +34,8 @@ from own.models import (
     OwnNetwork,
     OwnPlan,
     OwnPlanFee,
+    OwnPos,
+    OwnPosModel,
     OwnPartnerAttachment,
     OwnPartnerAttachmentType,
     OwnRegistrationStatus,
@@ -250,6 +252,20 @@ class OwnBusinessModelTests(TestCase):
             self.assertTrue(
                 business_attachment.file.name.startswith("own/businesses/")
             )
+
+    def test_creates_a_pos_for_an_own_business(self):
+        own_business = self.create_own_business()
+
+        pos = OwnPos.objects.create(
+            created_by=self.user,
+            updated_by=self.user,
+            model=OwnPosModel.PAX_Q92X,
+            serial_number="SN-123456",
+            own_business=own_business,
+        )
+
+        self.assertEqual(own_business.pos_devices.get(), pos)
+        self.assertEqual(pos.model, OwnPosModel.PAX_Q92X)
 
 
 class OwnBusinessSignupEndpointTests(TestCase):

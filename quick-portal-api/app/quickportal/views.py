@@ -15,8 +15,6 @@ from quickportal.models import (
     BusinessMembership,
     BusinessRole,
     BusinessType,
-    PosDevice,
-    PosModel,
     RecurringFee,
 )
 from quickportal.serializers import (
@@ -27,8 +25,6 @@ from quickportal.serializers import (
     BusinessMembershipWriteSerializer,
     BusinessWriteSerializer,
     EmailTokenObtainPairSerializer,
-    PosDeviceSerializer,
-    PosModelSerializer,
     RecurringFeeSerializer,
     UserCreateSerializer,
 )
@@ -95,15 +91,6 @@ class AcquirerListView(APIView):
     def get(self, request):
         acquirers = Acquirer.objects.all()
         serializer = AcquirerSerializer(acquirers, many=True)
-        return Response(serializer.data)
-
-
-class PosModelListView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    def get(self, request):
-        pos_models = PosModel.objects.select_related("acquirer").all()
-        serializer = PosModelSerializer(pos_models, many=True)
         return Response(serializer.data)
 
 
@@ -530,63 +517,3 @@ class BusinessMembershipDetailView(APIView):
             raise ValidationError(
                 {"role": "The final governing admin cannot be removed or demoted."}
             )
-
-
-class PosDeviceListCreateView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    def get(self, request):
-        devices = PosDevice.objects.select_related("model", "business").filter(
-            business__in=accessible_businesses(request.user)
-        )
-        if business_id := request.query_params.get("business"):
-            devices = devices.filter(business_id=business_id)
-        return Response(PosDeviceSerializer(devices, many=True).data)
-
-    def post(self, request):
-        business_id = request.data.get("business")
-        if business_id is not None:
-            business = get_accessible_business_or_404(request.user, business_id)
-            _require_business_role(request.user, business, WRITE_ROLES)
-        serializer = PosDeviceSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        return Response(PosDeviceSerializer(serializer.save()).data, status=status.HTTP_201_CREATED)
-
-
-class PosDeviceDetailView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    def get(self, request, pk):
-        device = self._get_object(request.user, pk)
-        return Response(PosDeviceSerializer(device).data)
-
-    def put(self, request, pk):
-        return self._update(request, pk)
-
-    def patch(self, request, pk):
-        return self._update(request, pk, partial=True)
-
-    def _update(self, request, pk, partial=False):
-        device = self._get_object(request.user, pk)
-        _require_business_role(request.user, device.business, WRITE_ROLES)
-        serializer = PosDeviceSerializer(device, data=request.data, partial=partial)
-        serializer.is_valid(raise_exception=True)
-        target = serializer.validated_data.get("business", device.business)
-        target = get_accessible_business_or_404(request.user, target.pk)
-        _require_business_role(request.user, target, WRITE_ROLES)
-        return Response(PosDeviceSerializer(serializer.save()).data)
-
-    def delete(self, request, pk):
-        device = self._get_object(request.user, pk)
-        _require_business_role(request.user, device.business, WRITE_ROLES)
-        device.delete()
-        return Response(status=status.HTTP_204_NO_CONTENT)
-
-    @staticmethod
-    def _get_object(user, pk):
-        try:
-            return PosDevice.objects.select_related(
-                "business", "business__parent"
-            ).get(pk=pk, business__in=accessible_businesses(user))
-        except PosDevice.DoesNotExist as exc:
-            raise NotFound() from exc

@@ -65,17 +65,6 @@ class Acquirer(models.Model):
         return self.name
 
 
-class PosModel(models.Model):
-    model = models.CharField(max_length=100)
-    acquirer = models.ForeignKey(Acquirer, on_delete=models.CASCADE, related_name="pos_models")
-
-    class Meta:
-        db_table = "pos_model"
-
-    def __str__(self):
-        return self.model
-
-
 class Business(models.Model):
     type = models.CharField(max_length=20, choices=BusinessType.choices)
     parent = models.ForeignKey(
@@ -377,20 +366,3 @@ class RecurringFeeTarget(models.Model):
 
     def __str__(self):
         return f"{self.recurring_fee_id} / {self.target_id}"
-
-
-class PosDevice(models.Model):
-    model = models.ForeignKey(PosModel, on_delete=models.PROTECT, related_name="devices")
-    serial = models.CharField(max_length=100, validators=[digits_only])
-    business = models.ForeignKey(
-        Business, on_delete=models.CASCADE, related_name="pos_devices"
-    )
-
-    class Meta:
-        db_table = "pos_device"
-        constraints = [
-            models.UniqueConstraint(fields=["model", "serial"], name="unique_pos_device_serial")
-        ]
-
-    def __str__(self):
-        return self.serial

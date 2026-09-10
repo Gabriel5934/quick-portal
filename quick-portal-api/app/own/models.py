@@ -57,6 +57,17 @@ class OwnMethod(models.TextChoices):
     VISA_VOUCHER = "Visa Voucher", "Visa Voucher"
 
 
+class OwnPosModel(models.TextChoices):
+    GPOS_700 = "POS GPOS 700", "POS GPOS 700"
+    GPOS_700_MINI = "POS GPOS 700 MINI", "POS GPOS 700 MINI"
+    GPOS_760 = "POS GPOS 760", "POS GPOS 760"
+    IWL251 = "POS IWL251", "POS IWL251"
+    MOVE_2500 = "POS MOVE 2500", "POS MOVE 2500"
+    PAX_D195 = "POS PAX D195", "POS PAX D195"
+    PAX_Q92X = "POS PAX Q92X", "POS PAX Q92X"
+    PAX_S920 = "POS PAX S920", "POS PAX S920"
+
+
 class OwnBasket(models.Model):
     id = models.IntegerField(primary_key=True)
     name = models.CharField(max_length=255, unique=True)
@@ -287,6 +298,41 @@ class OwnBusiness(models.Model):
     def __str__(self):
         """Return the linked generic business as this signup's display name."""
         return f"OWN / {self.business}"
+
+
+class OwnPos(models.Model):
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="created_own_pos",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="updated_own_pos",
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+    model = models.CharField(max_length=50, choices=OwnPosModel.choices)
+    serial_number = models.CharField(max_length=100)
+    own_business = models.ForeignKey(
+        OwnBusiness,
+        on_delete=models.CASCADE,
+        related_name="pos_devices",
+    )
+
+    class Meta:
+        db_table = "own_pos"
+        ordering = ["id"]
+
+    def save(self, *args, **kwargs):
+        """Validate and persist ``self`` using Django's normal save arguments."""
+        self.full_clean()
+        return super().save(*args, **kwargs)
+
+    def __str__(self):
+        """Return the POS model and serial number used to display ``self``."""
+        return f"{self.model} / {self.serial_number}"
 
 
 class OwnBusinessPartner(models.Model):

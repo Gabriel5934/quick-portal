@@ -12,13 +12,11 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 
 from quickportal.models import (
-    Acquirer,
     Business,
     BusinessColorPreference,
     BusinessMembership,
     BusinessRole,
     BusinessType,
-    PosModel,
     RecurringFee,
     RecurringFeeTarget,
 )
@@ -181,35 +179,6 @@ class RecurringFeeApiTests(APITestCase):
             [business["id"] for business in response.data["target_businesses"]],
             [self.direct_store.id],
         )
-
-
-class PosDeviceApiTests(APITestCase):
-    def setUp(self):
-        self.user = User.objects.create_user(username="user", password="password123")
-        self.client.force_authenticate(self.user)
-        self.business = Business.objects.create(
-            type=BusinessType.STORE,
-            document_type="CNPJ",
-            document="12345678000195",
-            name="Example Business",
-            email="business@example.com",
-            phone="11999999999",
-        )
-        BusinessMembership.objects.create(
-            user=self.user, business=self.business, role=BusinessRole.MANAGER
-        )
-        acquirer = Acquirer.objects.create(name="Acquirer")
-        self.pos_model = PosModel.objects.create(model="PAX A920", acquirer=acquirer)
-
-    def test_creates_pos_device(self):
-        response = self.client.post(
-            reverse("pos_device_list_create"),
-            {"model": self.pos_model.id, "serial": "123456789", "business": self.business.id},
-            format="json",
-        )
-
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(response.data["serial"], "123456789")
 
 
 class BusinessHierarchyModelTests(TestCase):
@@ -551,25 +520,6 @@ class BusinessAuthorizationApiTests(APITestCase):
         self.client.force_authenticate(staff)
         response = self.client.get(reverse("business_list_create"))
         self.assertEqual(response.data["count"], 0)
-
-    def test_pos_device_rejects_non_store_business(self):
-        BusinessMembership.objects.create(
-            user=self.user, business=self.reseller, role=BusinessRole.ADMIN
-        )
-        acquirer = Acquirer.objects.create(name="POS acquirer")
-        pos_model = PosModel.objects.create(model="PAX", acquirer=acquirer)
-        response = self.client.post(
-            reverse("pos_device_list_create"),
-            {
-                "model": pos_model.id,
-                "serial": "123456",
-                "business": self.reseller.id,
-            },
-            format="json",
-        )
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("business", response.data)
-
 
 class EnsureDevUserCommandTests(TestCase):
     def test_creates_development_superuser(self):

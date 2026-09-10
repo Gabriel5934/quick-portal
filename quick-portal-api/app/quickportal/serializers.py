@@ -8,8 +8,7 @@ from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
 from quickportal.models import (
     Acquirer, Business, BusinessColor, BusinessColorPreference, BusinessMembership,
-    BusinessType, DocumentType, PosDevice, PosModel, RecurringFee,
-    RecurringFeeTarget,
+    BusinessType, DocumentType, RecurringFee, RecurringFeeTarget,
 )
 from quickportal.services.brasil_api import fetch_cnpj_info
 
@@ -83,14 +82,6 @@ class AcquirerSerializer(serializers.ModelSerializer):
     class Meta:
         model = Acquirer
         fields = ["id", "name"]
-
-
-class PosModelSerializer(serializers.ModelSerializer):
-    acquirer = AcquirerSerializer(read_only=True)
-
-    class Meta:
-        model = PosModel
-        fields = ["id", "model", "acquirer"]
 
 
 class BusinessWriteSerializer(serializers.ModelSerializer):
@@ -195,7 +186,6 @@ class BusinessWriteSerializer(serializers.ModelSerializer):
                 attrs["name"] = info["name"]
 
         return attrs
-
 
 class BusinessReadSerializer(serializers.ModelSerializer):
     color = serializers.SerializerMethodField()
@@ -390,16 +380,3 @@ class BusinessMembershipWriteSerializer(serializers.ModelSerializer):
                     {"user": "This user already belongs to this business."}
                 )
         return attrs
-
-
-class PosDeviceSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = PosDevice
-        fields = ["id", "model", "serial", "business"]
-
-    def validate_business(self, value):
-        if value.type != BusinessType.STORE:
-            raise serializers.ValidationError(
-                "POS devices can only be assigned to a store."
-            )
-        return value

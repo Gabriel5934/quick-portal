@@ -9,11 +9,8 @@ from quickportal.views import (
     BusinessMembershipDetailView,
     BusinessMembershipListCreateView,
     EmailTokenObtainPairView,
-    PosModelListView,
     RecurringFeeDetailView,
     RecurringFeeListCreateView,
-    PosDeviceDetailView,
-    PosDeviceListCreateView,
     UserRegistrationView,
 )
 
@@ -21,7 +18,6 @@ urlpatterns = [
     path("users/register/", UserRegistrationView.as_view()),
     path("api/token/", EmailTokenObtainPairView.as_view(), name="token_obtain_pair"),
     path("api/acquirers/", AcquirerListView.as_view(), name="acquirer_list"),
-    path("api/pos-models/", PosModelListView.as_view(), name="pos_model_list"),
     path("api/businesses/", BusinessListCreateView.as_view(), name="business_list_create"),
     path("api/businesses/<int:pk>/", BusinessDetailView.as_view(), name="business_detail"),
     path(
@@ -54,6 +50,4 @@ urlpatterns = [
         BusinessMembershipDetailView.as_view(),
         name="business_membership_detail",
     ),
-    path("api/pos-devices/", PosDeviceListCreateView.as_view(), name="pos_device_list_create"),
-    path("api/pos-devices/<int:pk>/", PosDeviceDetailView.as_view(), name="pos_device_detail"),
 ]
