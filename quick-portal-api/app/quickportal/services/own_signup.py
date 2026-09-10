@@ -1,8 +1,5 @@
 import base64
 
-from own.models import OwnMethod
-
-
 PARTNER_CNPJ = "37924499000133"
 CONTRACT_TYPE = "W"
 
@@ -37,10 +34,9 @@ def build_own_business_signup_payload(own_business):
 
     The returned dictionary contains the required identity, activity, address,
     contact, plan fee, banking, partner-document, contract-attachment, and
-    deprecated compatibility keys expected by OWN. Optional address,
-    anticipation type, retry protocol, and contract keys are included when present.
-    The anticipation fee is always sent, defaulting to zero when disabled or
-    when no anticipation fee is configured.
+    deprecated compatibility keys expected by OWN. Address complement and callback URL are always represented as strings.
+    Anticipation type, retry protocol, and contract keys are included when present.
+    The anticipation fee is always sent, defaulting to zero when disabled.
     """
     business = own_business.business
     plan = own_business.plan
@@ -70,6 +66,8 @@ def build_own_business_signup_payload(own_business):
         "cep": own_business.postal_code,
         "logradouro": own_business.street,
         "numeroEndereco": own_business.address_number,
+        "complemento": own_business.address_complement or "",
+        "urlCallback": "",
         "bairro": own_business.neighborhood,
         "municipio": own_business.city,
         "uf": own_business.state,
@@ -111,19 +109,16 @@ def build_own_business_signup_payload(own_business):
         ],
         "hashAceite": "X",
         "codConfiguracao": " ",
-        "cnpjOrigem": " ",
+        "cnpjOrigem": PARTNER_CNPJ,
     }
-    if own_business.address_complement:
-        payload["complemento"] = own_business.address_complement
     if own_business.core_protocol:
         payload["protocoloCore"] = own_business.core_protocol
     if own_business.contract_number:
         payload["numeroContrato"] = own_business.contract_number
     if plan.anticipation_type != "None":
         payload["tipoAntecipacao"] = "ROTATIVO"
-        anticipation_fee = plan.fees.filter(
-            fee__method=OwnMethod.ANTICIPATION
-        ).first()
-        if anticipation_fee is not None:
-            payload["taxaAntecipacao"] = format(anticipation_fee.value, "f")
+        payload["taxaAntecipacao"] = format(
+            plan.basketId.anticipation_fee,
+            "f",
+        )
     return payload

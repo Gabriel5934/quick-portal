@@ -11,15 +11,8 @@ from django.db import transaction
 from own.models import OwnBasket, OwnFee
 
 
-BASKET_NAMES = {117: "Bandeira", 333: "Parcela"}
-
-
 def normalize(value):
-    """Return an uppercase ASCII representation suitable for product parsing.
-
-    ``value`` is any string-compatible source value. The returned string has
-    accents and punctuation removed and whitespace normalized.
-    """
+    """Return an uppercase ASCII representation suitable for product parsing."""
     value = unicodedata.normalize("NFKD", str(value))
     value = "".join(
         character for character in value if not unicodedata.combining(character)
@@ -28,16 +21,11 @@ def normalize(value):
 
 
 def extract_records(payload):
-    """Return the consultarCesta records found within ``payload``.
-
-    ``payload`` may be the record list, one record, or a nested mapping. A
-    ``CommandError`` is raised when no compatible record collection exists.
-    """
-    if isinstance(payload, list):
-        if all(isinstance(item, dict) for item in payload):
-            return payload
+    """Return the consultarCesta records found within ``payload``."""
+    if isinstance(payload, list) and all(isinstance(item, dict) for item in payload):
+        return payload
     if isinstance(payload, dict):
-        if {"cestaId", "cestaValorId", "produto"}.issubset(payload):
+        if {"cestaId", "cestaValorId", "produto", "nomeCesta"}.issubset(payload):
             return [payload]
         for value in payload.values():
             try:
@@ -47,11 +35,38 @@ def extract_records(payload):
     raise CommandError("Could not find the consultarCesta records in the JSON payload.")
 
 
-def parse_network(product):
-    """Return the OWN network name parsed from normalized ``product`` text.
+def extract_baskets(records):
+    """Return unique basket IDs and names discovered in source ``records``."""
+    baskets = {}
+    names = {}
+    for index, record in enumerate(records, start=1):
+        try:
+            basket_id = record["cestaId"]
+            name = record["nomeCesta"]
+        except (KeyError, TypeError) as exc:
+            raise CommandError(
+                f"Record {index} must include cestaId and nomeCesta."
+            ) from exc
+        if type(basket_id) is not int or not isinstance(name, str) or not name.strip():
+            raise CommandError(
+                f"Record {index} must have an integer cestaId and non-empty nomeCesta."
+            )
+        name = name.strip()
+        if len(name) > 255:
+            raise CommandError(f"Basket {basket_id} has a name longer than 255 characters.")
+        previous_name = baskets.setdefault(basket_id, name)
+        if previous_name != name:
+            raise CommandError(f"Basket {basket_id} has conflicting nomeCesta values.")
+        previous_id = names.setdefault(name, basket_id)
+        if previous_id != basket_id:
+            raise CommandError(f"Basket name {name!r} belongs to multiple cestaId values.")
+    if not baskets:
+        raise CommandError("The consultarCesta payload does not contain any baskets.")
+    return baskets
 
-    Returns ``None`` when the product does not identify a supported network.
-    """
+
+def parse_network(product):
+    """Return the OWN network name parsed from normalized ``product`` text."""
     if re.search(r"\bVISA\b", product):
         return "Visa"
     if re.search(r"\bELO\b", product):
@@ -62,10 +77,7 @@ def parse_network(product):
 
 
 def parse_method(product):
-    """Return the payment method parsed from normalized ``product`` text.
-
-    Raises ``CommandError`` when no supported method can be determined.
-    """
+    """Return the payment method parsed from normalized ``product`` text."""
     if "VOUCHER" in product or "VALE" in product:
         return "Visa Voucher"
     if "TOP BANK" in product or "TOPBANK" in product:
@@ -90,12 +102,7 @@ def parse_method(product):
 
 
 def parse_installments(product, method):
-    """Return the lower and optional upper installment values for a product.
-
-    ``product`` is normalized product text and ``method`` is its parsed method.
-    Non-installment methods return ``(None, None)``. A ``CommandError`` is
-    raised when an installment product contains no usable installment number.
-    """
+    """Return the lower and optional upper installment values for a product."""
     if method != "Installments":
         return None, None
     values = [int(value) for value in re.findall(r"\b0*(\d+)\s*X\b", product)]
@@ -108,31 +115,27 @@ def parse_installments(product, method):
     return values[0], values[1] if len(values) > 1 else None
 
 
-def float_field(record, field):
-    """Return ``field`` from ``record`` as an exact decimal value.
-
-    Raises ``CommandError`` when the field is absent or is not numeric.
-    """
+def decimal_field(record, field):
+    """Return ``field`` from ``record`` as a finite decimal value."""
     try:
-        return Decimal(str(record[field]))
+        value = Decimal(str(record[field]))
     except (KeyError, TypeError, ValueError, InvalidOperation) as exc:
         raise CommandError(f"Invalid {field!r} in record {record!r}.") from exc
+    if not value.is_finite():
+        raise CommandError(f"Invalid {field!r} in record {record!r}.")
+    return value
 
 
 def transform_record(record):
-    """Transform one raw consultarCesta ``record`` into OWN fee attributes.
-
-    Returns a dictionary ready for basket-object resolution. ``CommandError``
-    is raised for missing values, unsupported baskets, methods, or installments.
-    """
+    """Transform one raw consultarCesta record into OWN fee attributes."""
     try:
-        basket_id = int(record["cestaId"])
-        fee_id = int(record["cestaValorId"])
+        basket_id = record["cestaId"]
+        fee_id = record["cestaValorId"]
         raw_product = record["produto"]
-    except (KeyError, TypeError, ValueError) as exc:
+    except (KeyError, TypeError) as exc:
         raise CommandError(f"Invalid consultarCesta record: {record!r}.") from exc
-    if basket_id not in BASKET_NAMES:
-        raise CommandError(f"Unsupported cestaId={basket_id} in fee {fee_id}.")
+    if type(basket_id) is not int or type(fee_id) is not int or not isinstance(raw_product, str):
+        raise CommandError(f"Invalid consultarCesta record: {record!r}.")
     product = normalize(raw_product)
     method = parse_method(product)
     installment, upper_installment = parse_installments(product, method)
@@ -144,13 +147,14 @@ def transform_record(record):
     return {
         "id": fee_id,
         "basketId": basket_id,
-        "value": float_field(record, "valor"),
-        "baseMdr": float_field(record, "valorMinimo"),
+        "value": decimal_field(record, "valor"),
+        "baseMdr": decimal_field(record, "valorMinimo"),
         "network": network,
         "channel": (
             "Ecommerce"
             if re.search(
-                r"\bE\s*COMMERCE\b|\bECOMMERCE\b|\bONLINE\b|\bDIGITAL\b", product
+                r"\bE\s*COMMERCE\b|\bECOMMERCE\b|\bONLINE\b|\bDIGITAL\b",
+                product,
             )
             else "Physical"
         ),
@@ -160,105 +164,138 @@ def transform_record(record):
     }
 
 
-def validate_fees(fees):
-    """Validate the expected IDs and basket/network distribution in ``fees``.
+def validate_fees(fees, basket_ids):
+    """Validate imported fee IDs and their references to discovered baskets."""
+    if not fees:
+        raise CommandError("The consultarCesta payload does not contain any fees.")
+    fee_ids = [fee["id"] for fee in fees]
+    if len(set(fee_ids)) != len(fee_ids):
+        raise CommandError("Invalid consultarCesta data: cestaValorId values are not unique.")
+    unknown_baskets = {fee["basketId"] for fee in fees}.difference(basket_ids)
+    if unknown_baskets:
+        raise CommandError(
+            "Invalid consultarCesta data: fees reference unknown baskets "
+            f"{sorted(unknown_baskets)}."
+        )
 
-    The function returns ``None`` when valid and raises ``CommandError`` with
-    all detected distribution problems otherwise.
-    """
-    errors = []
-    if len(fees) != 181:
-        errors.append(f"expected 181 fees, found {len(fees)}")
-    if len({fee["id"] for fee in fees}) != len(fees):
-        errors.append("cestaValorId values are not unique")
-    expected = {
-        117: {None: 5, "Visa": 12, "Elo": 12, "Mastercard": 12},
-        333: {None: 2, "Visa": 46, "Elo": 46, "Mastercard": 46},
-    }
-    for basket_id, network_counts in expected.items():
-        basket_fees = [fee for fee in fees if fee["basketId"] == basket_id]
-        basket_name = BASKET_NAMES[basket_id]
-        expected_total = sum(network_counts.values())
-        if len(basket_fees) != expected_total:
-            errors.append(
-                f"expected {expected_total} {basket_name} fees, found {len(basket_fees)}"
-            )
-        for network, expected_count in network_counts.items():
-            actual = sum(fee["network"] == network for fee in basket_fees)
-            label = network or "no network"
-            if actual != expected_count:
-                errors.append(
-                    f"expected {expected_count} {basket_name}/{label} fees, found {actual}"
-                )
-    if errors:
-        raise CommandError("Invalid consultarCesta data: " + "; ".join(errors))
+
+def parse_anticipation_fee(value, basket_id):
+    """Parse a non-negative anticipation fee entered for one basket."""
+    try:
+        fee = Decimal(value)
+    except (InvalidOperation, TypeError) as exc:
+        raise CommandError(f"Anticipation fee for basket {basket_id} must be a number.") from exc
+    if not fee.is_finite() or fee < 0:
+        raise CommandError(
+            f"Anticipation fee for basket {basket_id} must be a non-negative number."
+        )
+    return fee
 
 
 class Command(BaseCommand):
-    help = (
-        "Synchronize OWN fees from /app/load-consultar-cesta.json, retaining "
-        "obsolete fees that are referenced by plans."
-    )
+    help = "Synchronize OWN baskets and fees from consultarCesta JSON data."
 
     def add_arguments(self, parser):
-        """Register the optional source-file argument on ``parser``.
-
-        Returns ``None`` after configuring the command-line parser.
-        """
         parser.add_argument(
             "--file",
             type=Path,
-            default=settings.BASE_DIR / "load-consultar-cesta.json",
+            default=settings.BASE_DIR / "load_consultar_cesta.json",
             help="Path to the consultarCesta JSON response.",
         )
+        parser.add_argument(
+            "--anticipation-fee",
+            action="append",
+            default=[],
+            metavar="CESTA_ID=VALUE",
+            help="Set a basket anticipation fee without being prompted; repeat as needed.",
+        )
+
+    def anticipation_fees(self, baskets, provided):
+        """Collect one anticipation fee for each discovered basket."""
+        values = {}
+        for item in provided:
+            basket_id, separator, value = item.partition("=")
+            if not separator:
+                raise CommandError("--anticipation-fee must use CESTA_ID=VALUE.")
+            try:
+                basket_id = int(basket_id)
+            except ValueError as exc:
+                raise CommandError("--anticipation-fee cesta IDs must be integers.") from exc
+            if basket_id in values:
+                raise CommandError(f"Anticipation fee for basket {basket_id} was supplied twice.")
+            values[basket_id] = parse_anticipation_fee(value, basket_id)
+        unknown_baskets = set(values).difference(baskets)
+        if unknown_baskets:
+            raise CommandError(
+                "Anticipation fees were supplied for unknown baskets "
+                f"{sorted(unknown_baskets)}."
+            )
+        for basket_id, name in sorted(baskets.items()):
+            if basket_id not in values:
+                value = input(f"Anticipation fee for basket {basket_id} ({name}): ")
+                values[basket_id] = parse_anticipation_fee(value, basket_id)
+        return values
 
     def handle(self, *args, **options):
-        """Load, validate, and synchronize OWN fees from the selected JSON file.
-
-        ``args`` contains unused positional arguments and ``options`` contains
-        the parsed file path. Invalid or unreadable input raises ``CommandError``.
-        Existing rows are updated by fee ID; obsolete referenced rows are kept,
-        while obsolete unreferenced rows are deleted. Returns ``None``.
-        """
         path = options["file"]
         try:
             with path.open(encoding="utf-8-sig") as source:
                 payload = json.load(source)
         except FileNotFoundError as exc:
             raise CommandError(f"File not found: {path}") from exc
-        except (OSError, json.JSONDecodeError) as exc:
+        except (OSError, UnicodeError, json.JSONDecodeError) as exc:
             raise CommandError(f"Could not read {path}: {exc}") from exc
 
-        fees = [transform_record(record) for record in extract_records(payload)]
-        validate_fees(fees)
+        records = extract_records(payload)
+        baskets = extract_baskets(records)
+        fees = [transform_record(record) for record in records]
+        validate_fees(fees, baskets)
+        anticipation_fees = self.anticipation_fees(
+            baskets,
+            options["anticipation_fee"],
+        )
+        fee_amounts = {
+            basket_id: sum(fee["basketId"] == basket_id for fee in fees)
+            for basket_id in baskets
+        }
 
         with transaction.atomic():
-            baskets = {
-                basket_id: OwnBasket.objects.update_or_create(
-                    id=basket_id, defaults={"name": basket_name}
-                )[0]
-                for basket_id, basket_name in BASKET_NAMES.items()
-            }
-            incoming_ids = []
+            basket_models = {}
+            for basket_id, name in baskets.items():
+                basket_models[basket_id], _ = OwnBasket.objects.update_or_create(
+                    id=basket_id,
+                    defaults={
+                        "name": name,
+                        "anticipation_fee": anticipation_fees[basket_id],
+                        "fee_amount": fee_amounts[basket_id],
+                    },
+                )
+            incoming_fee_ids = []
             for fee in fees:
                 fee_id = fee["id"]
-                incoming_ids.append(fee_id)
-                fee_values = {key: value for key, value in fee.items() if key != "id"}
-                values = {
-                    **fee_values,
-                    "basketId": baskets[fee["basketId"]],
-                }
+                incoming_fee_ids.append(fee_id)
                 instance = OwnFee.objects.filter(id=fee_id).first()
                 if instance is None:
                     instance = OwnFee(id=fee_id)
-                for field, value in values.items():
-                    setattr(instance, field, value)
+                for field, value in fee.items():
+                    if field != "id":
+                        setattr(
+                            instance,
+                            field,
+                            basket_models[value] if field == "basketId" else value,
+                        )
                 instance.full_clean()
                 instance.save()
-            OwnFee.objects.exclude(id__in=incoming_ids).filter(
+            OwnFee.objects.exclude(id__in=incoming_fee_ids).filter(
                 plan_fees__isnull=True
+            ).delete()
+            OwnBasket.objects.exclude(id__in=baskets).filter(
+                fees__isnull=True,
+                plans__isnull=True,
             ).delete()
 
         self.stdout.write(
-            self.style.SUCCESS(f"Loaded {len(fees)} OWN fees from {path}.")
+            self.style.SUCCESS(
+                f"Loaded {len(baskets)} OWN baskets and {len(fees)} OWN fees from {path}."
+            )
         )

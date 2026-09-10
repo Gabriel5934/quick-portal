@@ -1,6 +1,6 @@
 from django.db import transaction
 from django.db.models.deletion import ProtectedError
-from django.db.models import Count, Exists, OuterRef, Q
+from django.db.models import Exists, OuterRef, Q
 from rest_framework import status
 from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
 from rest_framework.pagination import PageNumberPagination
@@ -23,7 +23,6 @@ from quickportal.models import (
     PosDevice,
     PosModel,
     RecurringFee,
-    Status,
 )
 from quickportal.serializers import (
     AcquirerSerializer,
@@ -271,8 +270,7 @@ class BusinessListCreateView(APIView):
         ``request`` may provide ``parent``, ``document``, and case-insensitive
         ``name`` query parameters. ``parent`` includes both children and
         grandchildren of that business. Results use ``BusinessPagination``
-        and return ``count``, ``next``, ``previous``, ``results``, and
-        ``count_by_status`` for the filtered accessible queryset.
+        and return ``count``, ``next``, ``previous``, and ``results``.
 
         Returns a DRF ``Response`` containing the paginated business data.
         """
@@ -285,10 +283,6 @@ class BusinessListCreateView(APIView):
             businesses = businesses.filter(document=document)
         if name := request.query_params.get("name"):
             businesses = businesses.filter(name__icontains=name)
-        status_counts = {
-            item["status"]: item["total"]
-            for item in businesses.order_by().values("status").annotate(total=Count("id"))
-        }
         paginator = BusinessPagination()
         page = paginator.paginate_queryset(businesses, request)
         serializer = BusinessReadSerializer(
@@ -300,7 +294,6 @@ class BusinessListCreateView(APIView):
             "count": paginator.page.paginator.count,
             "next": paginator.get_next_link(),
             "previous": paginator.get_previous_link(),
-            "count_by_status": status_counts,
             "results": serializer.data,
         })
 
@@ -708,10 +701,7 @@ class BusinessDetailsListCreateView(APIView):
             serializer.is_valid(raise_exception=True)
         except BrasilApiError as exc:
             return _brasil_api_error_response(exc)
-        with transaction.atomic():
-            details = serializer.save()
-            details.business.status = Status.PENDING
-            details.business.save(update_fields=["status"])
+        details = serializer.save()
         return Response(BusinessDetailsSerializer(details).data, status=status.HTTP_201_CREATED)
 
 

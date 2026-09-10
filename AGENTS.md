@@ -172,3 +172,11 @@ Users are related to businesses trough the `BusinessMembership` model. A user wh
 ## Fee
 
 The fee model is supposed to be a data source and not created by end users. It represents the different fees for different forms of payment across different card networks. Negative installments have a special meaning: -1 for pix and -2 for the acquirer's anticipation fee.
+
+## Migrations
+
+Never manually create or modify migrations. Always start by modifying the model and then letting Django auto-generate the migrations
+
+```
+docker compose exec web python manage.py makemigrations
+```

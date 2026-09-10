@@ -16,7 +16,11 @@ from django.test import override_settings, TestCase
 from django.utils import timezone
 from rest_framework.test import APIClient
 
-from own.management.commands.load_own_fees import transform_record, validate_fees
+from own.management.commands.load_own_fees import (
+    Command as LoadOwnFeesCommand,
+    transform_record,
+    validate_fees,
+)
 from own.models import (
     OwnActivity,
     OwnBasket,
@@ -40,7 +44,6 @@ from quickportal.models import (
     BusinessRole,
     BusinessType,
     DocumentType,
-    Status,
 )
 from quickportal.services.own_merchant import MerchantRegistrationError
 
@@ -305,13 +308,11 @@ class OwnBusinessSignupEndpointTests(TestCase):
 
         self.assertEqual(response.status_code, 201, response.data)
         own_business = OwnBusiness.objects.get()
-        self.business.refresh_from_db()
         self.assertEqual(own_business.core_protocol, "PROTO-1")
         self.assertEqual(
             own_business.registration_status,
             OwnRegistrationStatus.REGISTERED,
         )
-        self.assertEqual(self.business.status, Status.PENDING)
         self.assertEqual(own_business.partners.count(), 1)
         self.assertEqual(own_business.attachments.count(), 1)
         sent_payload = register_merchant.call_args.args[0]
@@ -319,6 +320,10 @@ class OwnBusinessSignupEndpointTests(TestCase):
         self.assertEqual(sent_payload["cnae"], self.activity.pk)
         self.assertEqual(sent_payload["mcc"], self.activity.mcc)
         self.assertEqual(sent_payload["idCesta"], self.plan.basketId_id)
+        self.assertEqual(sent_payload["cnpjParceiro"], "37924499000133")
+        self.assertEqual(sent_payload["cnpjOrigem"], "37924499000133")
+        self.assertEqual(sent_payload["complemento"], "Suite 1")
+        self.assertEqual(sent_payload["urlCallback"], "")
         self.assertEqual(sent_payload["documentosSocios"][0]["identificacao"], "11144477735")
         self.assertEqual(
             sent_payload["documentosSocios"][0]["anexos"][0]["conteudo"],
@@ -362,6 +367,31 @@ class OwnBusinessSignupEndpointTests(TestCase):
 
     @patch("own.views.register_merchant")
     @patch("own.serializers.fetch_cep_info")
+    def test_sends_empty_strings_for_omitted_complement_and_callback(
+        self,
+        fetch_cep_info,
+        register_merchant,
+    ):
+        fetch_cep_info.return_value = {
+            "street": "Rua Milton Martins",
+            "neighborhood": "Urbanova",
+            "city": "São José dos Campos",
+            "state": "SP",
+        }
+        register_merchant.return_value = {"protocolo": "PROTO-1", "status": "ok"}
+        payload = self.payload()
+        payload.pop("address_complement")
+
+        with TemporaryDirectory() as media_root, override_settings(MEDIA_ROOT=media_root):
+            response = self.client.post("/own/businesses/", payload, format="json")
+
+        self.assertEqual(response.status_code, 201, response.data)
+        sent_payload = register_merchant.call_args.args[0]
+        self.assertEqual(sent_payload["complemento"], "")
+        self.assertEqual(sent_payload["urlCallback"], "")
+
+    @patch("own.views.register_merchant")
+    @patch("own.serializers.fetch_cep_info")
     def test_preserves_failed_signup_for_safe_retry_when_own_rejects_it(
         self,
         fetch_cep_info,
@@ -390,10 +420,106 @@ class OwnBusinessSignupEndpointTests(TestCase):
         own_business = OwnBusiness.objects.get()
         self.assertEqual(
             own_business.registration_status,
-            OwnRegistrationStatus.FAILED,
+            OwnRegistrationStatus.API_REQUEST_FAILED,
         )
-        self.business.refresh_from_db()
-        self.assertEqual(self.business.status, Status.NOT_STARTED)
+
+    @patch("own.views.register_merchant")
+    @patch("own.serializers.fetch_cep_info")
+    def test_manager_can_correct_a_failed_signup_before_retry(
+        self,
+        fetch_cep_info,
+        register_merchant,
+    ):
+        fetch_cep_info.return_value = {
+            "street": "Rua Milton Martins",
+            "neighborhood": "Urbanova",
+            "city": "São José dos Campos",
+            "state": "SP",
+        }
+        register_merchant.side_effect = [
+            MerchantRegistrationError("rejected", status_code=400),
+            {"protocolo": "CORRECTED-1", "status": "ok"},
+        ]
+
+        with TemporaryDirectory() as media_root, override_settings(MEDIA_ROOT=media_root):
+            self.client.post("/own/businesses/", self.payload(), format="json")
+            own_business = OwnBusiness.objects.get()
+            response = self.client.patch(
+                f"/own/businesses/{own_business.pk}/",
+                {
+                    "signatory_email": "corrected@example.com",
+                    "bank_account": "00999999",
+                },
+                format="json",
+            )
+            retry_response = self.client.post(
+                f"/own/businesses/{own_business.pk}/retry/"
+            )
+
+        self.assertEqual(response.status_code, 200, response.data)
+        own_business.refresh_from_db()
+        self.assertEqual(own_business.signatory_email, "corrected@example.com")
+        self.assertEqual(own_business.bank_account, "00999999")
+        self.assertEqual(retry_response.status_code, 200, retry_response.data)
+        self.assertEqual(own_business.registration_status, OwnRegistrationStatus.REGISTERED)
+        payload = register_merchant.call_args.args[0]
+        self.assertIn("/corrected@example.com/", payload["identificadorCliente"])
+
+    @patch("own.views.register_merchant")
+    @patch("own.serializers.fetch_cep_info")
+    def test_all_business_types_can_register(
+        self,
+        fetch_cep_info,
+        register_merchant,
+    ):
+        fetch_cep_info.return_value = {
+            "street": "Rua Milton Martins",
+            "neighborhood": "Urbanova",
+            "city": "São José dos Campos",
+            "state": "SP",
+        }
+        register_merchant.return_value = {"protocolo": "PROTO-1"}
+        reseller = Business.objects.create(
+            type=BusinessType.RESELLER,
+            document_type=DocumentType.CNPJ,
+            document="98765432000195",
+            name="Example Reseller Ltda.",
+            email="reseller@example.com",
+            phone="12999999998",
+        )
+        re_reseller = Business.objects.create(
+            type=BusinessType.RE_RESELLER,
+            parent=reseller,
+            document_type=DocumentType.CNPJ,
+            document="11222333000181",
+            name="Example Re-reseller Ltda.",
+            email="re-reseller@example.com",
+            phone="12999999997",
+        )
+        BusinessMembership.objects.bulk_create([
+            BusinessMembership(
+                user=self.user,
+                business=business,
+                role=BusinessRole.MANAGER,
+            )
+            for business in (reseller, re_reseller)
+        ])
+
+        for business in (self.business, reseller, re_reseller):
+            with self.subTest(business_type=business.type):
+                payload = self.payload()
+                payload["business"] = business.pk
+                with TemporaryDirectory() as media_root, override_settings(
+                    MEDIA_ROOT=media_root
+                ):
+                    response = self.client.post(
+                        "/own/businesses/",
+                        payload,
+                        format="json",
+                    )
+
+                self.assertEqual(response.status_code, 201, response.data)
+                self.assertTrue(OwnBusiness.objects.filter(business=business).exists())
 
     def test_requires_authentication(self):
         """Verify unauthenticated signup listing is rejected; return ``None``."""
@@ -436,6 +562,13 @@ class OwnBusinessSignupEndpointTests(TestCase):
                 own_business.registration_status,
                 OwnRegistrationStatus.UNKNOWN,
             )
+
+            correction_response = self.client.patch(
+                f"/own/businesses/{own_business.pk}/",
+                {"signatory_email": "corrected.com"},
+                format="json",
+            )
+            self.assertEqual(correction_response.status_code, 409)
 
             retry_response = self.client.post(
                 f"/own/businesses/{own_business.pk}/retry/"
@@ -616,17 +749,11 @@ class OwnFeeCommandTests(TestCase):
         self.assertTrue(OwnFee.objects.filter(pk=99).exists())
 
     def test_validation_accepts_required_distribution(self):
-        fees = []
-        fee_id = 1
-        for basket_id, counts in {
-            117: {None: 5, "Visa": 12, "Elo": 12, "Mastercard": 12},
-            333: {None: 2, "Visa": 46, "Elo": 46, "Mastercard": 46},
-        }.items():
-            for network, count in counts.items():
-                for _ in range(count):
-                    fees.append({"id": fee_id, "basketId": basket_id, "network": network})
-                    fee_id += 1
-        validate_fees(fees)
+        fees = [
+            {"id": 1, "basketId": 117, "network": "Visa"},
+            {"id": 2, "basketId": 333, "network": None},
+        ]
+        validate_fees(fees, {117: "Bandeira", 333: "Parcela"})
 
     def test_reload_preserves_referenced_obsolete_fees(self):
         """Use ``self`` to verify referenced obsolete fees survive; return ``None``."""
@@ -652,6 +779,7 @@ class OwnFeeCommandTests(TestCase):
         OwnPlanFee.objects.create(plan=plan, fee=referenced, value=1)
         payload = [{
             "cestaId": 117,
+            "nomeCesta": "Bandeira",
             "cestaValorId": 92,
             "produto": "CREDITO VISA",
             "valor": 2,
@@ -660,8 +788,12 @@ class OwnFeeCommandTests(TestCase):
         with TemporaryDirectory() as directory:
             path = Path(directory) / "fees.json"
             path.write_text(json.dumps(payload))
-            with patch("own.management.commands.load_own_fees.validate_fees"):
-                call_command("load_own_fees", file=path, stdout=StringIO())
+            call_command(
+                "load_own_fees",
+                file=path,
+                anticipation_fee=["117=1.25"],
+                stdout=StringIO(),
+            )
 
         self.assertTrue(OwnFee.objects.filter(pk=90).exists())
         self.assertFalse(OwnFee.objects.filter(pk=91).exists())
@@ -771,22 +903,52 @@ class OwnActivityCommandTests(TestCase):
         self.assertTrue(OwnActivity.objects.filter(pk=3).exists())
 
 
-class OwnAnticipationFeeCommandTests(TestCase):
-    def test_command_creates_and_updates_both_fees(self):
-        """Use ``self`` to verify both anticipation fees upsert; return ``None``."""
-        call_command("load_own_anticipation_fee", "1.25", stdout=StringIO())
-        fees = OwnFee.objects.filter(method=OwnMethod.ANTICIPATION).order_by("basketId")
-        self.assertEqual(list(fees.values_list("basketId", flat=True)), [117, 333])
-        self.assertTrue(all(fee.baseMdr == Decimal("1.25") for fee in fees))
-        self.assertTrue(all(fee.value == Decimal("0.0") for fee in fees))
-        self.assertTrue(all(fee.network is None and fee.channel is None for fee in fees))
+class OwnFeeSeedingTests(TestCase):
+    def test_discovers_baskets_and_saves_each_anticipation_fee(self):
+        payload = [
+            {
+                "cestaId": 701,
+                "nomeCesta": "Dynamic one",
+                "cestaValorId": 1,
+                "produto": "Credito Visa",
+                "valor": 2,
+                "valorMinimo": 1,
+            },
+            {
+                "cestaId": 702,
+                "nomeCesta": "Dynamic two",
+                "cestaValorId": 2,
+                "produto": "Pix",
+                "valor": 0,
+                "valorMinimo": 0,
+            },
+        ]
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "fees.json"
+            path.write_text(json.dumps(payload), encoding="utf-8")
+            call_command(
+                "load_own_fees",
+                file=path,
+                anticipation_fee=["701=1.25", "702=2.5"],
+                stdout=StringIO(),
+            )
 
-        call_command("load_own_anticipation_fee", "2.5", stdout=StringIO())
-        self.assertEqual(OwnFee.objects.filter(method=OwnMethod.ANTICIPATION).count(), 2)
-        self.assertTrue(all(
-            fee.baseMdr == Decimal("2.5")
-            for fee in OwnFee.objects.filter(method=OwnMethod.ANTICIPATION)
-        ))
+        self.assertEqual(OwnBasket.objects.get(pk=701).name, "Dynamic one")
+        self.assertEqual(OwnBasket.objects.get(pk=701).anticipation_fee, Decimal("1.25"))
+        self.assertEqual(OwnBasket.objects.get(pk=701).fee_amount, 1)
+        self.assertEqual(OwnBasket.objects.get(pk=702).anticipation_fee, Decimal("2.5"))
+        self.assertEqual(OwnBasket.objects.get(pk=702).fee_amount, 1)
+        self.assertEqual(OwnFee.objects.filter(basketId_id__in=[701, 702]).count(), 2)
+
+    def test_prompts_for_any_anticipation_fee_not_passed_as_an_option(self):
+        with patch("builtins.input", side_effect=["2.5"]) as prompt:
+            fees = LoadOwnFeesCommand().anticipation_fees(
+                {701: "Dynamic one", 702: "Dynamic two"},
+                ["701=1.5"],
+            )
+
+        self.assertEqual(fees, {701: Decimal("1.5"), 702: Decimal("2.5")})
+        prompt.assert_called_once_with("Anticipation fee for basket 702 (Dynamic two): ")
 
 
 class OwnPlanEndpointTests(TestCase):
@@ -835,6 +997,21 @@ class OwnPlanEndpointTests(TestCase):
         self.assertFalse(plan.fees.exists())
 
         self.assertEqual(self.client.delete(f"/own/plans/{plan.pk}/").status_code, 204)
+
+    def test_requires_at_least_the_basket_fee_amount_for_new_plans(self):
+        OwnBasket.objects.filter(pk=117).update(fee_amount=2)
+        self.client.force_authenticate(self.user)
+
+        response = self.client.post("/own/plans/", {
+            "title": "Incomplete",
+            "activity": self.activity.pk,
+            "basketId": 117,
+            "fees": [{"fee": self.fee.pk, "value": "1.5"}],
+        }, format="json")
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("fees", response.data)
+        self.assertFalse(OwnPlan.objects.exists())
 
     def test_direct_model_save_validates_anticipation_type(self):
         """Use ``self`` to verify direct saves reject invalid choices; return ``None``."""

@@ -26,10 +26,11 @@ from own.models import (
 from own.serializers import (
     OwnActivitySerializer,
     OwnBusinessSignupSerializer,
+    OwnBusinessUpdateSerializer,
     OwnFeeSerializer,
     OwnPlanSerializer,
 )
-from quickportal.models import BusinessRole, BusinessType, Status
+from quickportal.models import BusinessRole
 from quickportal.services.brasil_api import BrasilApiError
 from quickportal.services.business_access import (
     accessible_businesses,
@@ -65,7 +66,7 @@ def _submit_registration(own_business):
     except OwnAuthError as exc:
         _record_registration_state(
             own_business,
-            OwnRegistrationStatus.FAILED,
+            OwnRegistrationStatus.API_REQUEST_FAILED,
             str(exc),
         )
         return None, Response(
@@ -74,7 +75,7 @@ def _submit_registration(own_business):
         )
     except MerchantRegistrationError as exc:
         registration_status = (
-            OwnRegistrationStatus.FAILED
+            OwnRegistrationStatus.API_REQUEST_FAILED
             if exc.status_code is not None
             else OwnRegistrationStatus.UNKNOWN
         )
@@ -111,12 +112,6 @@ def _submit_registration(own_business):
                 "updated_at",
             ]
         )
-        business = type(locked_signup.business).objects.select_for_update().get(
-            pk=locked_signup.business_id
-        )
-        business.status = Status.PENDING
-        business.full_clean()
-        business.save(update_fields=["status"])
     own_business.refresh_from_db()
     return result, None
 
@@ -169,7 +164,7 @@ class OwnBusinessSignupView(ListCreateAPIView):
         )
 
     def create(self, request, *args, **kwargs):
-        """Validate, persist, and submit one store signup to OWN.
+        """Validate, persist, and submit one business signup to OWN.
 
         ``request`` contains the existing business ID and acquirer-specific
         fields. ``args`` and ``kwargs`` are standard DRF view arguments. The
@@ -187,11 +182,6 @@ class OwnBusinessSignupView(ListCreateAPIView):
             business_id,
             roles=WRITE_ROLES,
         )
-        if business.type != BusinessType.STORE:
-            return Response(
-                {"business": ["OWN signup requires a store."]},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
         if OwnBusiness.objects.filter(business=business).exists():
             return Response(
                 {"business": ["This business already has an OWN signup."]},
@@ -251,7 +241,7 @@ class OwnBusinessRetryView(APIView):
                 and own_business.updated_at <= timezone.now() - PENDING_RETRY_AFTER
             )
             if (
-                own_business.registration_status != OwnRegistrationStatus.FAILED
+                own_business.registration_status != OwnRegistrationStatus.API_REQUEST_FAILED
                 and not is_stale_pending
             ):
                 return Response(
@@ -272,6 +262,44 @@ class OwnBusinessRetryView(APIView):
         ).data
         output["registration"] = result
         return Response(output)
+
+
+class OwnBusinessDetailView(APIView):
+    """Correct a failed OWN signup before it is retried."""
+
+    permission_classes = [IsAuthenticated]
+
+    def patch(self, request, pk):
+        """Partially update a failed signup owned by an authorized manager."""
+        try:
+            with transaction.atomic():
+                own_business = _manageable_signup_or_404(
+                    request.user,
+                    pk,
+                    lock=True,
+                )
+                if own_business.registration_status != OwnRegistrationStatus.API_REQUEST_FAILED:
+                    return Response(
+                        {"detail": "Only failed OWN signups can be corrected."},
+                        status=status.HTTP_409_CONFLICT,
+                    )
+                serializer = OwnBusinessUpdateSerializer(
+                    own_business,
+                    data=request.data,
+                    partial=True,
+                )
+                serializer.is_valid(raise_exception=True)
+                own_business = serializer.save()
+        except BrasilApiError as exc:
+            return Response(
+                {"postal_code": [str(exc)]},
+                status=(
+                    status.HTTP_400_BAD_REQUEST
+                    if exc.status_code and 400 <= exc.status_code < 500
+                    else status.HTTP_502_BAD_GATEWAY
+                ),
+            )
+        return Response(OwnBusinessSignupSerializer(own_business).data)
 
 
 class OwnBusinessReconcileView(APIView):
@@ -307,12 +335,8 @@ class OwnBusinessReconcileView(APIView):
                         "updated_at",
                     ]
                 )
-                business = own_business.business
-                business.status = Status.PENDING
-                business.full_clean()
-                business.save(update_fields=["status"])
             else:
-                _record_registration_state(own_business, OwnRegistrationStatus.FAILED)
+                _record_registration_state(own_business, OwnRegistrationStatus.API_REQUEST_FAILED)
         return Response(
             OwnBusinessSignupSerializer(
                 own_business,

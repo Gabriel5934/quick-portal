@@ -14,7 +14,6 @@ COLUMNS = (
     ("EMAIL", lambda business: business.email, 10),
     ("PHONE", lambda business: business.phone, 8),
     ("LAND", lambda business: business.landline or "—", 4),
-    ("STATUS", lambda business: business.status, 6),
 )
 
 

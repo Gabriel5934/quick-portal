@@ -185,7 +185,6 @@ class ListBusinessesCommandTests(TestCase):
         self.assertIn("| PAR", table)
         self.assertIn("| DOC", table)
         self.assertIn("| NAME", table)
-        self.assertIn("| STATUS", table)
         self.assertIn(reseller.name[:11], table)
         self.assertIn(
             f"| {re_reseller.id}", table,

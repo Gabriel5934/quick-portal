@@ -117,64 +117,64 @@ POST
 
 ## Merchant Information
 
-| Field | Required | Description |
-|---|---|---|
-| `cnpj` | Yes | Merchant CPF or CNPJ. |
-| `cnpjOrigem` | No | Deprecated field. Send an empty string (`""`). |
-| `razaoSocial` | Yes | Merchant legal name. |
-| `nomeFantasia` | Yes | Merchant trade name. |
-| `cnae` | Yes | Merchant primary CNAE code. |
-| `ramoAtividade` | Yes | Merchant business activity description. |
-| `faturamentoPrevisto` | Yes | Expected merchant revenue. |
-| `email` | Yes | Merchant email address. |
+| Field                 | Required | Description                                   |
+| --------------------- | -------- | --------------------------------------------- |
+| `cnpj`                | Yes      | Merchant CPF or CNPJ.                         |
+| `cnpjOrigem`          | No       | Send the configured White Label partner CNPJ. |
+| `razaoSocial`         | Yes      | Merchant legal name.                          |
+| `nomeFantasia`        | Yes      | Merchant trade name.                          |
+| `cnae`                | Yes      | Merchant primary CNAE code.                   |
+| `ramoAtividade`       | Yes      | Merchant business activity description.       |
+| `faturamentoPrevisto` | Yes      | Expected merchant revenue.                    |
+| `email`               | Yes      | Merchant email address.                       |
 
 ---
 
 ## Contact Information
 
-| Field | Required | Description |
-|---|---|---|
-| `dddComercial` | Yes | Commercial phone DDD. |
-| `telefoneComercial` | Yes | Commercial phone number. |
-| `dddCel` | Yes | Mobile phone DDD. |
-| `telefoneCelular` | Yes | Mobile phone number. |
+| Field               | Required | Description              |
+| ------------------- | -------- | ------------------------ |
+| `dddComercial`      | Yes      | Commercial phone DDD.    |
+| `telefoneComercial` | Yes      | Commercial phone number. |
+| `dddCel`            | Yes      | Mobile phone DDD.        |
+| `telefoneCelular`   | Yes      | Mobile phone number.     |
 
 ---
 
 ## Address Information
 
-| Field | Required | Description |
-|---|---|---|
-| `cep` | Yes | ZIP code. |
-| `logradouro` | Yes | Street name. |
-| `numeroEndereco` | Yes | Address number. |
-| `complemento` | No | Address complement. |
-| `bairro` | Yes | Neighborhood. |
-| `municipio` | Yes | City. |
-| `uf` | Yes | State abbreviation. |
+| Field            | Required | Description                         |
+| ---------------- | -------- | ----------------------------------- |
+| `cep`            | Yes      | ZIP code.                           |
+| `logradouro`     | Yes      | Street name.                        |
+| `numeroEndereco` | Yes      | Address number.                     |
+| `complemento`    | Yes      | Address complement or empty string. |
+| `bairro`         | Yes      | Neighborhood.                       |
+| `municipio`      | Yes      | City.                               |
+| `uf`             | Yes      | State abbreviation.                 |
 
 ---
 
 ## Contract Information
 
-| Field | Required | Description |
-|---|---|---|
-| `responsavelAssinatura` | Yes | Legal representative responsible for signing the contract. |
-| `quantidadePos` | Yes | Number of POS devices to send. |
-| `faturamentoContratado` | Yes | Contracted revenue amount. |
-| `tipoContrato` | Yes | Must always be `W` (White Label). |
-| `cnpjParceiro` | Yes | White Label partner CNPJ. |
-| `urlCallback` | No | Callback URL for registration status notifications. |
+| Field                   | Required | Description                                                         |
+| ----------------------- | -------- | ------------------------------------------------------------------- |
+| `responsavelAssinatura` | Yes      | Legal representative responsible for signing the contract.          |
+| `quantidadePos`         | Yes      | Number of POS devices to send.                                      |
+| `faturamentoContratado` | Yes      | Contracted revenue amount.                                          |
+| `tipoContrato`          | Yes      | Must always be `W` (White Label).                                   |
+| `cnpjParceiro`          | Yes      | White Label partner CNPJ.                                           |
+| `urlCallback`           | Yes      | Callback URL for registration status notifications or empty string. |
 
 ---
 
 ## Anticipation Configuration
 
-| Field | Required | Description |
-|---|---|---|
-| `antecipacaoAutomatica` | Yes | Indicates whether automatic anticipation is enabled (`S` or `N`). |
-| `taxaAntecipacao` | Yes | Anticipation fee. Always include it; send `0` when `antecipacaoAutomatica` is `N`. |
-| `tipoAntecipacao` | Conditional | Anticipation frequency. |
+| Field                   | Required    | Description                                                                        |
+| ----------------------- | ----------- | ---------------------------------------------------------------------------------- |
+| `antecipacaoAutomatica` | Yes         | Indicates whether automatic anticipation is enabled (`S` or `N`).                  |
+| `taxaAntecipacao`       | Yes         | Anticipation fee. Always include it; send `0` when `antecipacaoAutomatica` is `N`. |
+| `tipoAntecipacao`       | Conditional | Anticipation frequency.                                                            |
 
 ### Required anticipation fee
 
@@ -206,21 +206,21 @@ variable, not an additional request field.
 
 ## Merchant Category
 
-| Field | Required | Description |
-|---|---|---|
-| `mcc` | Yes | Merchant Category Code (MCC). |
+| Field | Required | Description                   |
+| ----- | -------- | ----------------------------- |
+| `mcc` | Yes      | Merchant Category Code (MCC). |
 
 ---
 
 ## Banking Information
 
-| Field | Required | Description |
-|---|---|---|
-| `codBanco` | Yes | Bank code. |
-| `agencia` | Yes | Branch number. |
-| `digAgencia` | Yes | Branch check digit. |
-| `numConta` | Yes | Account number. |
-| `digConta` | Yes | Account check digit. |
+| Field        | Required | Description          |
+| ------------ | -------- | -------------------- |
+| `codBanco`   | Yes      | Bank code.           |
+| `agencia`    | Yes      | Branch number.       |
+| `digAgencia` | Yes      | Branch check digit.  |
+| `numConta`   | Yes      | Account number.      |
+| `digConta`   | Yes      | Account check digit. |
 
 ---
 
@@ -279,11 +279,11 @@ Currently supported:
 
 # Deprecated Fields
 
-| Field | Instruction |
-|---|---|
-| `cnpjOrigem` | Send empty string (`""`). |
-| `codConfiguracao` | Send empty string (`""`). |
-| `hashAceite` | Required: always send the hardcoded string `"X"`. |
+| Field             | Instruction                                       |
+| ----------------- | ------------------------------------------------- |
+| `cnpjOrigem`      | Send the configured White Label partner CNPJ.     |
+| `codConfiguracao` | Send empty string (`""`).                         |
+| `hashAceite`      | Required: always send the hardcoded string `"X"`. |
 
 ---
 

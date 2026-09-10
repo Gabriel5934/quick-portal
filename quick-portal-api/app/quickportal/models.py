@@ -14,10 +14,6 @@ class DocumentType(models.TextChoices):
     CNPJ = "CNPJ"
 
 
-class Status(models.TextChoices):
-    NOT_STARTED = "NOT_STARTED"
-    PENDING = "PENDING"
-
 
 class BusinessType(models.TextChoices):
     RESELLER = "RESELLER", "Reseller"
@@ -190,7 +186,6 @@ class Business(models.Model):
     email = models.EmailField()
     phone = models.CharField(max_length=20)
     landline = models.CharField(max_length=20, blank=True)
-    status = models.CharField(max_length=20, choices=Status.choices, default=Status.NOT_STARTED)
 
     class Meta:
         db_table = "business"

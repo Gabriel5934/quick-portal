@@ -197,7 +197,7 @@ class OwnBusinessSignupSerializer(serializers.ModelSerializer):
         ]
         if len(attachments) > MAX_ATTACHMENT_COUNT:
             raise serializers.ValidationError(
-                {"attachments": "A signup cannot contain more than 50 files."}
+                {"attachments": f"A signup cannot contain more than {MAX_ATTACHMENT_COUNT} files."}
             )
         encoded_length = sum(
             len(content)
@@ -207,7 +207,7 @@ class OwnBusinessSignupSerializer(serializers.ModelSerializer):
         max_encoded_length = 4 * ((MAX_TOTAL_ATTACHMENT_BYTES + 2) // 3)
         if encoded_length > max_encoded_length:
             raise serializers.ValidationError(
-                {"attachments": "Combined attachments cannot exceed 25 MB."}
+                {"attachments": f"Combined attachments cannot exceed {MAX_TOTAL_ATTACHMENT_BYTES / (1024 * 1024):g} MB."}
             )
         return super().to_internal_value(data)
 
@@ -234,7 +234,7 @@ class OwnBusinessSignupSerializer(serializers.ModelSerializer):
         )
         if len(all_attachments) > MAX_ATTACHMENT_COUNT:
             raise serializers.ValidationError(
-                {"attachments": "A signup cannot contain more than 50 files."}
+                {"attachments": f"A signup cannot contain more than {MAX_ATTACHMENT_COUNT} files."}
             )
         total_size = sum(
             _decoded_size(attachment["content"])
@@ -242,7 +242,7 @@ class OwnBusinessSignupSerializer(serializers.ModelSerializer):
         )
         if total_size > MAX_TOTAL_ATTACHMENT_BYTES:
             raise serializers.ValidationError(
-                {"attachments": "Combined attachments cannot exceed 25 MB."}
+                {"attachments": f"Combined attachments cannot exceed {MAX_TOTAL_ATTACHMENT_BYTES / (1024 * 1024):g} MB."}
             )
         address = fetch_cep_info(attrs["postal_code"])
         attrs.update(
@@ -315,6 +315,127 @@ class OwnBusinessSignupSerializer(serializers.ModelSerializer):
             default_storage.delete(name)
 
 
+class OwnBusinessUpdateSerializer(OwnBusinessSignupSerializer):
+    """Partially update a failed OWN signup before it is submitted again."""
+
+    def validate(self, attrs):
+        """Validate changed values against the persisted signup state."""
+        plan = attrs.get("plan", self.instance.plan)
+        cnae = attrs.get("cnae", self.instance.cnae)
+        if plan.activity_id != cnae.pk:
+            raise serializers.ValidationError(
+                {"plan": "The plan activity must match the business CNAE."}
+            )
+
+        partners = attrs.get("partners", serializers.empty)
+        attachments = attrs.get("attachments", serializers.empty)
+        final_attachments = []
+        if attachments is not serializers.empty:
+            final_attachments.extend(attachments)
+        else:
+            final_attachments.extend(self.instance.attachments.all())
+        if partners is not serializers.empty:
+            final_attachments.extend(
+                attachment
+                for partner in partners
+                for attachment in partner["attachments"]
+            )
+        else:
+            final_attachments.extend(
+                attachment
+                for partner in self.instance.partners.all()
+                for attachment in partner.attachments.all()
+            )
+        if len(final_attachments) > MAX_ATTACHMENT_COUNT:
+            raise serializers.ValidationError(
+                {"attachments": f"A signup cannot contain more than {MAX_ATTACHMENT_COUNT} files."}
+            )
+        total_size = sum(
+            _decoded_size(attachment["content"])
+            if isinstance(attachment, Mapping)
+            else attachment.file.size
+            for attachment in final_attachments
+        )
+        if total_size > MAX_TOTAL_ATTACHMENT_BYTES:
+            raise serializers.ValidationError(
+                {"attachments": f"Combined attachments cannot exceed {MAX_TOTAL_ATTACHMENT_BYTES / (1024 * 1024):g} MB."}
+            )
+
+        if "postal_code" in attrs:
+            address = fetch_cep_info(attrs["postal_code"])
+            attrs.update(
+                street=address.get("street") or "",
+                neighborhood=address.get("neighborhood") or "",
+                city=address.get("city") or "",
+                state=(address.get("state") or "").upper(),
+            )
+            missing = [
+                field
+                for field in ("street", "neighborhood", "city", "state")
+                if not attrs[field]
+            ]
+            if missing:
+                raise serializers.ValidationError(
+                    {"postal_code": "The ZIP code returned an incomplete address."}
+                )
+        return attrs
+
+    def update(self, instance, validated_data):
+        """Persist changed signup values and replace supplied document collections."""
+        partners = validated_data.pop("partners", serializers.empty)
+        attachments = validated_data.pop("attachments", serializers.empty)
+        old_file_names = []
+        self._stored_file_names = []
+        try:
+            with transaction.atomic():
+                for field, value in validated_data.items():
+                    setattr(instance, field, value)
+                instance.full_clean()
+                instance.save()
+
+                if partners is not serializers.empty:
+                    old_file_names.extend(
+                        OwnPartnerAttachment.objects.filter(
+                            partner__own_business=instance
+                        ).values_list("file", flat=True)
+                    )
+                    instance.partners.all().delete()
+                    for partner_data in partners:
+                        partner_attachments = partner_data.pop("attachments")
+                        partner = OwnBusinessPartner(
+                            own_business=instance,
+                            **partner_data,
+                        )
+                        partner.full_clean()
+                        partner.save()
+                        for attachment in partner_attachments:
+                            self._create_attachment(
+                                OwnPartnerAttachment,
+                                attachment,
+                                partner=partner,
+                            )
+
+                if attachments is not serializers.empty:
+                    old_file_names.extend(
+                        instance.attachments.values_list("file", flat=True)
+                    )
+                    instance.attachments.all().delete()
+                    for attachment in attachments:
+                        self._create_attachment(
+                            OwnBusinessAttachment,
+                            attachment,
+                            own_business=instance,
+                        )
+        except Exception:
+            self.cleanup_files()
+            raise
+
+        for name in old_file_names:
+            default_storage.delete(name)
+        instance._prefetched_objects_cache = {}
+        return instance
+
+
 class OwnReferenceSerializer(serializers.ModelSerializer):
     class Meta:
         fields = ["id", "name"]
@@ -323,6 +444,7 @@ class OwnReferenceSerializer(serializers.ModelSerializer):
 class OwnBasketSerializer(OwnReferenceSerializer):
     class Meta(OwnReferenceSerializer.Meta):
         model = OwnBasket
+        fields = ["id", "name", "anticipation_fee", "fee_amount"]
 
 
 class OwnFeeSerializer(serializers.ModelSerializer):
@@ -386,6 +508,34 @@ class OwnPlanSerializer(serializers.ModelSerializer):
         if len(fee_ids) != len(set(fee_ids)):
             raise serializers.ValidationError("A fee may only appear once per plan.")
         return fees
+
+    def validate(self, attrs):
+        """Require plan fees to belong to the selected basket."""
+        attrs = super().validate(attrs)
+        basket = attrs.get(
+            "basketId", self.instance.basketId if self.instance else None
+        )
+        fees = attrs.get("fees")
+        if basket is None or fees is None:
+            return attrs
+
+        errors = {}
+        for index, plan_fee in enumerate(fees):
+            fee = plan_fee["fee"]
+            if fee.basketId_id != basket.pk:
+                errors[index] = "The fee must belong to the selected basket."
+        if errors:
+            raise serializers.ValidationError({"fees": errors})
+        if self.instance is None and len(fees) < basket.fee_amount:
+            raise serializers.ValidationError(
+                {
+                    "fees": (
+                        f"A plan for this basket must include at least "
+                        f"{basket.fee_amount} fee entries."
+                    )
+                }
+            )
+        return attrs
 
     @transaction.atomic
     def create(self, validated_data):

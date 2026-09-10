@@ -32,7 +32,6 @@ from quickportal.models import (
     PosModel,
     RecurringFee,
     RecurringFeeTarget,
-    Status,
 )
 from quickportal.services.brasil_api import BrasilApiError
 
@@ -546,8 +545,6 @@ class BusinessDetailsApiTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data["acquirer"], self.acquirer.id)
         self.assertEqual(response.data["projected_revenue"], str(Decimal("10.00")))
-        self.business.refresh_from_db()
-        self.assertEqual(self.business.status, Status.PENDING)
         fetch_bank_info.assert_called_once_with("102")
         fetch_cep_info.assert_called_once_with("12244867")
 
@@ -610,8 +607,6 @@ class BusinessDetailsApiTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("branch", response.data)
-        self.business.refresh_from_db()
-        self.assertEqual(self.business.status, Status.NOT_STARTED)
 
 
 class PosDeviceApiTests(APITestCase):
@@ -776,7 +771,6 @@ class BusinessAuthorizationApiTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["count"], 4)
-        self.assertEqual(response.data["count_by_status"], {Status.NOT_STARTED: 4})
         self.assertSetEqual(
             {item["id"] for item in response.data["results"]},
             {

@@ -183,3 +183,7 @@ OWN_CLIENT_ID = os.environ.get("OWN_CLIENT_ID", "")
 OWN_CLIENT_SECRET = os.environ.get("OWN_CLIENT_SECRET", "")
 OWN_SCOPE = os.environ.get("OWN_SCOPE", "")
 OWN_BASE_URL = os.environ.get("OWN_BASE_URL", "https://acquirer-qa.own.financial")
+OWN_REGISTRATION_TRACE_ENABLED = os.environ.get(
+    "OWN_REGISTRATION_TRACE_ENABLED", "0"
+).lower() in {"1", "true", "yes", "on"}
+OWN_REGISTRATION_TRACE_DIR = BASE_DIR / "logs" / "own_registration"

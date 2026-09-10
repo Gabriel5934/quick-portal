@@ -350,7 +350,7 @@ class BusinessReadSerializer(serializers.ModelSerializer):
         model = Business
         fields = [
             "id", "type", "parent", "document_type", "document", "name",
-            "trade_name", "email", "phone", "landline", "status",
+            "trade_name", "email", "phone", "landline",
             "color",
         ]
 

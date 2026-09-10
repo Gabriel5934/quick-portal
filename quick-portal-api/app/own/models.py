@@ -26,7 +26,7 @@ class OwnBusinessAttachmentType(models.TextChoices):
 class OwnRegistrationStatus(models.TextChoices):
     PENDING = "PENDING", "Pending"
     REGISTERED = "REGISTERED", "Registered"
-    FAILED = "FAILED", "Failed"
+    API_REQUEST_FAILED = "API_REQUEST_FAILED", "API request failed"
     UNKNOWN = "UNKNOWN", "Unknown"
 
 
@@ -60,7 +60,14 @@ class OwnMethod(models.TextChoices):
 
 class OwnBasket(models.Model):
     id = models.IntegerField(primary_key=True)
-    name = models.CharField(max_length=20, unique=True)
+    name = models.CharField(max_length=255, unique=True)
+    anticipation_fee = models.DecimalField(
+        max_digits=20,
+        decimal_places=10,
+        default=0,
+        validators=[MinValueValidator(0)],
+    )
+    fee_amount = models.PositiveIntegerField(default=0)
 
     class Meta:
         db_table = "own_baskets"
