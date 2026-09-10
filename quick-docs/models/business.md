@@ -23,11 +23,9 @@ table.
 | `document` | `CharField(max_length=20)` | Yes | CPF or CNPJ containing digits only when written through the API. |
 | `name` | `CharField(max_length=200)` | Yes | Legal name. |
 | `trade_name` | `CharField(max_length=200, blank=True)` | No | Trading name. Empty for CPF businesses. |
-| `cnae` | `ForeignKey(Cnae, on_delete=PROTECT)` | No | Economic activity. The reverse relation is available as `businesses`. |
 | `email` | `EmailField` | Yes | Contact email address. |
 | `phone` | `CharField(max_length=20)` | Yes | Primary phone number; the API accepts digits only. |
 | `landline` | `CharField(max_length=20, blank=True)` | No | Optional landline; the API accepts digits only. |
-| `status` | `CharField(max_length=20)` | Yes | Onboarding status. Defaults to `NOT_STARTED`; `PENDING` is also supported. |
 
 The model does not currently declare a uniqueness constraint for `document`.
 
@@ -53,10 +51,10 @@ it has children.
 
 The API treats identity data differently according to `document_type`:
 
-- For `CPF`, clients provide `name` and `cnae`; `trade_name` remains empty.
-- For `CNPJ`, clients must not provide `name`, `trade_name`, or `cnae`. The API
-  fetches them from BrasilAPI and maps `razao_social` to `name`,
-  `nome_fantasia` to `trade_name`, and `cnae_fiscal` to `cnae`.
+- For `CPF`, clients provide `name`; `trade_name` remains empty.
+- For `CNPJ`, clients must not provide `name` or `trade_name`. The API fetches
+  them from BrasilAPI and maps `razao_social` to `name` and `nome_fantasia` to
+  `trade_name`.
 - `document` and `document_type` cannot be changed through the API after the
   business is created.
 
@@ -75,16 +73,13 @@ invariants explicitly and call `full_clean()` when model validation is needed.
 ## Example
 
 ```python
-from quickportal.models import Business, BusinessType, Cnae, DocumentType
-
-cnae = Cnae.objects.get(code="4711302")
+from quickportal.models import Business, BusinessType, DocumentType
 
 store = Business(
     type=BusinessType.STORE,
     document_type=DocumentType.CPF,
     document="52839789801",
     name="Gabriel Store",
-    cnae=cnae,
     email="gabriel@example.com",
     phone="11987023510",
 )

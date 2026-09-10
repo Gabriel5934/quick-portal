@@ -3,52 +3,25 @@ import random
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
-from quickportal.management.commands.generate_business_hierarchy import (
-    Command as GenerateHierarchyCommand,
-)
+from quickportal.management.business_factory import create_business
 from quickportal.models import Business, BusinessType
 
 
 class Command(BaseCommand):
-    help = (
-        "Create a root reseller, or create a valid child for the supplied business"
-    )
+    help = "Create a root reseller, or create a valid child for the supplied business"
 
     def add_arguments(self, parser):
-        parser.add_argument(
-            "business_id",
-            nargs="?",
-            type=int,
-            help="Optional parent business ID",
-        )
-        parser.add_argument(
-            "--store",
-            action="store_true",
-            help="Create a store directly under a reseller instead of a re-reseller",
-        )
-        parser.add_argument(
-            "--seed",
-            type=int,
-            help="Seed the random generator to make the generated data reproducible",
-        )
+        parser.add_argument("business_id", nargs="?", type=int, help="Optional parent business ID")
+        parser.add_argument("--store", action="store_true", help="Create a store directly under a reseller")
+        parser.add_argument("--seed", type=int, help="Seed the random generator")
 
     @transaction.atomic
     def handle(self, *args, **options):
         parent = self.get_parent(options["business_id"])
         business_type = self.get_business_type(parent, options["store"])
-        business = GenerateHierarchyCommand.create_business(
-            random.Random(options["seed"]),
-            business_type,
-            parent=parent,
-        )
-
+        business = create_business(random.Random(options["seed"]), business_type, parent)
         parent_text = f" under business #{parent.id}" if parent else ""
-        self.stdout.write(
-            self.style.SUCCESS(
-                f"Created {business.get_type_display()} #{business.id}"
-                f"{parent_text}: {business.name}"
-            )
-        )
+        self.stdout.write(self.style.SUCCESS(f"Created {business.get_type_display()} #{business.id}{parent_text}: {business.name}"))
 
     @staticmethod
     def get_parent(business_id):

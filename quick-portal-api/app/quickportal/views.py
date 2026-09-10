@@ -1,6 +1,6 @@
 from django.db import transaction
 from django.db.models.deletion import ProtectedError
-from django.db.models import Exists, OuterRef, Q
+from django.db.models import Q
 from rest_framework import status
 from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
 from rest_framework.pagination import PageNumberPagination
@@ -12,14 +12,9 @@ from rest_framework_simplejwt.views import TokenObtainPairView
 from quickportal.models import (
     Acquirer,
     BusinessColorPreference,
-    BusinessDetails,
     BusinessMembership,
     BusinessRole,
     BusinessType,
-    Cnae,
-    Fee,
-    Network,
-    Plan,
     PosDevice,
     PosModel,
     RecurringFee,
@@ -28,16 +23,10 @@ from quickportal.serializers import (
     AcquirerSerializer,
     BusinessReadSerializer,
     BusinessColorPreferenceSerializer,
-    BusinessDetailsSerializer,
     BusinessMembershipReadSerializer,
     BusinessMembershipWriteSerializer,
     BusinessWriteSerializer,
-    CnaeSerializer,
     EmailTokenObtainPairSerializer,
-    FeeSerializer,
-    NetworkSerializer,
-    PlanReadSerializer,
-    PlanWriteSerializer,
     PosDeviceSerializer,
     PosModelSerializer,
     RecurringFeeSerializer,
@@ -116,119 +105,6 @@ class PosModelListView(APIView):
         pos_models = PosModel.objects.select_related("acquirer").all()
         serializer = PosModelSerializer(pos_models, many=True)
         return Response(serializer.data)
-
-
-class NetworkListView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    def get(self, request):
-        networks = Network.objects.order_by("id")
-        return Response(NetworkSerializer(networks, many=True).data)
-
-
-class CnaeListView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    def get(self, request):
-        cnaes = Cnae.objects.order_by("code")
-        return Response(CnaeSerializer(cnaes, many=True).data)
-
-
-class CnaesWithFeesListView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    def get(self, request):
-        acquirer_value = request.query_params.get("acquirer", "").strip()
-        if not acquirer_value:
-            return Response(
-                {"detail": "The acquirer query parameter is required."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        acquirer = None
-        if acquirer_value.isdigit():
-            acquirer = Acquirer.objects.filter(pk=int(acquirer_value)).first()
-        if acquirer is None:
-            acquirer = Acquirer.objects.filter(name__iexact=acquirer_value).first()
-        if acquirer is None:
-            return Response(
-                {"detail": "Acquirer not found."}, status=status.HTTP_404_NOT_FOUND
-            )
-
-        fee_exists = Fee.objects.filter(
-            acquirer=acquirer,
-            cnae=OuterRef("pk"),
-        )
-        cnaes = (
-            Cnae.objects.annotate(has_fees=Exists(fee_exists))
-            .filter(has_fees=True)
-            .order_by("code")
-        )
-        return Response(CnaeSerializer(cnaes, many=True).data)
-
-
-class FeeListView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    def get(self, request):
-        acquirer_value = request.query_params.get("acquirer", "").strip()
-        cnae_value = request.query_params.get("cnae", "").strip()
-        if not acquirer_value or not cnae_value:
-            return Response(
-                {"detail": "Both acquirer and cnae query parameters are required."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        acquirer = None
-        if acquirer_value.isdigit():
-            acquirer = Acquirer.objects.filter(pk=int(acquirer_value)).first()
-        if acquirer is None:
-            acquirer = Acquirer.objects.filter(name__iexact=acquirer_value).first()
-        if acquirer is None:
-            return Response(
-                {"detail": "Acquirer not found."}, status=status.HTTP_404_NOT_FOUND
-            )
-
-        cnae = "".join(character for character in cnae_value if character.isdigit())
-        if not cnae:
-            return Response(
-                {"detail": "CNAE must contain at least one digit."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        fees = (
-            Fee.objects.select_related("network")
-            .filter(acquirer=acquirer, cnae__code=cnae)
-            .order_by("network__name", "installments")
-        )
-        return Response(FeeSerializer(fees, many=True).data)
-
-
-class PlanListCreateView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    def get(self, request):
-        plans = Plan.objects.select_related("cnae").prefetch_related("fees").all()
-        return Response(PlanReadSerializer(plans, many=True).data)
-
-    def post(self, request):
-        if not request.user.is_superuser:
-            raise PermissionDenied()
-        serializer = PlanWriteSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        plan = serializer.save()
-        return Response(PlanReadSerializer(plan).data, status=status.HTTP_201_CREATED)
-
-
-class PlanDetailView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    def get(self, request, pk):
-        try:
-            plan = Plan.objects.select_related("cnae").prefetch_related("fees").get(pk=pk)
-        except Plan.DoesNotExist:
-            return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
-        return Response(PlanReadSerializer(plan).data)
 
 
 class BusinessPagination(PageNumberPagination):
@@ -654,73 +530,6 @@ class BusinessMembershipDetailView(APIView):
             raise ValidationError(
                 {"role": "The final governing admin cannot be removed or demoted."}
             )
-
-
-class BusinessDetailsListCreateView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    def get(self, request):
-        details = BusinessDetails.objects.select_related("business", "plan").filter(
-            business__in=accessible_businesses(request.user)
-        )
-        if business_id := request.query_params.get("business"):
-            details = details.filter(business_id=business_id)
-        return Response(BusinessDetailsSerializer(details, many=True).data)
-
-    def post(self, request):
-        business_id = request.data.get("business")
-        if business_id is not None:
-            business = get_accessible_business_or_404(request.user, business_id)
-            _require_business_role(request.user, business, WRITE_ROLES)
-        serializer = BusinessDetailsSerializer(data=request.data)
-        try:
-            serializer.is_valid(raise_exception=True)
-        except BrasilApiError as exc:
-            return _brasil_api_error_response(exc)
-        details = serializer.save()
-        return Response(BusinessDetailsSerializer(details).data, status=status.HTTP_201_CREATED)
-
-
-class BusinessDetailsDetailView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    def get(self, request, pk):
-        details = self._get_object(request.user, pk)
-        return Response(BusinessDetailsSerializer(details).data)
-
-    def put(self, request, pk):
-        return self._update(request, pk)
-
-    def patch(self, request, pk):
-        return self._update(request, pk, partial=True)
-
-    def _update(self, request, pk, partial=False):
-        details = self._get_object(request.user, pk)
-        _require_business_role(request.user, details.business, WRITE_ROLES)
-        serializer = BusinessDetailsSerializer(details, data=request.data, partial=partial)
-        try:
-            serializer.is_valid(raise_exception=True)
-            target = serializer.validated_data.get("business", details.business)
-            target = get_accessible_business_or_404(request.user, target.pk)
-            _require_business_role(request.user, target, WRITE_ROLES)
-        except BrasilApiError as exc:
-            return _brasil_api_error_response(exc)
-        return Response(BusinessDetailsSerializer(serializer.save()).data)
-
-    def delete(self, request, pk):
-        details = self._get_object(request.user, pk)
-        _require_business_role(request.user, details.business, WRITE_ROLES)
-        details.delete()
-        return Response(status=status.HTTP_204_NO_CONTENT)
-
-    @staticmethod
-    def _get_object(user, pk):
-        try:
-            return BusinessDetails.objects.select_related(
-                "business", "business__parent"
-            ).get(pk=pk, business__in=accessible_businesses(user))
-        except BusinessDetails.DoesNotExist as exc:
-            raise NotFound() from exc
 
 
 class PosDeviceListCreateView(APIView):

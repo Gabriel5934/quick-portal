@@ -7,17 +7,11 @@ from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
 from quickportal.models import (
-    Acquirer, Business, BusinessColor, BusinessColorPreference, BusinessDetails,
-    BusinessMembership, BusinessType, Cnae,
-    DocumentType, Fee, Network, Plan, PlanFee, PosDevice, PosModel, RecurringFee,
+    Acquirer, Business, BusinessColor, BusinessColorPreference, BusinessMembership,
+    BusinessType, DocumentType, PosDevice, PosModel, RecurringFee,
     RecurringFeeTarget,
 )
-from quickportal.services.brasil_api import (
-    BrasilApiError,
-    fetch_bank_info,
-    fetch_cep_info,
-    fetch_cnpj_info,
-)
+from quickportal.services.brasil_api import fetch_cnpj_info
 
 
 class UserCreateSerializer(serializers.ModelSerializer):
@@ -91,12 +85,6 @@ class AcquirerSerializer(serializers.ModelSerializer):
         fields = ["id", "name"]
 
 
-class NetworkSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Network
-        fields = ["id", "name", "color"]
-
-
 class PosModelSerializer(serializers.ModelSerializer):
     acquirer = AcquirerSerializer(read_only=True)
 
@@ -105,23 +93,15 @@ class PosModelSerializer(serializers.ModelSerializer):
         fields = ["id", "model", "acquirer"]
 
 
-class CnaeSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Cnae
-        fields = ["id", "code", "description", "mcc"]
-
-
 class BusinessWriteSerializer(serializers.ModelSerializer):
     name = serializers.CharField(required=False, allow_blank=False)
     trade_name = serializers.CharField(required=False, allow_blank=True, default="")
     landline = serializers.CharField(required=False, allow_blank=True, default="")
-    cnae = serializers.JSONField(required=False, write_only=True)
-
     class Meta:
         model = Business
         fields = [
             "type", "parent", "document_type", "document", "name", "trade_name",
-            "cnae", "email", "phone", "landline",
+            "email", "phone", "landline",
         ]
 
     @staticmethod
@@ -138,17 +118,6 @@ class BusinessWriteSerializer(serializers.ModelSerializer):
 
     def validate_landline(self, value):
         return self._validate_digits(value, "landline")
-
-    def validate_cnae(self, value):
-        """Reject legacy generic-business CNAE ``value`` with a field error.
-
-        CNAE is now supplied through an acquirer-specific signup, so this
-        validator always raises ``serializers.ValidationError`` and never
-        returns the submitted value.
-        """
-        raise serializers.ValidationError(
-            "CNAE belongs to the acquirer-specific business signup."
-        )
 
     def validate(self, attrs):
         """Validate and return business attribute mapping ``attrs``.
@@ -226,88 +195,6 @@ class BusinessWriteSerializer(serializers.ModelSerializer):
                 attrs["name"] = info["name"]
 
         return attrs
-
-
-class FeeSerializer(serializers.ModelSerializer):
-    network_code = serializers.CharField(source="network.name", read_only=True)
-
-    class Meta:
-        model = Fee
-        fields = [
-            "id",
-            "acquirer",
-            "cnae",
-            "network",
-            "network_code",
-            "installments",
-            "value",
-        ]
-
-
-class PlanFeeSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = PlanFee
-        fields = ["fee", "value"]
-
-
-class PlanReadSerializer(serializers.ModelSerializer):
-    fees = PlanFeeSerializer(many=True, read_only=True)
-    cnae_code = serializers.CharField(source="cnae.code", read_only=True)
-
-    class Meta:
-        model = Plan
-        fields = [
-            "id",
-            "name",
-            "description",
-            "split",
-            "anticipation",
-            "anticipation_fee",
-            "acquirer",
-            "cnae",
-            "cnae_code",
-            "fees",
-            "created_at",
-        ]
-
-
-class PlanWriteSerializer(serializers.ModelSerializer):
-    fees = PlanFeeSerializer(many=True)
-
-    class Meta:
-        model = Plan
-        fields = [
-            "name",
-            "description",
-            "split",
-            "anticipation",
-            "anticipation_fee",
-            "acquirer",
-            "cnae",
-            "fees",
-        ]
-
-    def validate_fees(self, value):
-        seen = set()
-        for fee in value:
-            key = fee["fee"].pk
-            if key in seen:
-                raise serializers.ValidationError(
-                    f"Duplicate fee with id {key}."
-                )
-            seen.add(key)
-        return value
-
-    def create(self, validated_data):
-        fees_data = validated_data.pop("fees")
-        with transaction.atomic():
-            plan = Plan(**validated_data)
-            plan.full_clean()
-            plan.save()
-            PlanFee.objects.bulk_create(
-                [PlanFee(plan=plan, **fee) for fee in fees_data]
-            )
-        return plan
 
 
 class BusinessReadSerializer(serializers.ModelSerializer):
@@ -503,56 +390,6 @@ class BusinessMembershipWriteSerializer(serializers.ModelSerializer):
                     {"user": "This user already belongs to this business."}
                 )
         return attrs
-
-
-class BusinessDetailsSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = BusinessDetails
-        fields = [
-            "id", "business", "acquirer", "bank_code", "branch", "branch_digit", "account_number",
-            "account_digit", "cep", "address_number", "address_line2",
-            "projected_revenue", "commited_revenue", "amount_of_terminals", "plan",
-        ]
-
-    def create(self, validated_data):
-        """Validate and persist one business-details record."""
-        details = BusinessDetails(**validated_data)
-        details.full_clean()
-        details.save()
-        return details
-
-    def update(self, instance, validated_data):
-        """Validate and persist changed fields on one business-details record."""
-        for field, value in validated_data.items():
-            setattr(instance, field, value)
-        instance.full_clean()
-        instance.save()
-        return instance
-
-    def validate_bank_code(self, value):
-        try:
-            fetch_bank_info(value)
-        except BrasilApiError as exc:
-            if exc.status_code and 400 <= exc.status_code < 500:
-                raise serializers.ValidationError(str(exc)) from exc
-            raise
-        return value
-
-    def validate_business(self, value):
-        if value.type != BusinessType.STORE:
-            raise serializers.ValidationError(
-                "Business details can only be assigned to a store."
-            )
-        return value
-
-    def validate_cep(self, value):
-        try:
-            fetch_cep_info(value)
-        except BrasilApiError as exc:
-            if exc.status_code and 400 <= exc.status_code < 500:
-                raise serializers.ValidationError(str(exc)) from exc
-            raise
-        return value
 
 
 class PosDeviceSerializer(serializers.ModelSerializer):

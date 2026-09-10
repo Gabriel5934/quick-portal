@@ -23,15 +23,15 @@ import FeeDiagram from '../.vitepress/components/FeeDiagram.vue'
 | `basketId` | `ForeignKey(OwnBasket, PROTECT)` | Yes | The basket containing the fee. It uses the `basketId` column and exposes the reverse relation `fees`. |
 | `value` | `DecimalField(20, 10)` | Yes | The current value returned by OWN in the `valor` field. |
 | `baseMdr` | `DecimalField(20, 10)` | Yes | The minimum value/base MDR returned in `valorMinimo`. |
-| `network` | `ForeignKey(OwnNetwork, PROTECT)` | No | Card network. Null for products that are not network-specific. |
-| `channel` | `ForeignKey(OwnChannel, PROTECT)` | No | Physical or e-commerce channel. It may be null, as it is for anticipation fees. |
-| `method` | `ForeignKey(OwnMethod, PROTECT)` | Yes | Payment or charge method. |
+| `network` | `CharField(choices=OwnNetwork.choices)` | No | Card network. Null for products that are not network-specific. |
+| `channel` | `CharField(choices=OwnChannel.choices)` | No | Physical or e-commerce channel. It may be null, as it is for anticipation fees. |
+| `method` | `CharField(choices=OwnMethod.choices)` | Yes | Payment or charge method. |
 | `installment` | `IntegerField` | No | An installment number or the lower bound of an installment range. |
 | `upperInstallment` | `IntegerField` | No | The upper bound of the range; null for a single installment and non-installment methods. |
 
 The names `basketId`, `baseMdr`, and `upperInstallment` preserve the terminology used by the integration. In Django code, `basketId` is the `OwnBasket` object, while `basketId_id` is its integer foreign key.
 
-`network`, `channel`, `method`, and `basketId` use `on_delete=PROTECT`. Therefore, a dimension still used by a fee cannot be deleted. Fees are ordered by `id`, and there is no additional uniqueness constraint across their dimensions: the external fee `id` is the identity of the record.
+`basketId` uses `on_delete=PROTECT`. The remaining dimensions are text choices. Fees are ordered by `id`, and there is no additional uniqueness constraint across their dimensions: the external fee `id` is the identity of the record.
 
 ## Reference dimensions
 
@@ -48,15 +48,15 @@ A basket exposes the reverse relations `fees` and `plans`.
 
 ### OwnNetwork
 
-`OwnNetwork` represents a card network and uses the `own_network` table. It has a Django-generated `id` and a unique `name` field (`CharField`, 50 characters). The loader recognizes `Visa`, `Elo`, and `Mastercard`, and also maintains the `Default` reference. Its reverse relation to fees is `fees`.
+`OwnNetwork` is a text-choice enum with `Visa`, `Elo`, `Mastercard`, and `Default` values. It does not have a database table.
 
 ### OwnChannel
 
-`OwnChannel` represents the capture channel and uses the `own_channels` table. It has a Django-generated `id` and a unique `name` field (`CharField`, 50 characters). The loaded values are `Physical` and `Ecommerce`. Its reverse relation to fees is `fees`.
+`OwnChannel` is a text-choice enum with `Physical` and `Ecommerce` values. It does not have a database table.
 
 ### OwnMethod
 
-`OwnMethod` represents a payment or charge method and uses the `own_methods` table. It has a Django-generated `id` and a unique `name` field (`CharField`, 50 characters).
+`OwnMethod` is a text-choice enum for the payment or charge method.
 
 The basket catalog recognizes `Pix`, `Debit`, `Credit`, `Installments`, `POS Rent`, `Top Bank`, and `Visa Voucher`. The dedicated anticipation command also creates or reuses the `Anticipation` method. Its reverse relation to fees is `fees`.
 
