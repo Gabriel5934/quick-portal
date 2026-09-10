@@ -271,7 +271,19 @@ class OwnBusinessDetailView(APIView):
 
     def patch(self, request, pk):
         """Partially update a failed signup owned by an authorized manager."""
+        own_business = _manageable_signup_or_404(request.user, pk)
+        if own_business.registration_status != OwnRegistrationStatus.API_REQUEST_FAILED:
+            return Response(
+                {"detail": "Only failed OWN signups can be corrected."},
+                status=status.HTTP_409_CONFLICT,
+            )
+        serializer = OwnBusinessUpdateSerializer(
+            own_business,
+            data=request.data,
+            partial=True,
+        )
         try:
+            serializer.is_valid(raise_exception=True)
             with transaction.atomic():
                 own_business = _manageable_signup_or_404(
                     request.user,
@@ -283,12 +295,7 @@ class OwnBusinessDetailView(APIView):
                         {"detail": "Only failed OWN signups can be corrected."},
                         status=status.HTTP_409_CONFLICT,
                     )
-                serializer = OwnBusinessUpdateSerializer(
-                    own_business,
-                    data=request.data,
-                    partial=True,
-                )
-                serializer.is_valid(raise_exception=True)
+                serializer.instance = own_business
                 own_business = serializer.save()
         except BrasilApiError as exc:
             return Response(
@@ -299,6 +306,14 @@ class OwnBusinessDetailView(APIView):
                     else status.HTTP_502_BAD_GATEWAY
                 ),
             )
+        except DjangoValidationError as exc:
+            serializer.cleanup_files()
+            detail = (
+                exc.message_dict
+                if hasattr(exc, "message_dict")
+                else {"detail": exc.messages}
+            )
+            return Response(detail, status=status.HTTP_400_BAD_REQUEST)
         return Response(OwnBusinessSignupSerializer(own_business).data)
 
 

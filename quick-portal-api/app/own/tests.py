@@ -904,6 +904,30 @@ class OwnActivityCommandTests(TestCase):
 
 
 class OwnFeeSeedingTests(TestCase):
+    def test_reassigns_a_basket_name_without_violating_its_uniqueness(self):
+        OwnBasket.objects.create(id=700, name="Reassigned basket")
+        payload = [{
+            "cestaId": 701,
+            "nomeCesta": "Reassigned basket",
+            "cestaValorId": 1,
+            "produto": "Credito Visa",
+            "valor": 2,
+            "valorMinimo": 1,
+        }]
+
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "fees.json"
+            path.write_text(json.dumps(payload), encoding="utf-8")
+            call_command(
+                "load_own_fees",
+                file=path,
+                anticipation_fee=["701=1.25"],
+                stdout=StringIO(),
+            )
+
+        self.assertEqual(OwnBasket.objects.get(pk=701).name, "Reassigned basket")
+        self.assertFalse(OwnBasket.objects.filter(pk=700).exists())
+
     def test_discovers_baskets_and_saves_each_anticipation_fee(self):
         payload = [
             {

@@ -1,6 +1,7 @@
 import json
 import re
 import unicodedata
+import uuid
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
@@ -260,16 +261,30 @@ class Command(BaseCommand):
         }
 
         with transaction.atomic():
+            incoming_basket_ids_by_name = {
+                name: basket_id for basket_id, name in baskets.items()
+            }
+            for existing_basket in OwnBasket.objects.select_for_update().filter(
+                name__in=incoming_basket_ids_by_name
+            ):
+                if (
+                    existing_basket.pk
+                    != incoming_basket_ids_by_name[existing_basket.name]
+                ):
+                    existing_basket.name = f"__replaced_basket_{uuid.uuid4().hex}"
+                    existing_basket.save(update_fields=["name"])
+
             basket_models = {}
             for basket_id, name in baskets.items():
-                basket_models[basket_id], _ = OwnBasket.objects.update_or_create(
-                    id=basket_id,
-                    defaults={
-                        "name": name,
-                        "anticipation_fee": anticipation_fees[basket_id],
-                        "fee_amount": fee_amounts[basket_id],
-                    },
-                )
+                basket = OwnBasket.objects.filter(pk=basket_id).first()
+                if basket is None:
+                    basket = OwnBasket(id=basket_id)
+                basket.name = name
+                basket.anticipation_fee = anticipation_fees[basket_id]
+                basket.fee_amount = fee_amounts[basket_id]
+                basket.full_clean()
+                basket.save()
+                basket_models[basket_id] = basket
             incoming_fee_ids = []
             for fee in fees:
                 fee_id = fee["id"]

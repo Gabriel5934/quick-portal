@@ -514,6 +514,21 @@ class BusinessDetailsSerializer(serializers.ModelSerializer):
             "projected_revenue", "commited_revenue", "amount_of_terminals", "plan",
         ]
 
+    def create(self, validated_data):
+        """Validate and persist one business-details record."""
+        details = BusinessDetails(**validated_data)
+        details.full_clean()
+        details.save()
+        return details
+
+    def update(self, instance, validated_data):
+        """Validate and persist changed fields on one business-details record."""
+        for field, value in validated_data.items():
+            setattr(instance, field, value)
+        instance.full_clean()
+        instance.save()
+        return instance
+
     def validate_bank_code(self, value):
         try:
             fetch_bank_info(value)
