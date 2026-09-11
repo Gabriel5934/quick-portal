@@ -5,7 +5,6 @@ function refineDocument(
     documentType: "CNPJ" | "CPF";
     document: string;
     name: string;
-    cnaeId?: number;
   },
   ctx: z.RefinementCtx,
 ) {
@@ -25,13 +24,6 @@ function refineDocument(
         path: ["name"],
       });
     }
-    if (!data.cnaeId) {
-      ctx.addIssue({
-        code: "custom",
-        message: "Categoria é obrigatória",
-        path: ["cnaeId"],
-      });
-    }
   } else if (digits.length < 14) {
     ctx.addIssue({
       code: "custom",
@@ -47,7 +39,6 @@ const newBusinessBaseSchema = z.object({
   document: z.string(),
   name: z.string(),
   nomeFantasia: z.string().optional(),
-  cnaeId: z.number().int().positive().optional(),
   email: z.email("Insira um email válido"),
   celular: z
     .string()

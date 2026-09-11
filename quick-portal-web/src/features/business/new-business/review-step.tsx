@@ -2,7 +2,6 @@ import Chip from "@mui/material/Chip";
 import Divider from "@mui/material/Divider";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
-import { useAllCnaes } from "#hooks/quickApi/useCnaes";
 import { FormFieldPaper } from "../../../components/multi-step-form";
 import type { NewBusinessFormValues } from "./types";
 
@@ -19,9 +18,6 @@ function ReviewItem({ label, value }: { label: string; value?: string }) {
 }
 
 export function BusinessReviewStep({ values }: BusinessReviewStepProps) {
-  const { data: cnaes = [] } = useAllCnaes();
-  const cnae = cnaes.find((option) => option.id === values.cnaeId);
-
   return (
     <>
       <FormFieldPaper title="Informações">
@@ -47,16 +43,6 @@ export function BusinessReviewStep({ values }: BusinessReviewStepProps) {
           />
           {values.documentType === "CNPJ" && (
             <ReviewItem label="Nome fantasia" value={values.nomeFantasia} />
-          )}
-          {values.documentType === "CPF" && (
-            <ReviewItem
-              label="Categoria"
-              value={
-                cnae
-                  ? `${cnae.mcc} - ${cnae.code} - ${cnae.description}`
-                  : undefined
-              }
-            />
           )}
         </Stack>
       </FormFieldPaper>

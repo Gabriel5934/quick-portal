@@ -29,12 +29,7 @@ async function fetchCreateBusiness(
         email: payload.email,
         phone: payload.celular.replace(/\D/g, ""),
         landline: payload.telefone.replace(/\D/g, ""),
-        ...(payload.documentType === "CPF"
-          ? {
-              name: payload.name,
-              cnae: payload.cnaeId,
-            }
-          : {}),
+        ...(payload.documentType === "CPF" ? { name: payload.name } : {}),
       }),
     },
   );

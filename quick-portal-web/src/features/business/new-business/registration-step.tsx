@@ -1,29 +1,40 @@
-import Autocomplete from "@mui/material/Autocomplete";
-import FormControl from "@mui/material/FormControl";
 import FormControlLabel from "@mui/material/FormControlLabel";
-import FormLabel from "@mui/material/FormLabel";
+import InputAdornment from "@mui/material/InputAdornment";
 import Radio from "@mui/material/Radio";
 import RadioGroup from "@mui/material/RadioGroup";
 import Switch from "@mui/material/Switch";
 import TextField from "@mui/material/TextField";
+import RefreshOutlined from "@mui/icons-material/RefreshOutlined";
+import { keyframes } from "@mui/material/styles";
 import { useEffect } from "react";
 import { Controller, useFormContext } from "react-hook-form";
 import { PatternFormat } from "react-number-format";
 import { useCnpj } from "#hooks/brasilApi/useCnpj";
-import { useAllCnaes } from "#hooks/quickApi/useCnaes";
 import { FormFieldPaper } from "../../../components/multi-step-form";
 import { useBusinessScope } from "../../../layout/business-context";
 import type { NewBusinessFormValues } from "./types";
 
-function formatCnae(value: string): string {
-  const digits = value.replace(/\D/g, "");
-  return digits.length === 7
-    ? `${digits.slice(0, 4)}-${digits.slice(4, 5)}/${digits.slice(5)}`
-    : value;
+const spin = keyframes`
+  to {
+    transform: rotate(360deg);
+  }
+`;
+
+function CnpjLoadingAdornment({ loading }: { loading: boolean }) {
+  if (!loading) return null;
+
+  return (
+    <InputAdornment position="start">
+      <RefreshOutlined
+        aria-hidden="true"
+        fontSize="small"
+        sx={{ animation: `${spin} 1s linear infinite` }}
+      />
+    </InputAdornment>
+  );
 }
 
 export function RegistrationStep() {
-  const { data: cnaeOptions = [], isLoading: areCnaesLoading } = useAllCnaes();
   const { business } = useBusinessScope();
   const {
     register,
@@ -42,7 +53,11 @@ export function RegistrationStep() {
   const nomeFantasia = watch("nomeFantasia") ?? "";
   const isCnpj = documentType === "CNPJ";
   const isCpf = documentType === "CPF";
-  const { data: cnpjData, error: cnpjError } = useCnpj(document, isCnpj);
+  const {
+    data: cnpjData,
+    error: cnpjError,
+    isFetching: isCnpjLoading,
+  } = useCnpj(document, isCnpj);
   const canCreateReseller = business?.type === "RESELLER";
 
   useEffect(() => {
@@ -51,7 +66,6 @@ export function RegistrationStep() {
       ...getValues(),
       name: cnpjData?.razao_social ?? "",
       nomeFantasia: cnpjData?.nome_fantasia ?? "",
-      cnaeId: undefined,
     });
   }, [cnpjData, cnpjError, reset, getValues]);
 
@@ -67,8 +81,7 @@ export function RegistrationStep() {
       setValue("document", "");
       setValue("name", "");
       setValue("nomeFantasia", "");
-      setValue("cnaeId", undefined);
-      clearErrors(["document", "name", "nomeFantasia", "cnaeId"]);
+      clearErrors(["document", "name", "nomeFantasia"]);
     };
   };
 
@@ -156,69 +169,36 @@ export function RegistrationStep() {
       )}
 
       {isCnpj && (
-        <FormFieldPaper title="Razão social">
+        <FormFieldPaper title="Dados cadastrais">
           <TextField
             variant="standard"
             label="Razão Social"
             value={name}
             fullWidth
-            slotProps={{ input: { readOnly: true } }}
+            slotProps={{
+              input: {
+                readOnly: true,
+                startAdornment: (
+                  <CnpjLoadingAdornment loading={isCnpjLoading} />
+                ),
+              },
+            }}
+            disabled
           />
-        </FormFieldPaper>
-      )}
-
-      {isCnpj && (
-        <FormFieldPaper title="Nome fantasia">
           <TextField
             variant="standard"
             label="Nome Fantasia"
             value={nomeFantasia}
             fullWidth
-            slotProps={{ input: { readOnly: true } }}
-          />
-        </FormFieldPaper>
-      )}
-
-      {isCpf && (
-        <FormFieldPaper
-          title="Categoria"
-          description="Selecione o MCC e CNAE do estabelecimento."
-          error={Boolean(errors.cnaeId)}
-          required
-        >
-          <Controller
-            name="cnaeId"
-            control={control}
-            render={({ field: { onChange, value, ref } }) => (
-              <Autocomplete
-                options={cnaeOptions}
-                loading={areCnaesLoading}
-                getOptionLabel={(option) =>
-                  `${option.mcc} - ${formatCnae(option.code)} - ${option.description}`
-                }
-                isOptionEqualToValue={(option, selected) =>
-                  option.id === selected.id
-                }
-                value={
-                  cnaeOptions.find((option) => option.id === value) ?? null
-                }
-                getOptionKey={(option) => option.id}
-                onChange={(_, selected) => onChange(selected?.id)}
-                renderInput={(params) => (
-                  <TextField
-                    {...params}
-                    inputRef={ref}
-                    variant="standard"
-                    label="Categoria"
-                    placeholder="MCC, CNAE"
-                    fullWidth
-                    required
-                    error={Boolean(errors.cnaeId)}
-                    helperText={errors.cnaeId?.message}
-                  />
-                )}
-              />
-            )}
+            slotProps={{
+              input: {
+                readOnly: true,
+                startAdornment: (
+                  <CnpjLoadingAdornment loading={isCnpjLoading} />
+                ),
+              },
+            }}
+            disabled
           />
         </FormFieldPaper>
       )}

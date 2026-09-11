@@ -52,7 +52,6 @@ export function NewBusiness() {
       document: "",
       name: "",
       nomeFantasia: "",
-      cnaeId: undefined,
       email: "",
       celular: "",
       telefone: "",
@@ -97,12 +96,7 @@ export function NewBusiness() {
   }
 
   async function goToContactStep() {
-    const isValid = await methods.trigger([
-      "documentType",
-      "document",
-      "name",
-      "cnaeId",
-    ]);
+    const isValid = await methods.trigger(["documentType", "document", "name"]);
     if (isValid) setCurrentStep(1);
   }
 
