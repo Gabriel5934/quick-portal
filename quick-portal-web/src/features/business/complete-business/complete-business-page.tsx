@@ -4,7 +4,6 @@ import Typography from "@mui/material/Typography";
 import { useNavigate } from "@tanstack/react-router";
 import { FormProvider, useForm } from "react-hook-form";
 import { useCompleteBusiness } from "#hooks/quickApi/useCompleteBusiness";
-import { useBusiness } from "#hooks/quickApi/useBusinesses";
 import {
   MultiStepFormShell,
   WizardActions,
@@ -48,7 +47,6 @@ export function CompleteBusiness({
   const [currentStep, setCurrentStep] = useState(0);
   const navigate = useNavigate();
   const completeBusiness = useCompleteBusiness();
-  const { data: business, isLoading: businessLoading } = useBusiness(id);
   const methods = useForm<CompleteBusinessFormValues>({
     resolver: zodResolver(completeBusinessSchema),
     defaultValues: {
@@ -133,12 +131,7 @@ export function CompleteBusiness({
           {currentStep === 0 && <BankStep />}
           {currentStep === 1 && <AddressStep />}
           {currentStep === 2 && <PosDevicesStep />}
-          {currentStep === 3 && (
-            <CommercialPlanStep
-              businessCnae={business?.cnae}
-              isBusinessLoading={businessLoading}
-            />
-          )}
+          {currentStep === 3 && <CommercialPlanStep />}
           {currentStep === 4 && (
             <CompleteBusinessReviewStep values={methods.getValues()} />
           )}

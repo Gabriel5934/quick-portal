@@ -10,15 +10,7 @@ import { usePlans } from "#hooks/quickApi/usePlans";
 import { FormFieldPaper } from "../../../components/multi-step-form";
 import type { CompleteBusinessFormValues } from "./types";
 
-interface CommercialPlanStepProps {
-  businessCnae: number | null | undefined;
-  isBusinessLoading: boolean;
-}
-
-export function CommercialPlanStep({
-  businessCnae,
-  isBusinessLoading,
-}: CommercialPlanStepProps) {
+export function CommercialPlanStep() {
   const { data: plans = [] } = usePlans();
   const {
     control,
@@ -28,11 +20,8 @@ export function CommercialPlanStep({
   const acquirerId = useWatch({ control, name: "acquirerId" });
   const planId = useWatch({ control, name: "planId" });
   const filteredPlans = useMemo(
-    () =>
-      plans.filter(
-        (plan) => plan.cnae === businessCnae && plan.acquirer === acquirerId,
-      ),
-    [acquirerId, businessCnae, plans],
+    () => plans.filter((plan) => plan.acquirer === acquirerId),
+    [acquirerId, plans],
   );
 
   useEffect(() => {
@@ -77,7 +66,7 @@ export function CommercialPlanStep({
     <>
       <FormFieldPaper
         title="Plano"
-        description="Selecione um plano compatível com o CNAE e adquirente."
+        description="Selecione um plano compatível com o adquirente."
         error={!!errors.planId}
         required
       >
@@ -94,7 +83,7 @@ export function CommercialPlanStep({
               }
               value={filteredPlans.find((plan) => plan.id === value) ?? null}
               onChange={(_, selected) => onChange(selected?.id)}
-              disabled={isBusinessLoading || !businessCnae || !acquirerId}
+              disabled={!acquirerId}
               renderInput={(params) => (
                 <TextField
                   {...params}
@@ -106,13 +95,11 @@ export function CommercialPlanStep({
                   error={!!errors.planId}
                   helperText={
                     errors.planId?.message ??
-                    (!businessCnae
-                      ? "O estabelecimento não possui CNAE"
-                      : !acquirerId
-                        ? "Selecione um adquirente primeiro"
-                        : filteredPlans.length === 0
-                          ? "Sem planos disponíveis"
-                          : undefined)
+                    (!acquirerId
+                      ? "Selecione um adquirente primeiro"
+                      : filteredPlans.length === 0
+                        ? "Sem planos disponíveis"
+                        : undefined)
                   }
                 />
               )}

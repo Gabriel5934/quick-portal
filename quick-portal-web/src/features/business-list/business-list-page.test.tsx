@@ -32,11 +32,9 @@ const selectedBusiness: Business = {
   document: "12345678000195",
   name: "Selected reseller",
   trade_name: "",
-  cnae: null,
   email: "reseller@example.com",
   phone: "11999999999",
   landline: "",
-  status: "NOT_STARTED",
   color: "blue",
 };
 

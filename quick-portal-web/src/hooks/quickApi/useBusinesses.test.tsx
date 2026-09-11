@@ -2,7 +2,11 @@ import type { ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { useBusinessSummary } from "./useBusinesses";
+import {
+  useBusinesses,
+  useBusinessSummary,
+  type Business,
+} from "./useBusinesses";
 
 vi.mock("#hooks/auth/useToken", () => ({
   useToken: () => ({ data: "access-token" }),
@@ -51,5 +55,48 @@ describe("useBusinessSummary", () => {
     renderHook(() => useBusinessSummary(undefined), { wrapper: Wrapper });
 
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("useBusinesses", () => {
+  beforeEach(() => {
+    fetchMock.mockReset();
+    vi.stubGlobal("fetch", fetchMock);
+  });
+
+  it("returns the current business read shape", async () => {
+    const business: Business = {
+      id: 23,
+      type: "RESELLER",
+      parent: null,
+      document_type: "CNPJ",
+      document: "84644583000183",
+      name: "Horizonte Distribuidora Recife Ltda.",
+      trade_name: "Horizonte Serviços",
+      email: "contato@example.com",
+      phone: "51930874283",
+      landline: "5130299735",
+      color: "blue",
+    };
+    const response = {
+      count: 1,
+      next: null,
+      previous: null,
+      results: [business],
+    };
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve(response),
+    });
+
+    const { result } = renderHook(() => useBusinesses(), {
+      wrapper: Wrapper,
+    });
+
+    await waitFor(() => expect(result.current.data).toEqual(response));
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/api/businesses/"),
+      { headers: { Authorization: "Bearer access-token" } },
+    );
   });
 });

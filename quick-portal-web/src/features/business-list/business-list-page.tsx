@@ -36,7 +36,6 @@ import {
   useBusinesses,
   useBusinessSummary,
   useAllBusinesses,
-  type BusinessStatus,
   type BusinessType,
 } from "#hooks/quickApi/useBusinesses";
 import { useBusinessScope } from "../../layout/business-context";
@@ -132,20 +131,6 @@ function StatCard({ icon, label, value, color }: StatCardProps) {
       </CardContent>
     </Card>
   );
-}
-
-function statusLabel(status: BusinessStatus): string {
-  if (status === "NOT_STARTED") return "Não iniciado";
-  if (status === "PENDING") return "Pendente";
-  if (status === "COMPLETED") return "Completo";
-  if (status === "IN_VALIDATION") return "Em validação";
-  return status;
-}
-
-function statusColor(status: BusinessStatus): string {
-  if (status === "COMPLETED") return "success.main";
-  if (status === "PENDING") return "warning.main";
-  return "info.main";
 }
 
 function businessTypeLabel(type: BusinessType): string {
@@ -409,7 +394,6 @@ export function BusinessList() {
                   <TableCell>Nome Fantasia</TableCell>
                   {showResellerColumn ? <TableCell>Revenda</TableCell> : null}
                   <TableCell>Tipo</TableCell>
-                  <TableCell>Status</TableCell>
                   <TableCell>E-mail</TableCell>
                   <TableCell>Telefone</TableCell>
                   <TableCell>Ações</TableCell>
@@ -452,28 +436,18 @@ export function BusinessList() {
                           </TableCell>
                         ) : null}
                         <TableCell>{businessTypeLabel(biz.type)}</TableCell>
-                        <TableCell>
-                          <Typography
-                            variant="body2"
-                            color={statusColor(biz.status)}
-                            sx={{ fontWeight: 500 }}
-                          >
-                            {statusLabel(biz.status)}
-                          </Typography>
-                        </TableCell>
                         <TableCell>{displayValue(biz.email)}</TableCell>
                         <TableCell>
                           {displayValue(formatPhone(biz.phone))}
                         </TableCell>
                         <TableCell>
-                          {biz.type === "STORE" &&
-                            biz.status === "NOT_STARTED" && (
-                              <CredentialButton
-                                businessId={biz.id}
-                                acquirers={acquirers}
-                                loading={acquirersLoading}
-                              />
-                            )}
+                          {biz.type === "STORE" && (
+                            <CredentialButton
+                              businessId={biz.id}
+                              acquirers={acquirers}
+                              loading={acquirersLoading}
+                            />
+                          )}
                         </TableCell>
                       </TableRow>
                     );
@@ -481,7 +455,7 @@ export function BusinessList() {
                 ) : (
                   <TableRow>
                     <TableCell
-                      colSpan={showResellerColumn ? 9 : 8}
+                      colSpan={showResellerColumn ? 8 : 7}
                       align="center"
                       sx={{ py: 6 }}
                     >

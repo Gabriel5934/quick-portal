@@ -46,11 +46,9 @@ function business(
     document_type: "CNPJ",
     document: String(id).padStart(14, "0"),
     trade_name: "",
-    cnae: null,
     email: `${id}@example.com`,
     phone: "11999999999",
     landline: "",
-    status: "NOT_STARTED",
     color: "blue",
   };
 }

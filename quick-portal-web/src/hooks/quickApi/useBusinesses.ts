@@ -6,28 +6,21 @@ import {
 import { ApiError, useAuthQuery } from "../auth/useAuthQuery";
 import { useToken } from "#hooks/auth/useToken";
 
-export type BusinessStatus =
-  | "NOT_STARTED"
-  | "PENDING"
-  | "IN_VALIDATION"
-  | "COMPLETED";
-
 export type BusinessType = "RESELLER" | "RE_RESELLER" | "STORE";
+export type BusinessDocumentType = "CNPJ" | "CPF";
 export type BusinessColor = "blue" | "green" | "yellow" | "purple" | "orange";
 
 export interface Business {
   id: number;
   type: BusinessType;
   parent: number | null;
-  document_type: string;
+  document_type: BusinessDocumentType;
   document: string;
   name: string;
   trade_name: string;
-  cnae: number | null;
   email: string;
   phone: string;
   landline: string;
-  status: BusinessStatus;
   color: BusinessColor;
 }
 
@@ -103,7 +96,10 @@ async function fetchBusinessSummary(
   );
 
   if (!res.ok) {
-    throw new ApiError(res.status, "Erro ao carregar o resumo de estabelecimentos.");
+    throw new ApiError(
+      res.status,
+      "Erro ao carregar o resumo de estabelecimentos.",
+    );
   }
 
   return res.json() as Promise<BusinessSummary>;
