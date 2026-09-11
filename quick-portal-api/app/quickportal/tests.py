@@ -399,6 +399,17 @@ class BusinessSummaryApiTests(APITestCase):
             },
         )
 
+    def test_summary_rejects_a_nonnumeric_parent(self):
+        response = self.client.get(
+            reverse("business_summary"), {"parent": "not-a-number"}
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(
+            response.data,
+            {"parent": ["A valid integer is required."]},
+        )
+
 
 class BusinessAuthorizationApiTests(APITestCase):
     def setUp(self):

@@ -113,9 +113,16 @@ class BusinessSummaryView(APIView):
         business contributes its registration status.
         """
         businesses = accessible_businesses(request.user)
-        if parent := request.query_params.get("parent"):
+        parent = request.query_params.get("parent")
+        if parent is not None:
+            try:
+                parent_id = int(parent)
+            except (TypeError, ValueError) as exc:
+                raise ValidationError(
+                    {"parent": ["A valid integer is required."]}
+                ) from exc
             businesses = businesses.filter(
-                Q(parent_id=parent) | Q(parent__parent_id=parent)
+                Q(parent_id=parent_id) | Q(parent__parent_id=parent_id)
             )
 
         total = businesses.count()
