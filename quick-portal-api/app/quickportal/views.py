@@ -1,6 +1,6 @@
 from django.db import transaction
 from django.db.models.deletion import ProtectedError
-from django.db.models import Q
+from django.db.models import Count, Q
 from rest_framework import status
 from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
 from rest_framework.pagination import PageNumberPagination
@@ -35,6 +35,7 @@ from quickportal.services.business_access import (
     has_business_role,
     has_governing_ancestor_admin,
 )
+from own.models import OwnBusiness, OwnRegistrationStatus
 
 
 def _brasil_api_error_response(exc: BrasilApiError) -> Response:
@@ -98,6 +99,48 @@ class BusinessPagination(PageNumberPagination):
     page_size = 20
     page_size_query_param = "page_size"
     max_page_size = 100
+
+
+class BusinessSummaryView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        """Summarize registration statuses for accessible business descendants.
+
+        When ``parent`` is provided, only its direct children and grandchildren
+        are included. ``total`` counts those generic businesses. Generic
+        businesses without an OWN business count as not started, while each OWN
+        business contributes its registration status.
+        """
+        businesses = accessible_businesses(request.user)
+        if parent := request.query_params.get("parent"):
+            businesses = businesses.filter(
+                Q(parent_id=parent) | Q(parent__parent_id=parent)
+            )
+
+        total = businesses.count()
+        not_started = businesses.filter(own_business__isnull=True).count()
+        own_counts = OwnBusiness.objects.filter(business__in=businesses).aggregate(
+            pending=Count(
+                "id",
+                filter=Q(registration_status=OwnRegistrationStatus.PENDING),
+            ),
+            completed=Count(
+                "id",
+                filter=Q(registration_status=OwnRegistrationStatus.REGISTERED),
+            ),
+            failed=Count(
+                "id",
+                filter=Q(
+                    registration_status__in=[
+                        OwnRegistrationStatus.API_REQUEST_FAILED,
+                        OwnRegistrationStatus.UNKNOWN,
+                    ]
+                ),
+            ),
+        )
+        summary = {"not_started": not_started, **own_counts}
+        return Response({"total": total, **summary})
 
 
 class BusinessListCreateView(APIView):

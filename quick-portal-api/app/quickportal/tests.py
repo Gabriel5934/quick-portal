@@ -11,6 +11,13 @@ from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
 
+from own.models import (
+    OwnActivity,
+    OwnBasket,
+    OwnBusiness,
+    OwnPlan,
+    OwnRegistrationStatus,
+)
 from quickportal.models import (
     Business,
     BusinessColorPreference,
@@ -254,6 +261,143 @@ class BusinessHierarchyModelTests(TestCase):
         user.delete()
         self.assertTrue(Business.objects.filter(pk=store.pk).exists())
         self.assertFalse(BusinessMembership.objects.exists())
+
+
+class BusinessSummaryApiTests(APITestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username="summary-user")
+        self.client.force_authenticate(self.user)
+        self.reseller = self.make_business("Reseller", BusinessType.RESELLER)
+        self.re_reseller = self.make_business(
+            "Re-reseller", BusinessType.RE_RESELLER, self.reseller
+        )
+        self.pending_store = self.make_business(
+            "Pending", BusinessType.STORE, self.reseller
+        )
+        self.completed_store = self.make_business(
+            "Completed", BusinessType.STORE, self.re_reseller
+        )
+        self.failed_store = self.make_business(
+            "Failed", BusinessType.STORE, self.reseller
+        )
+        self.unknown_store = self.make_business(
+            "Unknown", BusinessType.STORE, self.reseller
+        )
+        self.not_started_store = self.make_business(
+            "Not started", BusinessType.STORE, self.reseller
+        )
+        self.unrelated_store = self.make_business(
+            "Unrelated", BusinessType.STORE
+        )
+        BusinessMembership.objects.create(
+            user=self.user, business=self.reseller, role=BusinessRole.VIEWER
+        )
+
+        basket = OwnBasket.objects.create(id=999999, name="Summary basket")
+        activity = OwnActivity.objects.create(
+            cnae=9999999, description="Summary activity", mcc=9999
+        )
+        self.plan = OwnPlan.objects.create(
+            created_by=self.user,
+            updated_by=self.user,
+            title="Summary plan",
+            activity=activity,
+            basketId=basket,
+        )
+        self.create_own_business(
+            self.pending_store, OwnRegistrationStatus.PENDING
+        )
+        self.create_own_business(
+            self.completed_store, OwnRegistrationStatus.REGISTERED
+        )
+        self.create_own_business(
+            self.failed_store, OwnRegistrationStatus.API_REQUEST_FAILED
+        )
+        self.create_own_business(
+            self.unknown_store, OwnRegistrationStatus.UNKNOWN
+        )
+        self.create_own_business(
+            self.unrelated_store, OwnRegistrationStatus.REGISTERED
+        )
+
+    @staticmethod
+    def make_business(name, business_type, parent=None):
+        number = Business.objects.count() + 1
+        return Business.objects.create(
+            type=business_type,
+            parent=parent,
+            document_type="CNPJ",
+            document=f"{number:014d}",
+            name=name,
+            email=f"summary-{number}@example.com",
+            phone="11999999999",
+        )
+
+    def create_own_business(self, business, registration_status):
+        return OwnBusiness.objects.create(
+            business=business,
+            cnae=self.plan.activity,
+            plan=self.plan,
+            signatory_name="Maria Silva",
+            signatory_cpf="52998224725",
+            signatory_email="maria@example.com",
+            forecast_revenue="10000.00",
+            contract_revenue="8000.00",
+            postal_code="12244867",
+            street="Rua Milton Martins",
+            address_number="100A",
+            neighborhood="Urbanova",
+            city="Sao Jose dos Campos",
+            state="SP",
+            pos_quantity=1,
+            bank_code="001",
+            bank_branch="0123",
+            bank_branch_digit="4",
+            bank_account="00123456",
+            bank_account_digit="7",
+            registration_status=registration_status,
+        )
+
+    def test_summarizes_descendants_and_ignores_list_filters(self):
+        response = self.client.get(
+            reverse("business_summary"),
+            {
+                "parent": self.reseller.id,
+                "document": self.pending_store.document,
+                "name": self.pending_store.name,
+                "trade_name": "ignored",
+                "page": 2,
+            },
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            response.data,
+            {
+                "total": 6,
+                "not_started": 2,
+                "pending": 1,
+                "completed": 1,
+                "failed": 2,
+            },
+        )
+
+    def test_summary_changes_with_selected_parent(self):
+        response = self.client.get(
+            reverse("business_summary"), {"parent": self.re_reseller.id}
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            response.data,
+            {
+                "total": 1,
+                "not_started": 0,
+                "pending": 0,
+                "completed": 1,
+                "failed": 0,
+            },
+        )
 
 
 class BusinessAuthorizationApiTests(APITestCase):

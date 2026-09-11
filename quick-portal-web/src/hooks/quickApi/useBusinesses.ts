@@ -35,8 +35,15 @@ export interface BusinessesResponse {
   count: number;
   next: string | null;
   previous: string | null;
-  count_by_status: Partial<Record<BusinessStatus, number>>;
   results: Business[];
+}
+
+export interface BusinessSummary {
+  total: number;
+  not_started: number;
+  pending: number;
+  completed: number;
+  failed: number;
 }
 
 interface BusinessQuery {
@@ -82,6 +89,32 @@ export function useBusinesses(query: BusinessQuery = {}) {
     queryFn: () => fetchBusinesses(query, token!),
     placeholderData: keepPreviousData,
     enabled: !!token,
+  });
+}
+
+async function fetchBusinessSummary(
+  parent: number,
+  token: string,
+): Promise<BusinessSummary> {
+  const params = new URLSearchParams({ parent: String(parent) });
+  const res = await fetch(
+    `${import.meta.env.VITE_API_BASE_URL}/api/businesses/summary/?${params}`,
+    { headers: { Authorization: `Bearer ${token}` } },
+  );
+
+  if (!res.ok) {
+    throw new ApiError(res.status, "Erro ao carregar o resumo de estabelecimentos.");
+  }
+
+  return res.json() as Promise<BusinessSummary>;
+}
+
+export function useBusinessSummary(parent: number | undefined) {
+  const { data: token } = useToken();
+  return useAuthQuery<BusinessSummary>({
+    queryKey: ["businesses", "summary", parent],
+    queryFn: () => fetchBusinessSummary(parent!, token!),
+    enabled: !!token && parent !== undefined,
   });
 }
 

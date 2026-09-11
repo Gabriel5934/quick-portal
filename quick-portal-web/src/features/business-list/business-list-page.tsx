@@ -24,6 +24,7 @@ import {
 import {
   StorefrontOutlined,
   CheckCircleOutlined,
+  ErrorOutlineOutlined,
   AccessTimeOutlined,
   SyncOutlined,
   SearchOutlined,
@@ -33,6 +34,7 @@ import {
 import { useNavigate } from "@tanstack/react-router";
 import {
   useBusinesses,
+  useBusinessSummary,
   useAllBusinesses,
   type BusinessStatus,
   type BusinessType,
@@ -207,6 +209,7 @@ export function BusinessList() {
     page: page + 1,
     page_size: rowsPerPage,
   });
+  const { data: summary } = useBusinessSummary(business?.id);
 
   function handleSearch() {
     setPage(0);
@@ -259,35 +262,43 @@ export function BusinessList() {
 
       {/* Row 2 — stat cards */}
       <Grid container spacing={2} sx={{ mb: 4 }}>
-        <Grid size={{ xs: 12, sm: 6, lg: 3 }}>
+        <Grid size={{ xs: 12, sm: 6, lg: "grow" }}>
           <StatCard
             icon={<StorefrontOutlined fontSize="inherit" />}
             label="Total de ECs"
-            value={data?.count}
+            value={summary?.total}
           />
         </Grid>
-        <Grid size={{ xs: 12, sm: 6, lg: 3 }}>
+        <Grid size={{ xs: 12, sm: 6, lg: "grow" }}>
+          <StatCard
+            icon={<SyncOutlined fontSize="inherit" />}
+            label="Não iniciados"
+            value={summary?.not_started}
+            color="info.main"
+          />
+        </Grid>
+        <Grid size={{ xs: 12, sm: 6, lg: "grow" }}>
           <StatCard
             icon={<CheckCircleOutlined fontSize="inherit" />}
             label="Concluídos"
-            value={data ? (data.count_by_status.COMPLETED ?? 0) : undefined}
+            value={summary?.completed}
             color="success.main"
           />
         </Grid>
-        <Grid size={{ xs: 12, sm: 6, lg: 3 }}>
+        <Grid size={{ xs: 12, sm: 6, lg: "grow" }}>
           <StatCard
             icon={<AccessTimeOutlined fontSize="inherit" />}
             label="Pendentes"
-            value={data ? (data.count_by_status.PENDING ?? 0) : undefined}
+            value={summary?.pending}
             color="warning.main"
           />
         </Grid>
-        <Grid size={{ xs: 12, sm: 6, lg: 3 }}>
+        <Grid size={{ xs: 12, sm: 6, lg: "grow" }}>
           <StatCard
-            icon={<SyncOutlined fontSize="inherit" />}
-            label="Em Validação"
-            value={data ? (data.count_by_status.IN_VALIDATION ?? 0) : undefined}
-            color="info.main"
+            icon={<ErrorOutlineOutlined fontSize="inherit" />}
+            label="Falhos"
+            value={summary?.failed}
+            color="error.main"
           />
         </Grid>
       </Grid>
