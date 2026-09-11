@@ -75,10 +75,7 @@ export function RegistrationStep() {
   return (
     <>
       {canCreateReseller && (
-        <FormFieldPaper
-          title="Tipo de estabelecimento"
-          description="Defina se o novo estabelecimento será uma revenda."
-        >
+        <FormFieldPaper title="Você está cadastrando uma revenda?">
           <Controller
             name="isReseller"
             control={control}
@@ -99,39 +96,24 @@ export function RegistrationStep() {
       )}
 
       <FormFieldPaper
-        title="Tipo de documento"
-        description="Selecione o documento usado no cadastro."
-        required
-      >
-        <FormControl>
-          <FormLabel>CNPJ/CPF</FormLabel>
-          <Controller
-            name="documentType"
-            control={control}
-            render={({ field: { onChange, ...field } }) => (
-              <RadioGroup
-                {...field}
-                row
-                onChange={handleDocumentTypeChange(onChange)}
-              >
-                <FormControlLabel
-                  value="CNPJ"
-                  control={<Radio />}
-                  label="CNPJ"
-                />
-                <FormControlLabel value="CPF" control={<Radio />} label="CPF" />
-              </RadioGroup>
-            )}
-          />
-        </FormControl>
-      </FormFieldPaper>
-
-      <FormFieldPaper
         title="Documento"
-        description="Informe um CPF ou CNPJ válido."
         error={Boolean(errors.document)}
         required
       >
+        <Controller
+          name="documentType"
+          control={control}
+          render={({ field: { onChange, ...field } }) => (
+            <RadioGroup
+              {...field}
+              row
+              onChange={handleDocumentTypeChange(onChange)}
+            >
+              <FormControlLabel value="CNPJ" control={<Radio />} label="CNPJ" />
+              <FormControlLabel value="CPF" control={<Radio />} label="CPF" />
+            </RadioGroup>
+          )}
+        />
         <Controller
           name="document"
           control={control}
@@ -144,7 +126,7 @@ export function RegistrationStep() {
               customInput={TextField}
               getInputRef={ref}
               variant="standard"
-              label="Documento"
+              label={isCpf ? "CPF" : "CNPJ"}
               fullWidth
               required
               error={Boolean(errors.document)}
