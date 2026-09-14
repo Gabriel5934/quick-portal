@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Business } from "#hooks/quickApi/useBusinesses";
 import {
@@ -9,8 +9,10 @@ import {
 import { BusinessScopeContext } from "../../layout/business-context";
 import { BusinessList } from "./business-list-page";
 
+const mockNavigate = vi.hoisted(() => vi.fn());
+
 vi.mock("@tanstack/react-router", () => ({
-  useNavigate: () => vi.fn(),
+  useNavigate: () => mockNavigate,
 }));
 
 vi.mock("#hooks/quickApi/useBusinesses", () => ({
@@ -35,6 +37,7 @@ const selectedBusiness: Business = {
 
 describe("BusinessList summary", () => {
   beforeEach(() => {
+    mockNavigate.mockReset();
     vi.mocked(useAllBusinesses).mockReturnValue({
       data: [],
       isLoading: false,
@@ -83,5 +86,41 @@ describe("BusinessList summary", () => {
     expect(
       within(screen.getByText("Falhos").parentElement!).getByText("2"),
     ).toBeInTheDocument();
+  });
+
+  it("opens the selected business when its row is clicked", () => {
+    const childBusiness: Business = {
+      ...selectedBusiness,
+      id: 73,
+      type: "STORE",
+      parent: 42,
+      name: "Mercado Central Ltda.",
+      trade_name: "Mercado Central",
+    };
+    vi.mocked(useBusinesses).mockReturnValue({
+      data: {
+        count: 1,
+        next: null,
+        previous: null,
+        results: [childBusiness],
+      },
+      isLoading: false,
+      error: null,
+    } as unknown as ReturnType<typeof useBusinesses>);
+
+    render(
+      <BusinessScopeContext value={{ business: selectedBusiness }}>
+        <BusinessList />
+      </BusinessScopeContext>,
+    );
+
+    fireEvent.click(
+      screen.getByRole("link", { name: "Ver detalhes de Mercado Central" }),
+    );
+
+    expect(mockNavigate).toHaveBeenCalledWith({
+      to: "/business-list/$id",
+      params: { id: "73" },
+    });
   });
 });

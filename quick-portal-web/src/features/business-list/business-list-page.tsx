@@ -148,6 +148,13 @@ export function BusinessList() {
     setActiveFilters({});
   }
 
+  function openBusinessDetails(id: number) {
+    void navigate({
+      to: "/business-list/$id",
+      params: { id: String(id) },
+    });
+  }
+
   return (
     <Box>
       {/* Row 1 — header */}
@@ -345,7 +352,27 @@ export function BusinessList() {
                         : null;
 
                     return (
-                      <TableRow key={biz.id} hover>
+                      <TableRow
+                        key={biz.id}
+                        hover
+                        role="link"
+                        tabIndex={0}
+                        aria-label={`Ver detalhes de ${biz.trade_name || biz.name}`}
+                        onClick={() => openBusinessDetails(biz.id)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter") {
+                            openBusinessDetails(biz.id);
+                          }
+                        }}
+                        sx={{
+                          cursor: "pointer",
+                          "&:focus-visible": {
+                            outline: "2px solid",
+                            outlineColor: "primary.main",
+                            outlineOffset: -2,
+                          },
+                        }}
+                      >
                         <TableCell>
                           <Typography
                             variant="body2"
