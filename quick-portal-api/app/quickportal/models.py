@@ -55,16 +55,6 @@ class ChargeRule(models.TextChoices):
     DATE_OF_YEAR = "DATE_OF_YEAR", "Date of year"
 
 
-class Acquirer(models.Model):
-    name = models.CharField(max_length=100, unique=True)
-
-    class Meta:
-        db_table = "acquirer"
-
-    def __str__(self):
-        return self.name
-
-
 class Business(models.Model):
     type = models.CharField(max_length=20, choices=BusinessType.choices)
     parent = models.ForeignKey(

@@ -2,7 +2,6 @@ import Divider from "@mui/material/Divider";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { useBanks } from "#hooks/brasilApi/useBanks";
-import { useAcquirers } from "#hooks/quickApi/useAcquirers";
 import { usePlans } from "#hooks/quickApi/usePlans";
 import { usePosModels } from "#hooks/quickApi/usePosModels";
 import { FormFieldPaper } from "../../../components/multi-step-form";
@@ -30,11 +29,9 @@ export function CompleteBusinessReviewStep({
   values,
 }: CompleteBusinessReviewStepProps) {
   const { data: banks = [] } = useBanks();
-  const { data: acquirers = [] } = useAcquirers();
   const { data: plans = [] } = usePlans();
   const { data: posModels = [] } = usePosModels();
   const bank = banks.find((item) => String(item.code) === values.bankCode);
-  const acquirer = acquirers.find((item) => item.id === values.acquirerId);
   const plan = plans.find((item) => item.id === values.planId);
   const devices = values.posDevices.filter(
     (device) => device.model && device.serialNumber,
@@ -93,7 +90,6 @@ export function CompleteBusinessReviewStep({
       </FormFieldPaper>
       <FormFieldPaper title="Plano comercial">
         <Stack divider={<Divider flexItem />} spacing={1}>
-          <ReviewItem label="Adquirente" value={acquirer?.name} />
           <ReviewItem label="Plano" value={plan?.name} />
           <ReviewItem
             label="Faturamento esperado"

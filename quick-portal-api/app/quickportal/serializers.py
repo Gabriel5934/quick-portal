@@ -7,8 +7,8 @@ from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
 from quickportal.models import (
-    Acquirer, Business, BusinessColor, BusinessColorPreference, BusinessMembership,
-    BusinessType, DocumentType, RecurringFee, RecurringFeeTarget,
+    Business, BusinessColor, BusinessColorPreference, BusinessMembership, BusinessType,
+    DocumentType, RecurringFee, RecurringFeeTarget,
 )
 from quickportal.services.brasil_api import fetch_cnpj_info
 
@@ -76,12 +76,6 @@ class EmailTokenObtainPairSerializer(TokenObtainPairSerializer):
         data["refresh"] = str(refresh)
         data["access"] = str(refresh.access_token)
         return data
-
-
-class AcquirerSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Acquirer
-        fields = ["id", "name"]
 
 
 class BusinessWriteSerializer(serializers.ModelSerializer):

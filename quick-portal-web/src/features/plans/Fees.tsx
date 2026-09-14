@@ -23,7 +23,6 @@ import {
 import PercentIcon from "@mui/icons-material/Percent";
 import { Controller, useFormContext } from "react-hook-form";
 import type { FieldPath } from "react-hook-form";
-import { useAcquirers } from "#hooks/quickApi/useAcquirers";
 import { useCnaes } from "#hooks/quickApi/useCnaes";
 import { useFees } from "#hooks/quickApi/useFees";
 import { networkCode, useNetworks } from "#hooks/quickApi/useNetworks";
@@ -31,6 +30,7 @@ import { FormPaper } from "../business/FormPaper";
 import { makeBlankNetworkFees } from "./schemas";
 import type { CardNetworkFees, NewPlanFormValues } from "./schemas";
 
+const acquirerOptions: { id: number; name: string }[] = [];
 const FILL_MODES = ["manual", "six"] as const;
 type FillMode = (typeof FILL_MODES)[number];
 
@@ -90,8 +90,6 @@ export function Fees() {
   const [network, setNetwork] = useState("");
   const [fillMode, setFillMode] = useState<FillMode>("manual");
 
-  const { data: acquirerOptions = [], isLoading: areAcquirersLoading } =
-    useAcquirers();
   const {
     data: networkOptions = [],
     isLoading: areNetworksLoading,
@@ -169,7 +167,6 @@ export function Fees() {
       render={({ field: { onChange, value, ref } }) => (
         <Autocomplete
           options={acquirerOptions}
-          loading={areAcquirersLoading}
           getOptionLabel={(option) => option.name}
           isOptionEqualToValue={(option, selected) => option.id === selected.id}
           value={acquirerOptions.find((option) => option.id === value) ?? null}

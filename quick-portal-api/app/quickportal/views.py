@@ -10,7 +10,6 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.views import TokenObtainPairView
 
 from quickportal.models import (
-    Acquirer,
     BusinessColorPreference,
     BusinessMembership,
     BusinessRole,
@@ -18,7 +17,6 @@ from quickportal.models import (
     RecurringFee,
 )
 from quickportal.serializers import (
-    AcquirerSerializer,
     BusinessReadSerializer,
     BusinessColorPreferenceSerializer,
     BusinessMembershipReadSerializer,
@@ -84,15 +82,6 @@ class UserRegistrationView(APIView):
 
 class EmailTokenObtainPairView(TokenObtainPairView):
     serializer_class = EmailTokenObtainPairSerializer
-
-
-class AcquirerListView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    def get(self, request):
-        acquirers = Acquirer.objects.all()
-        serializer = AcquirerSerializer(acquirers, many=True)
-        return Response(serializer.data)
 
 
 class BusinessPagination(PageNumberPagination):

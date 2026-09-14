@@ -6,7 +6,6 @@ import {
   useBusinesses,
   useBusinessSummary,
 } from "#hooks/quickApi/useBusinesses";
-import { useAcquirers } from "#hooks/quickApi/useAcquirers";
 import { BusinessScopeContext } from "../../layout/business-context";
 import { BusinessList } from "./business-list-page";
 
@@ -18,10 +17,6 @@ vi.mock("#hooks/quickApi/useBusinesses", () => ({
   useAllBusinesses: vi.fn(),
   useBusinesses: vi.fn(),
   useBusinessSummary: vi.fn(),
-}));
-
-vi.mock("#hooks/quickApi/useAcquirers", () => ({
-  useAcquirers: vi.fn(),
 }));
 
 const selectedBusiness: Business = {
@@ -63,13 +58,9 @@ describe("BusinessList summary", () => {
         failed: 2,
       },
     } as ReturnType<typeof useBusinessSummary>);
-    vi.mocked(useAcquirers).mockReturnValue({
-      data: [],
-      isLoading: false,
-    } as unknown as ReturnType<typeof useAcquirers>);
   });
 
-  it("shows the parent-scoped acquirer summary", () => {
+  it("shows the parent-scoped business summary", () => {
     render(
       <BusinessScopeContext value={{ business: selectedBusiness }}>
         <BusinessList />
