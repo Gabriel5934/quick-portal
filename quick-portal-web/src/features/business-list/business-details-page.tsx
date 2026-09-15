@@ -6,20 +6,33 @@ import {
   CircularProgress,
   Link,
   Paper,
+  Tab,
   Table,
   TableBody,
   TableCell,
   TableContainer,
   TableRow,
+  Tabs,
   Typography,
 } from "@mui/material";
-import { AddBusinessOutlined, ArrowBackOutlined } from "@mui/icons-material";
+import {
+  AddBusinessOutlined,
+  ArrowBackOutlined,
+  HourglassEmptyOutlined,
+  StorefrontOutlined,
+} from "@mui/icons-material";
 import { Link as RouterLink } from "@tanstack/react-router";
+import { useState, type ReactNode, type SyntheticEvent } from "react";
 import {
   useBusiness,
   type Business,
   type BusinessType,
 } from "#hooks/quickApi/useBusinesses";
+import {
+  useOwnBusinessForBusiness,
+  type OwnBusinessDetails,
+  type OwnRegistrationStatus,
+} from "#hooks/quickApi/useOwnBusinesses";
 
 interface BusinessDetailsProps {
   businessId: number | undefined;
@@ -27,7 +40,13 @@ interface BusinessDetailsProps {
 
 interface DetailRow {
   label: string;
-  value: string | number | null | undefined;
+  value: ReactNode;
+}
+
+interface TabPanelProps {
+  children: ReactNode;
+  index: number;
+  value: number;
 }
 
 function businessTypeLabel(type: BusinessType): string {
@@ -67,11 +86,37 @@ function formatPhone(phone: string): string {
   return phone;
 }
 
-function displayValue(value: DetailRow["value"]): string {
+function displayValue(value: DetailRow["value"]): ReactNode {
   if (value == null || (typeof value === "string" && value.trim() === "")) {
     return "-";
   }
-  return String(value);
+  return value;
+}
+
+function formatPostalCode(postalCode: string): string {
+  const digits = postalCode.replace(/\D/g, "");
+  return digits.length === 8
+    ? digits.replace(/(\d{5})(\d{3})/, "$1-$2")
+    : postalCode;
+}
+
+function formatCurrency(value: string): string {
+  const amount = Number(value);
+  return Number.isFinite(amount)
+    ? amount.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
+    : value;
+}
+
+function formatDate(value: string): string {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString("pt-BR");
+}
+
+function ownStatusLabel(status: OwnRegistrationStatus): string {
+  if (status === "REGISTERED") return "Credenciado";
+  if (status === "PENDING") return "Pendente";
+  if (status === "API_REQUEST_FAILED") return "Falha no credenciamento";
+  return "Status desconhecido";
 }
 
 function getDetailRows(business: Business): DetailRow[] {
@@ -89,8 +134,121 @@ function getDetailRows(business: Business): DetailRow[] {
   ];
 }
 
+function getOwnDetailRows(ownBusiness: OwnBusinessDetails): DetailRow[] {
+  const address = [
+    `${ownBusiness.street}, ${ownBusiness.address_number}`,
+    ownBusiness.address_complement,
+    ownBusiness.neighborhood,
+    `${ownBusiness.city} - ${ownBusiness.state}`,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
+  return [
+    { label: "ID OWN", value: ownBusiness.id },
+    {
+      label: "Status do credenciamento",
+      value: ownStatusLabel(ownBusiness.registration_status),
+    },
+    { label: "Erro do credenciamento", value: ownBusiness.registration_error },
+    { label: "CNAE", value: ownBusiness.cnae },
+    { label: "Plano", value: ownBusiness.plan },
+    { label: "Responsável pela assinatura", value: ownBusiness.signatory_name },
+    {
+      label: "CPF do responsável",
+      value: formatDocument(ownBusiness.signatory_cpf),
+    },
+    { label: "E-mail do responsável", value: ownBusiness.signatory_email },
+    {
+      label: "Faturamento previsto",
+      value: formatCurrency(ownBusiness.forecast_revenue),
+    },
+    {
+      label: "Faturamento contratado",
+      value: formatCurrency(ownBusiness.contract_revenue),
+    },
+    { label: "CEP", value: formatPostalCode(ownBusiness.postal_code) },
+    { label: "Endereço", value: address },
+    { label: "Quantidade de POS", value: ownBusiness.pos_quantity },
+    { label: "Banco", value: ownBusiness.bank_code },
+    {
+      label: "Agência",
+      value: `${ownBusiness.bank_branch}-${ownBusiness.bank_branch_digit}`,
+    },
+    {
+      label: "Conta",
+      value: `${ownBusiness.bank_account}-${ownBusiness.bank_account_digit}`,
+    },
+    { label: "Protocolo Core", value: ownBusiness.core_protocol },
+    { label: "Número do contrato", value: ownBusiness.contract_number },
+    { label: "Criado em", value: formatDate(ownBusiness.created_at) },
+    { label: "Atualizado em", value: formatDate(ownBusiness.updated_at) },
+  ];
+}
+
+function tabA11yProps(index: number) {
+  return {
+    id: `business-details-tab-${index}`,
+    "aria-controls": `business-details-tabpanel-${index}`,
+  };
+}
+
+function TabPanel({ children, index, value }: TabPanelProps) {
+  return (
+    <Box
+      role="tabpanel"
+      hidden={value !== index}
+      tabIndex={0}
+      id={`business-details-tabpanel-${index}`}
+      aria-labelledby={`business-details-tab-${index}`}
+      sx={{ p: { xs: 2, sm: 3 } }}
+    >
+      {value === index ? children : null}
+    </Box>
+  );
+}
+
+function DetailsTable({
+  ariaLabel,
+  rows,
+}: {
+  ariaLabel: string;
+  rows: DetailRow[];
+}) {
+  return (
+    <TableContainer>
+      <Table aria-label={ariaLabel}>
+        <TableBody>
+          {rows.map((row) => (
+            <TableRow key={row.label}>
+              <TableCell
+                component="th"
+                scope="row"
+                sx={{ width: { xs: "45%", sm: 260 }, fontWeight: "bold" }}
+              >
+                {row.label}
+              </TableCell>
+              <TableCell>{displayValue(row.value)}</TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </TableContainer>
+  );
+}
+
 export function BusinessDetails({ businessId }: BusinessDetailsProps) {
+  const [activeTab, setActiveTab] = useState(0);
   const { data: business, isLoading, error } = useBusiness(businessId);
+  const {
+    data: ownBusiness,
+    isLoading: isOwnBusinessLoading,
+    error: ownBusinessError,
+  } = useOwnBusinessForBusiness(businessId, activeTab === 1);
+
+  function handleTabChange(_: SyntheticEvent, nextTab: number) {
+    setActiveTab(nextTab);
+  }
 
   return (
     <Box>
@@ -126,25 +284,14 @@ export function BusinessDetails({ businessId }: BusinessDetailsProps) {
             Consulte os dados cadastrais do estabelecimento selecionado
           </Typography>
         </Box>
-        <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
-          {business?.type === "STORE" ? (
-            <Button
-              href={`/business-list/${business.id}/credenciamento-own`}
-              variant="contained"
-              startIcon={<AddBusinessOutlined />}
-            >
-              Credenciar na OWN
-            </Button>
-          ) : null}
-          <Button
-            component={RouterLink}
-            to="/business-list"
-            variant="outlined"
-            startIcon={<ArrowBackOutlined />}
-          >
-            Voltar
-          </Button>
-        </Box>
+        <Button
+          component={RouterLink}
+          to="/business-list"
+          variant="outlined"
+          startIcon={<ArrowBackOutlined />}
+        >
+          Voltar
+        </Button>
       </Box>
 
       {businessId === undefined ? (
@@ -162,24 +309,98 @@ export function BusinessDetails({ businessId }: BusinessDetailsProps) {
           <CircularProgress />
         </Box>
       ) : business ? (
-        <TableContainer component={Paper} variant="outlined">
-          <Table aria-label="Detalhes do estabelecimento">
-            <TableBody>
-              {getDetailRows(business).map((row) => (
-                <TableRow key={row.label}>
-                  <TableCell
-                    component="th"
-                    scope="row"
-                    sx={{ width: { xs: "45%", sm: 240 }, fontWeight: "bold" }}
-                  >
-                    {row.label}
-                  </TableCell>
-                  <TableCell>{displayValue(row.value)}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
+        <Paper variant="outlined">
+          <Tabs
+            value={activeTab}
+            onChange={handleTabChange}
+            variant="scrollable"
+            scrollButtons="auto"
+            aria-label="Dados do estabelecimento por adquirente"
+            sx={{ borderBottom: 1, borderColor: "divider" }}
+          >
+            <Tab label="Quick" {...tabA11yProps(0)} />
+            <Tab label="OWN" {...tabA11yProps(1)} />
+            <Tab label="Cielo" {...tabA11yProps(2)} />
+          </Tabs>
+
+          <TabPanel value={activeTab} index={0}>
+            <DetailsTable
+              ariaLabel="Dados Quick do estabelecimento"
+              rows={getDetailRows(business)}
+            />
+          </TabPanel>
+
+          <TabPanel value={activeTab} index={1}>
+            {ownBusinessError ? (
+              <Alert severity="error">
+                {ownBusinessError instanceof Error
+                  ? ownBusinessError.message
+                  : "Erro ao carregar o credenciamento OWN."}
+              </Alert>
+            ) : isOwnBusinessLoading ? (
+              <Box sx={{ display: "flex", justifyContent: "center", py: 6 }}>
+                <CircularProgress />
+              </Box>
+            ) : ownBusiness ? (
+              <DetailsTable
+                ariaLabel="Dados OWN do estabelecimento"
+                rows={getOwnDetailRows(ownBusiness)}
+              />
+            ) : (
+              <Box
+                sx={{
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  textAlign: "center",
+                  py: { xs: 4, sm: 7 },
+                  px: 2,
+                }}
+              >
+                <StorefrontOutlined
+                  color="disabled"
+                  sx={{ fontSize: 56, mb: 2 }}
+                />
+                <Typography variant="h6" sx={{ mb: 1 }}>
+                  Estabelecimento não credenciado na OWN
+                </Typography>
+                <Button
+                  href={`/business-list/${business.id}/credenciamento-own`}
+                  variant="contained"
+                  startIcon={<AddBusinessOutlined />}
+                  component={RouterLink}
+                >
+                  Credenciar
+                </Button>
+              </Box>
+            )}
+          </TabPanel>
+
+          <TabPanel value={activeTab} index={2}>
+            <Box
+              sx={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                textAlign: "center",
+                py: { xs: 4, sm: 7 },
+                px: 2,
+              }}
+            >
+              <HourglassEmptyOutlined
+                color="disabled"
+                sx={{ fontSize: 56, mb: 2 }}
+              />
+              <Typography variant="h6" sx={{ mb: 1 }}>
+                Cielo ainda não está disponível
+              </Typography>
+              <Typography color="text.secondary">
+                Os dados de credenciamento da Cielo estarão disponíveis em
+                breve.
+              </Typography>
+            </Box>
+          </TabPanel>
+        </Paper>
       ) : null}
     </Box>
   );
