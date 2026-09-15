@@ -99,7 +99,6 @@ class Command(BaseCommand):
                 instance.save()
             OwnActivity.objects.filter(
                 plans__isnull=True,
-                businesses__isnull=True,
             ).exclude(
                 cnae__in=incoming_cnaes
             ).delete()

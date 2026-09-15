@@ -132,7 +132,6 @@ class OwnBusinessModelTests(TestCase):
         """Create and return an OWN business using optional field ``overrides``."""
         values = {
             "business": self.business,
-            "cnae": self.activity,
             "plan": self.plan,
             "signatory_name": "Maria Silva",
             "signatory_cpf": "52998224725",
@@ -160,30 +159,10 @@ class OwnBusinessModelTests(TestCase):
         own_business = self.create_own_business()
 
         self.assertEqual(self.business.own_business, own_business)
-        self.assertEqual(own_business.cnae, self.activity)
         self.assertEqual(own_business.plan, self.plan)
+        self.assertEqual(own_business.plan.activity, self.activity)
         with self.assertRaises(ValidationError):
             self.create_own_business()
-
-    def test_rejects_a_plan_for_a_different_activity(self):
-        other_activity = OwnActivity.objects.create(
-            cnae=6201501,
-            description="Software development",
-            mcc=7372,
-        )
-        other_plan = OwnPlan.objects.create(
-            created_by=self.user,
-            updated_by=self.user,
-            title="Software plan",
-            activity=other_activity,
-            basketId=OwnBasket.objects.get(pk=117),
-        )
-
-        with self.assertRaisesMessage(
-            ValidationError,
-            "The plan activity must match the business CNAE.",
-        ):
-            self.create_own_business(plan=other_plan)
 
     def test_full_clean_reports_an_invalid_plan_id(self):
         own_business = self.create_own_business()
@@ -315,7 +294,6 @@ class OwnBusinessSignupEndpointTests(TestCase):
         encoded_file = base64.b64encode(b"document contents").decode("ascii")
         return {
             "business": self.business.pk,
-            "cnae": self.activity.pk,
             "plan": self.plan.pk,
             "signatory_name": "Maria Silva",
             "signatory_cpf": "52998224725",
@@ -368,6 +346,7 @@ class OwnBusinessSignupEndpointTests(TestCase):
 
         self.assertEqual(response.status_code, 201, response.data)
         own_business = OwnBusiness.objects.get()
+        self.assertEqual(response.data["cnae"], self.plan.activity_id)
         self.assertEqual(own_business.core_protocol, "PROTO-1")
         self.assertEqual(
             own_business.registration_status,
@@ -524,6 +503,50 @@ class OwnBusinessSignupEndpointTests(TestCase):
         self.assertEqual(own_business.registration_status, OwnRegistrationStatus.REGISTERED)
         payload = register_merchant.call_args.args[0]
         self.assertIn("/corrected@example.com/", payload["identificadorCliente"])
+
+    @patch("own.views.register_merchant")
+    @patch("own.serializers.fetch_cep_info")
+    def test_changing_plan_updates_the_derived_cnae_response(
+        self,
+        fetch_cep_info,
+        register_merchant,
+    ):
+        fetch_cep_info.return_value = {
+            "street": "Rua Milton Martins",
+            "neighborhood": "Urbanova",
+            "city": "São José dos Campos",
+            "state": "SP",
+        }
+        register_merchant.side_effect = MerchantRegistrationError(
+            "rejected",
+            status_code=400,
+        )
+        other_activity = OwnActivity.objects.create(
+            cnae=6201501,
+            description="Software development",
+            mcc=5734,
+        )
+        other_plan = OwnPlan.objects.create(
+            created_by=self.user,
+            updated_by=self.user,
+            title="Software plan",
+            activity=other_activity,
+            basketId=OwnBasket.objects.get(pk=117),
+        )
+
+        with TemporaryDirectory() as media_root, override_settings(MEDIA_ROOT=media_root):
+            self.client.post("/own/businesses/", self.payload(), format="json")
+            own_business = OwnBusiness.objects.get()
+            response = self.client.patch(
+                f"/own/businesses/{own_business.pk}/",
+                {"plan": other_plan.pk},
+                format="json",
+            )
+
+        self.assertEqual(response.status_code, 200, response.data)
+        own_business.refresh_from_db()
+        self.assertEqual(own_business.plan, other_plan)
+        self.assertEqual(response.data["cnae"], other_activity.pk)
 
     @patch("own.views.register_merchant")
     @patch("own.serializers.fetch_cep_info")

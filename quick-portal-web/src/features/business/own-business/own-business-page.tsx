@@ -53,7 +53,6 @@ export function OwnBusiness({ businessId }: { businessId: number }) {
       number: "",
       complement: "",
       planId: undefined,
-      activityId: undefined,
       signatoryName: "",
       signatoryCpf: "",
       signatoryEmail: "",

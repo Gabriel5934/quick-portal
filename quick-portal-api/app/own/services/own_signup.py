@@ -26,6 +26,7 @@ def build_own_business_signup_payload(own_business):
     """Build the complete ``/cadastrarConveniada`` request for ``own_business``."""
     business = own_business.business
     plan = own_business.plan
+    activity = plan.activity
     phone = business.phone
     landline = business.landline or phone
     identifier = "/".join(
@@ -43,8 +44,8 @@ def build_own_business_signup_payload(own_business):
         "identificadorCliente": identifier,
         "razaoSocial": business.name,
         "nomeFantasia": business.trade_name or business.name,
-        "cnae": own_business.cnae.cnae,
-        "ramoAtividade": own_business.cnae.description,
+        "cnae": activity.cnae,
+        "ramoAtividade": activity.description,
         "faturamentoPrevisto": format(own_business.forecast_revenue, "f"),
         "email": business.email,
         "dddComercial": landline[:2],
@@ -64,7 +65,7 @@ def build_own_business_signup_payload(own_business):
         "faturamentoContratado": format(own_business.contract_revenue, "f"),
         "antecipacaoAutomatica": "N" if plan.anticipation_type == "None" else "S",
         "taxaAntecipacao": 0,
-        "mcc": own_business.cnae.mcc,
+        "mcc": activity.mcc,
         "tipoContrato": CONTRACT_TYPE,
         "cnpjParceiro": PARTNER_CNPJ,
         "idCesta": plan.basketId_id,

@@ -97,6 +97,7 @@ class OwnBusinessPartnerReadSerializer(serializers.ModelSerializer):
 
 class OwnBusinessSignupSerializer(serializers.ModelSerializer):
     business = serializers.PrimaryKeyRelatedField(read_only=True)
+    cnae = serializers.IntegerField(source="plan.activity_id", read_only=True)
     partners = OwnBusinessPartnerInputSerializer(
         many=True,
         allow_empty=True,
@@ -222,10 +223,6 @@ class OwnBusinessSignupSerializer(serializers.ModelSerializer):
 
     def validate(self, attrs):
         """Validate signup mapping ``attrs`` and return it with managed address data."""
-        if attrs["plan"].activity_id != attrs["cnae"].pk:
-            raise serializers.ValidationError(
-                {"plan": "The plan activity must match the business CNAE."}
-            )
         all_attachments = list(attrs["attachments"])
         all_attachments.extend(
             attachment
@@ -320,13 +317,6 @@ class OwnBusinessUpdateSerializer(OwnBusinessSignupSerializer):
 
     def validate(self, attrs):
         """Validate changed values against the persisted signup state."""
-        plan = attrs.get("plan", self.instance.plan)
-        cnae = attrs.get("cnae", self.instance.cnae)
-        if plan.activity_id != cnae.pk:
-            raise serializers.ValidationError(
-                {"plan": "The plan activity must match the business CNAE."}
-            )
-
         partners = attrs.get("partners", serializers.empty)
         attachments = attrs.get("attachments", serializers.empty)
         final_attachments = []

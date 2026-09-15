@@ -142,7 +142,7 @@ def _submit_registration(own_business):
 def _manageable_signup_or_404(user, pk, lock=False):
     """Return signup ``pk`` when ``user`` has a manager or administrator role."""
     queryset = OwnBusiness.objects.select_related(
-            "business", "cnae", "plan", "plan__basketId"
+            "business", "plan", "plan__activity", "plan__basketId"
         ).prefetch_related(
             "plan__fees__fee",
             "partners__attachments",
@@ -178,7 +178,7 @@ class OwnBusinessSignupView(ListCreateAPIView):
     def _base_queryset():
         """Return the optimized, unscoped queryset used by this view."""
         return OwnBusiness.objects.select_related(
-            "business", "cnae", "plan", "plan__basketId"
+            "business", "plan", "plan__activity", "plan__basketId"
         ).prefetch_related(
             "plan__fees",
             "plan__fees__fee",

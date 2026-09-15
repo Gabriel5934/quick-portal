@@ -1,6 +1,5 @@
 from django.db import models
 from django.conf import settings
-from django.core.exceptions import ValidationError
 from django.core.validators import MinLengthValidator, MinValueValidator, RegexValidator
 
 from own.validators import validate_cpf
@@ -218,11 +217,6 @@ class OwnBusiness(models.Model):
         on_delete=models.CASCADE,
         related_name="own_business",
     )
-    cnae = models.ForeignKey(
-        OwnActivity,
-        on_delete=models.PROTECT,
-        related_name="businesses",
-    )
     plan = models.ForeignKey(
         OwnPlan,
         on_delete=models.PROTECT,
@@ -277,18 +271,6 @@ class OwnBusiness(models.Model):
     class Meta:
         db_table = "own_businesses"
         ordering = ["id"]
-
-    def clean(self):
-        """Validate that this signup's ``plan`` belongs to its selected CNAE."""
-        super().clean()
-        try:
-            plan_activity_id = self.plan.activity_id if self.plan_id else None
-        except OwnPlan.DoesNotExist:
-            plan_activity_id = None
-        if self.cnae_id and plan_activity_id and plan_activity_id != self.cnae_id:
-            raise ValidationError(
-                {"plan": "The plan activity must match the business CNAE."}
-            )
 
     def save(self, *args, **kwargs):
         """Validate and persist ``self`` using Django's normal save arguments."""

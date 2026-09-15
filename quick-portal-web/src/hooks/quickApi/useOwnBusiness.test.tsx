@@ -25,7 +25,6 @@ const payload = {
   number: "100A",
   complement: "Sala 1",
   planId: 18,
-  activityId: 4814,
   signatoryName: "Maria Silva",
   signatoryCpf: "529.982.247-25",
   signatoryEmail: "maria@example.com",
@@ -72,7 +71,6 @@ describe("useOwnBusiness", () => {
     const requestBody = JSON.parse(options.body as string) as unknown;
     expect(requestBody).toEqual({
       business: 73,
-      cnae: 4814,
       plan: 18,
       signatory_name: "Maria Silva",
       signatory_cpf: "52998224725",

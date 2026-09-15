@@ -336,7 +336,6 @@ class BusinessSummaryApiTests(APITestCase):
     def create_own_business(self, business, registration_status):
         return OwnBusiness.objects.create(
             business=business,
-            cnae=self.plan.activity,
             plan=self.plan,
             signatory_name="Maria Silva",
             signatory_cpf="52998224725",

@@ -45,10 +45,6 @@ export const addressFields = Object.keys(addressSchema.shape) as (keyof z.infer<
 
 export const commercialPlanSchema = z.object({
   planId: z.number({ message: "Plano é obrigatório" }).int().positive(),
-  activityId: z
-    .number({ message: "Atividade do plano é obrigatória" })
-    .int()
-    .positive(),
   signatoryName: z.string().min(1, "Nome do responsável é obrigatório"),
   signatoryCpf: z
     .string()

@@ -49,7 +49,6 @@ async function createOwnBusiness(
       headers,
       body: JSON.stringify({
         business: businessId,
-        cnae: data.activityId,
         plan: data.planId,
         signatory_name: data.signatoryName,
         signatory_cpf: data.signatoryCpf.replace(/\D/g, ""),

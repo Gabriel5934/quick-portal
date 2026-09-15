@@ -13,7 +13,6 @@ export function OwnRegistrationStep() {
   const { data: plans = [] } = useOwnPlans();
   const {
     control,
-    setValue,
     formState: { errors },
   } = useFormContext<OwnBusinessFormValues>();
 
@@ -132,12 +131,7 @@ export function OwnRegistrationStep() {
                 option.id === selected.id
               }
               value={plans.find((plan) => plan.id === value) ?? null}
-              onChange={(_, selected) => {
-                onChange(selected?.id);
-                setValue("activityId", selected?.activity ?? 0, {
-                  shouldValidate: true,
-                });
-              }}
+              onChange={(_, selected) => onChange(selected?.id)}
               renderInput={(params) => (
                 <TextField
                   {...params}
