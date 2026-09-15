@@ -13,7 +13,7 @@ import {
   TableRow,
   Typography,
 } from "@mui/material";
-import { ArrowBackOutlined } from "@mui/icons-material";
+import { AddBusinessOutlined, ArrowBackOutlined } from "@mui/icons-material";
 import { Link as RouterLink } from "@tanstack/react-router";
 import {
   useBusiness,
@@ -126,14 +126,25 @@ export function BusinessDetails({ businessId }: BusinessDetailsProps) {
             Consulte os dados cadastrais do estabelecimento selecionado
           </Typography>
         </Box>
-        <Button
-          component={RouterLink}
-          to="/business-list"
-          variant="outlined"
-          startIcon={<ArrowBackOutlined />}
-        >
-          Voltar
-        </Button>
+        <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
+          {business?.type === "STORE" ? (
+            <Button
+              href={`/business-list/${business.id}/credenciamento-own`}
+              variant="contained"
+              startIcon={<AddBusinessOutlined />}
+            >
+              Credenciar na OWN
+            </Button>
+          ) : null}
+          <Button
+            component={RouterLink}
+            to="/business-list"
+            variant="outlined"
+            startIcon={<ArrowBackOutlined />}
+          >
+            Voltar
+          </Button>
+        </Box>
       </Box>
 
       {businessId === undefined ? (

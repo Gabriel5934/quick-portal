@@ -1,11 +1,25 @@
 import { render, screen, within } from "@testing-library/react";
+import type { AnchorHTMLAttributes, ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Business } from "#hooks/quickApi/useBusinesses";
 import { useBusiness } from "#hooks/quickApi/useBusinesses";
 import { BusinessDetails } from "./business-details-page";
 
 vi.mock("@tanstack/react-router", () => ({
-  Link: "a",
+  Link: ({
+    children,
+    to,
+    params,
+    ...props
+  }: AnchorHTMLAttributes<HTMLAnchorElement> & {
+    children: ReactNode;
+    to: string;
+    params?: { id: string };
+  }) => (
+    <a {...props} href={params ? to.replace("$id", params.id) : to}>
+      {children}
+    </a>
+  ),
 }));
 
 vi.mock("#hooks/quickApi/useBusinesses", () => ({
@@ -47,6 +61,9 @@ describe("BusinessDetails", () => {
     ).toBeInTheDocument();
     expect(within(table).getByText("12.345.678/0001-95")).toBeInTheDocument();
     expect(within(table).getByText("(11) 98765-4321")).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: /Credenciar na OWN/ }),
+    ).toHaveAttribute("href", "/business-list/73/credenciamento-own");
   });
 
   it("shows an error for an invalid business id", () => {

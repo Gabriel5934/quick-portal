@@ -4,7 +4,7 @@ import { Controller, useFormContext, useWatch } from "react-hook-form";
 import { PatternFormat } from "react-number-format";
 import { CepValidationError, useCep } from "#hooks/brasilApi/useCep";
 import { FormFieldPaper } from "../../../components/multi-step-form";
-import type { CompleteBusinessFormValues } from "./types";
+import type { OwnBusinessFormValues } from "./types";
 
 const derivedFields = ["state", "city", "neighborhood", "street"] as const;
 
@@ -15,7 +15,7 @@ export function AddressStep() {
     setError,
     clearErrors,
     formState: { errors },
-  } = useFormContext<CompleteBusinessFormValues>();
+  } = useFormContext<OwnBusinessFormValues>();
   const postalCode = useWatch({ control, name: "postalCode" }) ?? "";
   const { data: address, error } = useCep(postalCode);
 

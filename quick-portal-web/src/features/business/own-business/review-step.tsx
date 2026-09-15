@@ -2,13 +2,12 @@ import Divider from "@mui/material/Divider";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { useBanks } from "#hooks/brasilApi/useBanks";
-import { usePlans } from "#hooks/quickApi/usePlans";
-import { usePosModels } from "#hooks/quickApi/usePosModels";
+import { useOwnPlans } from "#hooks/quickApi/useOwnPlans";
 import { FormFieldPaper } from "../../../components/multi-step-form";
-import type { CompleteBusinessFormValues } from "./types";
+import type { OwnBusinessFormValues } from "./types";
 
-interface CompleteBusinessReviewStepProps {
-  values: CompleteBusinessFormValues;
+interface OwnBusinessReviewStepProps {
+  values: OwnBusinessFormValues;
 }
 
 function ReviewItem({
@@ -25,17 +24,11 @@ function ReviewItem({
   );
 }
 
-export function CompleteBusinessReviewStep({
-  values,
-}: CompleteBusinessReviewStepProps) {
+export function OwnBusinessReviewStep({ values }: OwnBusinessReviewStepProps) {
   const { data: banks = [] } = useBanks();
-  const { data: plans = [] } = usePlans();
-  const { data: posModels = [] } = usePosModels();
+  const { data: plans = [] } = useOwnPlans();
   const bank = banks.find((item) => String(item.code) === values.bankCode);
   const plan = plans.find((item) => item.id === values.planId);
-  const devices = values.posDevices.filter(
-    (device) => device.model && device.serialNumber,
-  );
 
   return (
     <>
@@ -68,29 +61,16 @@ export function CompleteBusinessReviewStep({
           />
         </Stack>
       </FormFieldPaper>
-      <FormFieldPaper title={`Terminais (${devices.length})`}>
+      <FormFieldPaper title="Responsável pela assinatura">
         <Stack divider={<Divider flexItem />} spacing={1}>
-          {devices.length === 0 ? (
-            <Typography color="text.secondary">
-              Nenhum terminal informado.
-            </Typography>
-          ) : (
-            devices.map((device, index) => (
-              <ReviewItem
-                key={`${device.model}-${device.serialNumber}-${index}`}
-                label={
-                  posModels.find((model) => String(model.id) === device.model)
-                    ?.model ?? `Terminal ${index + 1}`
-                }
-                value={device.serialNumber}
-              />
-            ))
-          )}
+          <ReviewItem label="Nome" value={values.signatoryName} />
+          <ReviewItem label="CPF" value={values.signatoryCpf} />
+          <ReviewItem label="E-mail" value={values.signatoryEmail} />
         </Stack>
       </FormFieldPaper>
-      <FormFieldPaper title="Plano comercial">
+      <FormFieldPaper title="Plano comercial OWN">
         <Stack divider={<Divider flexItem />} spacing={1}>
-          <ReviewItem label="Plano" value={plan?.name} />
+          <ReviewItem label="Plano" value={plan?.title} />
           <ReviewItem
             label="Faturamento esperado"
             value={values.expectedRevenue}

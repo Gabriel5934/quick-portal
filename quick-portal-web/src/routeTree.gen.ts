@@ -17,7 +17,6 @@ import { Route as AuthRoutesRecurringFeesRouteImport } from './routes/_authRoute
 import { Route as AuthRoutesPlanosETaxasRouteImport } from './routes/_authRoutes/planos-e-taxas'
 import { Route as AuthRoutesNovoPlanoRouteImport } from './routes/_authRoutes/novo-plano'
 import { Route as AuthRoutesNovoEcRouteImport } from './routes/_authRoutes/novo-ec'
-import { Route as AuthRoutesCompletarEcRouteImport } from './routes/_authRoutes/completar-ec'
 import { Route as AuthRoutesBusinessListRouteImport } from './routes/_authRoutes/business-list'
 import { Route as AuthRoutesRecurringFeesIndexRouteImport } from './routes/_authRoutes/recurring-fees.index'
 import { Route as AuthRoutesBusinessListIdRouteImport } from './routes/_authRoutes/business-list_.$id'
@@ -26,6 +25,7 @@ import { Route as AuthRoutesRecurringFeesNewScheduleRouteImport } from './routes
 import { Route as AuthRoutesRecurringFeesNewReviewRouteImport } from './routes/_authRoutes/recurring-fees.new.review'
 import { Route as AuthRoutesRecurringFeesNewPricingRouteImport } from './routes/_authRoutes/recurring-fees.new.pricing'
 import { Route as AuthRoutesRecurringFeesNewDetailsRouteImport } from './routes/_authRoutes/recurring-fees.new.details'
+import { Route as AuthRoutesBusinessListIdCredenciamentoOwnRouteImport } from './routes/_authRoutes/business-list_.$id_.credenciamento-own'
 
 const SignupRoute = SignupRouteImport.update({
   id: '/signup',
@@ -64,11 +64,6 @@ const AuthRoutesNovoPlanoRoute = AuthRoutesNovoPlanoRouteImport.update({
 const AuthRoutesNovoEcRoute = AuthRoutesNovoEcRouteImport.update({
   id: '/novo-ec',
   path: '/novo-ec',
-  getParentRoute: () => AuthRoutesRouteRoute,
-} as any)
-const AuthRoutesCompletarEcRoute = AuthRoutesCompletarEcRouteImport.update({
-  id: '/completar-ec',
-  path: '/completar-ec',
   getParentRoute: () => AuthRoutesRouteRoute,
 } as any)
 const AuthRoutesBusinessListRoute = AuthRoutesBusinessListRouteImport.update({
@@ -118,12 +113,17 @@ const AuthRoutesRecurringFeesNewDetailsRoute =
     path: '/new/details',
     getParentRoute: () => AuthRoutesRecurringFeesRoute,
   } as any)
+const AuthRoutesBusinessListIdCredenciamentoOwnRoute =
+  AuthRoutesBusinessListIdCredenciamentoOwnRouteImport.update({
+    id: '/business-list_/$id_/credenciamento-own',
+    path: '/business-list/$id/credenciamento-own',
+    getParentRoute: () => AuthRoutesRouteRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/signup': typeof SignupRoute
   '/business-list': typeof AuthRoutesBusinessListRoute
-  '/completar-ec': typeof AuthRoutesCompletarEcRoute
   '/novo-ec': typeof AuthRoutesNovoEcRoute
   '/novo-plano': typeof AuthRoutesNovoPlanoRoute
   '/planos-e-taxas': typeof AuthRoutesPlanosETaxasRoute
@@ -131,6 +131,7 @@ export interface FileRoutesByFullPath {
   '/sales': typeof AuthRoutesSalesRoute
   '/business-list/$id': typeof AuthRoutesBusinessListIdRoute
   '/recurring-fees/': typeof AuthRoutesRecurringFeesIndexRoute
+  '/business-list/$id/credenciamento-own': typeof AuthRoutesBusinessListIdCredenciamentoOwnRoute
   '/recurring-fees/new/details': typeof AuthRoutesRecurringFeesNewDetailsRoute
   '/recurring-fees/new/pricing': typeof AuthRoutesRecurringFeesNewPricingRoute
   '/recurring-fees/new/review': typeof AuthRoutesRecurringFeesNewReviewRoute
@@ -141,13 +142,13 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/signup': typeof SignupRoute
   '/business-list': typeof AuthRoutesBusinessListRoute
-  '/completar-ec': typeof AuthRoutesCompletarEcRoute
   '/novo-ec': typeof AuthRoutesNovoEcRoute
   '/novo-plano': typeof AuthRoutesNovoPlanoRoute
   '/planos-e-taxas': typeof AuthRoutesPlanosETaxasRoute
   '/sales': typeof AuthRoutesSalesRoute
   '/business-list/$id': typeof AuthRoutesBusinessListIdRoute
   '/recurring-fees': typeof AuthRoutesRecurringFeesIndexRoute
+  '/business-list/$id/credenciamento-own': typeof AuthRoutesBusinessListIdCredenciamentoOwnRoute
   '/recurring-fees/new/details': typeof AuthRoutesRecurringFeesNewDetailsRoute
   '/recurring-fees/new/pricing': typeof AuthRoutesRecurringFeesNewPricingRoute
   '/recurring-fees/new/review': typeof AuthRoutesRecurringFeesNewReviewRoute
@@ -160,7 +161,6 @@ export interface FileRoutesById {
   '/_authRoutes': typeof AuthRoutesRouteRouteWithChildren
   '/signup': typeof SignupRoute
   '/_authRoutes/business-list': typeof AuthRoutesBusinessListRoute
-  '/_authRoutes/completar-ec': typeof AuthRoutesCompletarEcRoute
   '/_authRoutes/novo-ec': typeof AuthRoutesNovoEcRoute
   '/_authRoutes/novo-plano': typeof AuthRoutesNovoPlanoRoute
   '/_authRoutes/planos-e-taxas': typeof AuthRoutesPlanosETaxasRoute
@@ -168,6 +168,7 @@ export interface FileRoutesById {
   '/_authRoutes/sales': typeof AuthRoutesSalesRoute
   '/_authRoutes/business-list_/$id': typeof AuthRoutesBusinessListIdRoute
   '/_authRoutes/recurring-fees/': typeof AuthRoutesRecurringFeesIndexRoute
+  '/_authRoutes/business-list_/$id_/credenciamento-own': typeof AuthRoutesBusinessListIdCredenciamentoOwnRoute
   '/_authRoutes/recurring-fees/new/details': typeof AuthRoutesRecurringFeesNewDetailsRoute
   '/_authRoutes/recurring-fees/new/pricing': typeof AuthRoutesRecurringFeesNewPricingRoute
   '/_authRoutes/recurring-fees/new/review': typeof AuthRoutesRecurringFeesNewReviewRoute
@@ -180,7 +181,6 @@ export interface FileRouteTypes {
     | '/'
     | '/signup'
     | '/business-list'
-    | '/completar-ec'
     | '/novo-ec'
     | '/novo-plano'
     | '/planos-e-taxas'
@@ -188,6 +188,7 @@ export interface FileRouteTypes {
     | '/sales'
     | '/business-list/$id'
     | '/recurring-fees/'
+    | '/business-list/$id/credenciamento-own'
     | '/recurring-fees/new/details'
     | '/recurring-fees/new/pricing'
     | '/recurring-fees/new/review'
@@ -198,13 +199,13 @@ export interface FileRouteTypes {
     | '/'
     | '/signup'
     | '/business-list'
-    | '/completar-ec'
     | '/novo-ec'
     | '/novo-plano'
     | '/planos-e-taxas'
     | '/sales'
     | '/business-list/$id'
     | '/recurring-fees'
+    | '/business-list/$id/credenciamento-own'
     | '/recurring-fees/new/details'
     | '/recurring-fees/new/pricing'
     | '/recurring-fees/new/review'
@@ -216,7 +217,6 @@ export interface FileRouteTypes {
     | '/_authRoutes'
     | '/signup'
     | '/_authRoutes/business-list'
-    | '/_authRoutes/completar-ec'
     | '/_authRoutes/novo-ec'
     | '/_authRoutes/novo-plano'
     | '/_authRoutes/planos-e-taxas'
@@ -224,6 +224,7 @@ export interface FileRouteTypes {
     | '/_authRoutes/sales'
     | '/_authRoutes/business-list_/$id'
     | '/_authRoutes/recurring-fees/'
+    | '/_authRoutes/business-list_/$id_/credenciamento-own'
     | '/_authRoutes/recurring-fees/new/details'
     | '/_authRoutes/recurring-fees/new/pricing'
     | '/_authRoutes/recurring-fees/new/review'
@@ -295,13 +296,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthRoutesNovoEcRouteImport
       parentRoute: typeof AuthRoutesRouteRoute
     }
-    '/_authRoutes/completar-ec': {
-      id: '/_authRoutes/completar-ec'
-      path: '/completar-ec'
-      fullPath: '/completar-ec'
-      preLoaderRoute: typeof AuthRoutesCompletarEcRouteImport
-      parentRoute: typeof AuthRoutesRouteRoute
-    }
     '/_authRoutes/business-list': {
       id: '/_authRoutes/business-list'
       path: '/business-list'
@@ -358,6 +352,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthRoutesRecurringFeesNewDetailsRouteImport
       parentRoute: typeof AuthRoutesRecurringFeesRoute
     }
+    '/_authRoutes/business-list_/$id_/credenciamento-own': {
+      id: '/_authRoutes/business-list_/$id_/credenciamento-own'
+      path: '/business-list/$id/credenciamento-own'
+      fullPath: '/business-list/$id/credenciamento-own'
+      preLoaderRoute: typeof AuthRoutesBusinessListIdCredenciamentoOwnRouteImport
+      parentRoute: typeof AuthRoutesRouteRoute
+    }
   }
 }
 
@@ -392,24 +393,25 @@ const AuthRoutesRecurringFeesRouteWithChildren =
 
 interface AuthRoutesRouteRouteChildren {
   AuthRoutesBusinessListRoute: typeof AuthRoutesBusinessListRoute
-  AuthRoutesCompletarEcRoute: typeof AuthRoutesCompletarEcRoute
   AuthRoutesNovoEcRoute: typeof AuthRoutesNovoEcRoute
   AuthRoutesNovoPlanoRoute: typeof AuthRoutesNovoPlanoRoute
   AuthRoutesPlanosETaxasRoute: typeof AuthRoutesPlanosETaxasRoute
   AuthRoutesRecurringFeesRoute: typeof AuthRoutesRecurringFeesRouteWithChildren
   AuthRoutesSalesRoute: typeof AuthRoutesSalesRoute
   AuthRoutesBusinessListIdRoute: typeof AuthRoutesBusinessListIdRoute
+  AuthRoutesBusinessListIdCredenciamentoOwnRoute: typeof AuthRoutesBusinessListIdCredenciamentoOwnRoute
 }
 
 const AuthRoutesRouteRouteChildren: AuthRoutesRouteRouteChildren = {
   AuthRoutesBusinessListRoute: AuthRoutesBusinessListRoute,
-  AuthRoutesCompletarEcRoute: AuthRoutesCompletarEcRoute,
   AuthRoutesNovoEcRoute: AuthRoutesNovoEcRoute,
   AuthRoutesNovoPlanoRoute: AuthRoutesNovoPlanoRoute,
   AuthRoutesPlanosETaxasRoute: AuthRoutesPlanosETaxasRoute,
   AuthRoutesRecurringFeesRoute: AuthRoutesRecurringFeesRouteWithChildren,
   AuthRoutesSalesRoute: AuthRoutesSalesRoute,
   AuthRoutesBusinessListIdRoute: AuthRoutesBusinessListIdRoute,
+  AuthRoutesBusinessListIdCredenciamentoOwnRoute:
+    AuthRoutesBusinessListIdCredenciamentoOwnRoute,
 }
 
 const AuthRoutesRouteRouteWithChildren = AuthRoutesRouteRoute._addFileChildren(

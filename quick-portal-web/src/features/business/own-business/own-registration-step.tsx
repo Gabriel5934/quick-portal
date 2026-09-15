@@ -3,31 +3,19 @@ import Autocomplete from "@mui/material/Autocomplete";
 import Button from "@mui/material/Button";
 import TextField from "@mui/material/TextField";
 import { Link as RouterLink } from "@tanstack/react-router";
-import { useEffect, useMemo } from "react";
-import { Controller, useFormContext, useWatch } from "react-hook-form";
-import { NumericFormat } from "react-number-format";
-import { usePlans } from "#hooks/quickApi/usePlans";
+import { Controller, useFormContext } from "react-hook-form";
+import { NumericFormat, PatternFormat } from "react-number-format";
+import { useOwnPlans } from "#hooks/quickApi/useOwnPlans";
 import { FormFieldPaper } from "../../../components/multi-step-form";
-import type { CompleteBusinessFormValues } from "./types";
+import type { OwnBusinessFormValues } from "./types";
 
-export function CommercialPlanStep() {
-  const { data: plans = [] } = usePlans();
+export function OwnRegistrationStep() {
+  const { data: plans = [] } = useOwnPlans();
   const {
     control,
-    resetField,
+    setValue,
     formState: { errors },
-  } = useFormContext<CompleteBusinessFormValues>();
-  const acquirerId = useWatch({ control, name: "acquirerId" });
-  const planId = useWatch({ control, name: "planId" });
-  const filteredPlans = useMemo(
-    () => plans.filter((plan) => plan.acquirer === acquirerId),
-    [acquirerId, plans],
-  );
-
-  useEffect(() => {
-    if (planId && !filteredPlans.some((plan) => plan.id === planId))
-      resetField("planId");
-  }, [filteredPlans, planId, resetField]);
+  } = useFormContext<OwnBusinessFormValues>();
 
   const currencyField = (
     name: "expectedRevenue" | "commitedRevenue",
@@ -65,8 +53,70 @@ export function CommercialPlanStep() {
   return (
     <>
       <FormFieldPaper
-        title="Plano"
-        description="Selecione um plano compatível com o adquirente."
+        title="Responsável pela assinatura"
+        description="Informe quem assinará o credenciamento com a OWN."
+        error={
+          !!errors.signatoryName ||
+          !!errors.signatoryCpf ||
+          !!errors.signatoryEmail
+        }
+        required
+      >
+        <Controller
+          name="signatoryName"
+          control={control}
+          render={({ field }) => (
+            <TextField
+              {...field}
+              variant="standard"
+              label="Nome completo"
+              fullWidth
+              required
+              error={!!errors.signatoryName}
+              helperText={errors.signatoryName?.message}
+            />
+          )}
+        />
+        <Controller
+          name="signatoryCpf"
+          control={control}
+          render={({ field: { ref, onChange, value, ...field } }) => (
+            <PatternFormat
+              {...field}
+              value={value}
+              format="###.###.###-##"
+              onValueChange={(values) => onChange(values.formattedValue)}
+              customInput={TextField}
+              getInputRef={ref}
+              variant="standard"
+              label="CPF"
+              fullWidth
+              required
+              error={!!errors.signatoryCpf}
+              helperText={errors.signatoryCpf?.message}
+            />
+          )}
+        />
+        <Controller
+          name="signatoryEmail"
+          control={control}
+          render={({ field }) => (
+            <TextField
+              {...field}
+              type="email"
+              variant="standard"
+              label="E-mail"
+              fullWidth
+              required
+              error={!!errors.signatoryEmail}
+              helperText={errors.signatoryEmail?.message}
+            />
+          )}
+        />
+      </FormFieldPaper>
+      <FormFieldPaper
+        title="Plano OWN"
+        description="Selecione o plano comercial da OWN."
         error={!!errors.planId}
         required
       >
@@ -75,15 +125,19 @@ export function CommercialPlanStep() {
           control={control}
           render={({ field: { onChange, value, ref } }) => (
             <Autocomplete
-              options={filteredPlans}
-              getOptionLabel={(option) => option.name}
+              options={plans}
+              getOptionLabel={(option) => option.title}
               getOptionKey={(option) => option.id}
               isOptionEqualToValue={(option, selected) =>
                 option.id === selected.id
               }
-              value={filteredPlans.find((plan) => plan.id === value) ?? null}
-              onChange={(_, selected) => onChange(selected?.id)}
-              disabled={!acquirerId}
+              value={plans.find((plan) => plan.id === value) ?? null}
+              onChange={(_, selected) => {
+                onChange(selected?.id);
+                setValue("activityId", selected?.activity ?? 0, {
+                  shouldValidate: true,
+                });
+              }}
               renderInput={(params) => (
                 <TextField
                   {...params}
@@ -95,11 +149,7 @@ export function CommercialPlanStep() {
                   error={!!errors.planId}
                   helperText={
                     errors.planId?.message ??
-                    (!acquirerId
-                      ? "Selecione um adquirente primeiro"
-                      : filteredPlans.length === 0
-                        ? "Sem planos disponíveis"
-                        : undefined)
+                    (plans.length === 0 ? "Sem planos disponíveis" : undefined)
                   }
                 />
               )}

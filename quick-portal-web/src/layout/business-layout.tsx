@@ -62,7 +62,7 @@ const navigation = [
   },
   {
     to: "/novo-ec",
-    activePaths: ["/novo-ec", "/completar-ec"],
+    activePaths: ["/novo-ec"],
     label: "Cadastro",
     icon: <AddIcon />,
     nonStoreOnly: true,
@@ -234,7 +234,9 @@ export function BusinessLayout({ children }: BusinessLayoutProps) {
                         component={Link}
                         to={item.to}
                         selected={item.activePaths.some(
-                          (activePath) => activePath === pathname,
+                          (activePath) =>
+                            activePath === pathname ||
+                            pathname.startsWith(`${activePath}/`),
                         )}
                         sx={{
                           "&.Mui-selected": {

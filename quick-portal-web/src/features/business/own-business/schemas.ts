@@ -43,38 +43,17 @@ export const addressFields = Object.keys(addressSchema.shape) as (keyof z.infer<
   typeof addressSchema
 >)[];
 
-const posDeviceItem = z
-  .object({ model: z.string(), serialNumber: z.string() })
-  .superRefine((device, ctx) => {
-    if (device.serialNumber && !device.model) {
-      ctx.addIssue({
-        code: "custom",
-        message: "Modelo é obrigatório quando o serial é informado",
-        path: ["model"],
-      });
-    }
-    if (device.model && !device.serialNumber) {
-      ctx.addIssue({
-        code: "custom",
-        message: "Serial é obrigatório quando o modelo é informado",
-        path: ["serialNumber"],
-      });
-    }
-  });
-
-export const posDevicesSchema = z.object({
-  posDevices: z.array(posDeviceItem),
-});
-export const posDevicesFields = Object.keys(
-  posDevicesSchema.shape,
-) as (keyof z.infer<typeof posDevicesSchema>)[];
-
 export const commercialPlanSchema = z.object({
-  acquirerId: z
-    .number({ message: "Adquirente é obrigatório" })
+  planId: z.number({ message: "Plano é obrigatório" }).int().positive(),
+  activityId: z
+    .number({ message: "Atividade do plano é obrigatória" })
     .int()
     .positive(),
-  planId: z.number({ message: "Plano é obrigatório" }).int().positive(),
+  signatoryName: z.string().min(1, "Nome do responsável é obrigatório"),
+  signatoryCpf: z
+    .string()
+    .refine((value) => value.replace(/\D/g, "").length === 11, "CPF inválido"),
+  signatoryEmail: z.email("E-mail inválido"),
   expectedRevenue: z.string().min(1, "Receita esperada é obrigatória"),
   commitedRevenue: z.string().min(1, "Receita comprometida é obrigatória"),
   quantityPos: z
@@ -87,7 +66,6 @@ export const commercialPlanFields = Object.keys(
   commercialPlanSchema.shape,
 ) as (keyof z.infer<typeof commercialPlanSchema>)[];
 
-export const completeBusinessSchema = bankSchema
+export const ownBusinessSchema = bankSchema
   .extend(addressSchema.shape)
-  .extend(posDevicesSchema.shape)
   .extend(commercialPlanSchema.shape);

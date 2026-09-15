@@ -4,14 +4,14 @@ import { Controller, useFormContext } from "react-hook-form";
 import { PatternFormat } from "react-number-format";
 import { useBanks } from "#hooks/brasilApi/useBanks";
 import { FormFieldPaper } from "../../../components/multi-step-form";
-import type { CompleteBusinessFormValues } from "./types";
+import type { OwnBusinessFormValues } from "./types";
 
 export function BankStep() {
   const { data: banks = [] } = useBanks();
   const {
     control,
     formState: { errors },
-  } = useFormContext<CompleteBusinessFormValues>();
+  } = useFormContext<OwnBusinessFormValues>();
 
   return (
     <>

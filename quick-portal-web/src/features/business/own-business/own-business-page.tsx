@@ -3,52 +3,42 @@ import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { useNavigate } from "@tanstack/react-router";
 import { FormProvider, useForm } from "react-hook-form";
-import { useCompleteBusiness } from "#hooks/quickApi/useCompleteBusiness";
+import { useOwnBusiness } from "#hooks/quickApi/useOwnBusiness";
 import {
   MultiStepFormShell,
   WizardActions,
 } from "../../../components/multi-step-form";
 import { AddressStep } from "./address-step";
 import { BankStep } from "./bank-step";
-import { CommercialPlanStep } from "./commercial-plan-step";
-import { PosDevicesStep } from "./pos-devices-step";
-import { CompleteBusinessReviewStep } from "./review-step";
+import { OwnRegistrationStep } from "./own-registration-step";
+import { OwnBusinessReviewStep } from "./review-step";
 import {
   addressSchema,
   bankSchema,
   commercialPlanSchema,
-  completeBusinessSchema,
-  posDevicesSchema,
+  ownBusinessSchema,
 } from "./schemas";
-import type { CompleteBusinessFormValues } from "./types";
+import type { OwnBusinessFormValues } from "./types";
 import { useState } from "react";
 
 const steps = [
   "Dados bancários",
   "Endereço",
-  "Terminais",
-  "Plano comercial",
+  "Dados do credenciamento",
   "Revisão",
 ] as const;
 const validationSchemas = [
   bankSchema,
   addressSchema,
-  posDevicesSchema,
   commercialPlanSchema,
 ] as const;
 
-export function CompleteBusiness({
-  id,
-  acquirerId,
-}: {
-  id?: number;
-  acquirerId: number;
-}) {
+export function OwnBusiness({ businessId }: { businessId: number }) {
   const [currentStep, setCurrentStep] = useState(0);
   const navigate = useNavigate();
-  const completeBusiness = useCompleteBusiness();
-  const methods = useForm<CompleteBusinessFormValues>({
-    resolver: zodResolver(completeBusinessSchema),
+  const ownBusiness = useOwnBusiness();
+  const methods = useForm<OwnBusinessFormValues>({
+    resolver: zodResolver(ownBusinessSchema),
     defaultValues: {
       bankCode: "",
       branch: "",
@@ -62,9 +52,11 @@ export function CompleteBusiness({
       street: "",
       number: "",
       complement: "",
-      posDevices: [{ model: "", serialNumber: "" }],
-      acquirerId,
       planId: undefined,
+      activityId: undefined,
+      signatoryName: "",
+      signatoryCpf: "",
+      signatoryEmail: "",
       expectedRevenue: "",
       commitedRevenue: "",
       quantityPos: undefined,
@@ -94,9 +86,9 @@ export function CompleteBusiness({
     setCurrentStep((step) => step + 1);
   }
 
-  function submit(values: CompleteBusinessFormValues) {
-    completeBusiness.mutate(
-      { id: id ?? 0, ...values },
+  function submit(values: OwnBusinessFormValues) {
+    ownBusiness.mutate(
+      { businessId, ...values },
       {
         onSuccess: () => void navigate({ to: "/business-list" }),
         onError: (error) =>
@@ -109,9 +101,9 @@ export function CompleteBusiness({
     <FormProvider {...methods}>
       <MultiStepFormShell
         breadcrumb={{ to: "/business-list", label: "Estabelecimentos" }}
-        currentLabel="Completar cadastro"
-        title="Completar Cadastro do EC"
-        subtitle="Complete os dados bancários, endereço, terminais e plano comercial."
+        currentLabel="Credenciamento OWN"
+        title="Credenciamento OWN do EC"
+        subtitle="Informe os dados bancários, o endereço e as condições comerciais para credenciar o estabelecimento na OWN."
         steps={steps}
         currentStep={currentStep}
       >
@@ -130,10 +122,9 @@ export function CompleteBusiness({
         >
           {currentStep === 0 && <BankStep />}
           {currentStep === 1 && <AddressStep />}
-          {currentStep === 2 && <PosDevicesStep />}
-          {currentStep === 3 && <CommercialPlanStep />}
-          {currentStep === 4 && (
-            <CompleteBusinessReviewStep values={methods.getValues()} />
+          {currentStep === 2 && <OwnRegistrationStep />}
+          {currentStep === 3 && (
+            <OwnBusinessReviewStep values={methods.getValues()} />
           )}
           {methods.formState.errors.root && (
             <Typography color="error">
@@ -149,12 +140,10 @@ export function CompleteBusiness({
             }
             submitLabel={
               currentStep === steps.length - 1
-                ? "Finalizar cadastro"
+                ? "Finalizar credenciamento"
                 : "Continuar"
             }
-            loading={
-              currentStep === steps.length - 1 && completeBusiness.isPending
-            }
+            loading={currentStep === steps.length - 1 && ownBusiness.isPending}
           />
         </Stack>
       </MultiStepFormShell>
