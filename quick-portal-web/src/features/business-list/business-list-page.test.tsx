@@ -1,4 +1,5 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
+import type { AnchorHTMLAttributes, ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Business } from "#hooks/quickApi/useBusinesses";
 import {
@@ -12,6 +13,20 @@ import { BusinessList } from "./business-list-page";
 const mockNavigate = vi.hoisted(() => vi.fn());
 
 vi.mock("@tanstack/react-router", () => ({
+  Link: ({
+    children,
+    to,
+    params,
+    ...props
+  }: AnchorHTMLAttributes<HTMLAnchorElement> & {
+    children: ReactNode;
+    to: string;
+    params: { id: string };
+  }) => (
+    <a {...props} href={to.replace("$id", params.id)}>
+      {children}
+    </a>
+  ),
   useNavigate: () => mockNavigate,
 }));
 
@@ -88,7 +103,7 @@ describe("BusinessList summary", () => {
     ).toBeInTheDocument();
   });
 
-  it("opens the selected business when its row is clicked", () => {
+  it("renders the business name as a link in the first column", () => {
     const childBusiness: Business = {
       ...selectedBusiness,
       id: 73,
@@ -114,13 +129,10 @@ describe("BusinessList summary", () => {
       </BusinessScopeContext>,
     );
 
-    fireEvent.click(
-      screen.getByRole("link", { name: "Ver detalhes de Mercado Central" }),
-    );
+    const link = screen.getByRole("link", { name: "Mercado Central Ltda." });
+    const row = link.closest("tr");
 
-    expect(mockNavigate).toHaveBeenCalledWith({
-      to: "/business-list/$id",
-      params: { id: "73" },
-    });
+    expect(link).toHaveAttribute("href", "/business-list/73");
+    expect(within(row!).getAllByRole("cell")[0]).toContainElement(link);
   });
 });

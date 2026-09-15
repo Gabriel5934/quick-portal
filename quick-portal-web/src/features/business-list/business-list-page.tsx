@@ -27,7 +27,7 @@ import {
   SearchOutlined,
   AddOutlined,
 } from "@mui/icons-material";
-import { useNavigate } from "@tanstack/react-router";
+import { Link as RouterLink, useNavigate } from "@tanstack/react-router";
 import {
   useBusinesses,
   useBusinessSummary,
@@ -146,13 +146,6 @@ export function BusinessList() {
     setTradeName("");
     setPage(0);
     setActiveFilters({});
-  }
-
-  function openBusinessDetails(id: number) {
-    void navigate({
-      to: "/business-list/$id",
-      params: { id: String(id) },
-    });
   }
 
   return (
@@ -331,8 +324,8 @@ export function BusinessList() {
             <Table size="small">
               <TableHead>
                 <TableRow>
-                  <TableCell>CPF/CNPJ</TableCell>
                   <TableCell>Razão Social</TableCell>
+                  <TableCell>CPF/CNPJ</TableCell>
                   <TableCell>Nome Fantasia</TableCell>
                   {showResellerColumn ? <TableCell>Revenda</TableCell> : null}
                   <TableCell>Tipo</TableCell>
@@ -352,27 +345,17 @@ export function BusinessList() {
                         : null;
 
                     return (
-                      <TableRow
-                        key={biz.id}
-                        hover
-                        role="link"
-                        tabIndex={0}
-                        aria-label={`Ver detalhes de ${biz.trade_name || biz.name}`}
-                        onClick={() => openBusinessDetails(biz.id)}
-                        onKeyDown={(event) => {
-                          if (event.key === "Enter") {
-                            openBusinessDetails(biz.id);
-                          }
-                        }}
-                        sx={{
-                          cursor: "pointer",
-                          "&:focus-visible": {
-                            outline: "2px solid",
-                            outlineColor: "primary.main",
-                            outlineOffset: -2,
-                          },
-                        }}
-                      >
+                      <TableRow key={biz.id} hover>
+                        <TableCell>
+                          <RouterLink
+                            to="/business-list/$id"
+                            params={{ id: String(biz.id) }}
+                          >
+                            <Typography component="span" variant="body2">
+                              {displayValue(biz.name)}
+                            </Typography>
+                          </RouterLink>
+                        </TableCell>
                         <TableCell>
                           <Typography
                             variant="body2"
@@ -381,7 +364,6 @@ export function BusinessList() {
                             {displayValue(formatDocument(biz.document))}
                           </Typography>
                         </TableCell>
-                        <TableCell>{displayValue(biz.name)}</TableCell>
                         <TableCell>{displayValue(biz.trade_name)}</TableCell>
                         {showResellerColumn ? (
                           <TableCell sx={{ maxWidth: 180 }}>
