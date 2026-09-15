@@ -1,4 +1,6 @@
 import Autocomplete from "@mui/material/Autocomplete";
+import Box from "@mui/material/Box";
+import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
 import { Controller, useFormContext } from "react-hook-form";
 import { PatternFormat } from "react-number-format";
@@ -56,104 +58,107 @@ export function BankStep() {
       </FormFieldPaper>
       <FormFieldPaper
         title="Agência"
-        description="Informe os quatro dígitos da agência."
-        error={!!errors.branch}
+        error={!!errors.branch || !!errors.branchDigit}
         required
       >
-        <Controller
-          name="branch"
-          control={control}
-          render={({ field: { ref, onChange, value, ...field } }) => (
-            <PatternFormat
-              {...field}
-              value={value}
-              format="####"
-              onValueChange={(values) => onChange(values.value)}
-              customInput={TextField}
-              getInputRef={ref}
-              variant="standard"
-              label="Agência"
-              fullWidth
-              required
-              error={!!errors.branch}
-              helperText={errors.branch?.message}
+        <Stack direction="row" spacing={2} sx={{ alignItems: "flex-start" }}>
+          <Box sx={{ flex: 1, minWidth: 0 }}>
+            <Controller
+              name="branch"
+              control={control}
+              render={({ field: { ref, onChange, value, ...field } }) => (
+                <PatternFormat
+                  {...field}
+                  value={value}
+                  format="####"
+                  onValueChange={(values) => onChange(values.value)}
+                  customInput={TextField}
+                  getInputRef={ref}
+                  variant="standard"
+                  label="Agência"
+                  fullWidth
+                  required
+                  error={!!errors.branch}
+                  helperText={errors.branch?.message}
+                />
+              )}
             />
-          )}
-        />
+          </Box>
+          <Box sx={{ width: { xs: 96, sm: 120 }, flexShrink: 0 }}>
+            <Controller
+              name="branchDigit"
+              control={control}
+              render={({ field: { ref, onChange, value, ...field } }) => (
+                <PatternFormat
+                  {...field}
+                  value={value}
+                  format="#"
+                  onValueChange={(values) => onChange(values.value)}
+                  customInput={TextField}
+                  getInputRef={ref}
+                  variant="standard"
+                  label="Dígito"
+                  fullWidth
+                  required
+                  error={!!errors.branchDigit}
+                  helperText={errors.branchDigit?.message}
+                />
+              )}
+            />
+          </Box>
+        </Stack>
       </FormFieldPaper>
       <FormFieldPaper
-        title="Dígito da agência"
-        error={!!errors.branchDigit}
+        title="Conta"
+        error={!!errors.account || !!errors.accountDigit}
         required
       >
-        <Controller
-          name="branchDigit"
-          control={control}
-          render={({ field: { ref, onChange, value, ...field } }) => (
-            <PatternFormat
-              {...field}
-              value={value}
-              format="#"
-              onValueChange={(values) => onChange(values.value)}
-              customInput={TextField}
-              getInputRef={ref}
-              variant="standard"
-              label="Dígito da agência"
-              fullWidth
-              required
-              error={!!errors.branchDigit}
-              helperText={errors.branchDigit?.message}
+        <Stack direction="row" spacing={2} sx={{ alignItems: "flex-start" }}>
+          <Box sx={{ flex: 1, minWidth: 0 }}>
+            <Controller
+              name="account"
+              control={control}
+              render={({ field: { onChange, value, ...field } }) => (
+                <TextField
+                  {...field}
+                  value={value}
+                  onChange={(event) =>
+                    onChange(event.target.value.replace(/\D/g, ""))
+                  }
+                  variant="standard"
+                  label="Número da conta"
+                  fullWidth
+                  required
+                  slotProps={{ htmlInput: { inputMode: "numeric" } }}
+                  error={!!errors.account}
+                  helperText={errors.account?.message}
+                />
+              )}
             />
-          )}
-        />
-      </FormFieldPaper>
-      <FormFieldPaper title="Número da conta" error={!!errors.account} required>
-        <Controller
-          name="account"
-          control={control}
-          render={({ field: { onChange, value, ...field } }) => (
-            <TextField
-              {...field}
-              value={value}
-              onChange={(event) =>
-                onChange(event.target.value.replace(/\D/g, ""))
-              }
-              variant="standard"
-              label="Número da conta"
-              fullWidth
-              required
-              slotProps={{ htmlInput: { inputMode: "numeric" } }}
-              error={!!errors.account}
-              helperText={errors.account?.message}
+          </Box>
+          <Box sx={{ width: { xs: 96, sm: 120 }, flexShrink: 0 }}>
+            <Controller
+              name="accountDigit"
+              control={control}
+              render={({ field: { ref, onChange, value, ...field } }) => (
+                <PatternFormat
+                  {...field}
+                  value={value}
+                  format="#"
+                  onValueChange={(values) => onChange(values.value)}
+                  customInput={TextField}
+                  getInputRef={ref}
+                  variant="standard"
+                  label="Dígito"
+                  fullWidth
+                  required
+                  error={!!errors.accountDigit}
+                  helperText={errors.accountDigit?.message}
+                />
+              )}
             />
-          )}
-        />
-      </FormFieldPaper>
-      <FormFieldPaper
-        title="Dígito da conta"
-        error={!!errors.accountDigit}
-        required
-      >
-        <Controller
-          name="accountDigit"
-          control={control}
-          render={({ field: { ref, onChange, value, ...field } }) => (
-            <PatternFormat
-              {...field}
-              value={value}
-              format="#"
-              onValueChange={(values) => onChange(values.value)}
-              customInput={TextField}
-              getInputRef={ref}
-              variant="standard"
-              label="Dígito da conta"
-              fullWidth
-              required
-              error={!!errors.accountDigit}
-              helperText={errors.accountDigit?.message}
-            />
-          )}
-        />
+          </Box>
+        </Stack>
       </FormFieldPaper>
     </>
   );

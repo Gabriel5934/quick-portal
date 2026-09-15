@@ -8,6 +8,13 @@ import type { OwnBusinessFormValues } from "./types";
 
 const derivedFields = ["state", "city", "neighborhood", "street"] as const;
 
+const derivedFieldLabels: Record<(typeof derivedFields)[number], string> = {
+  state: "Estado",
+  city: "Cidade",
+  neighborhood: "Bairro",
+  street: "Rua",
+};
+
 export function AddressStep() {
   const {
     control,
@@ -38,16 +45,9 @@ export function AddressStep() {
   }, [error, setError]);
 
   const textField = (
-    name:
-      | "state"
-      | "city"
-      | "neighborhood"
-      | "street"
-      | "number"
-      | "complement",
+    name: "number" | "complement",
     label: string,
     required = false,
-    readOnly = false,
   ) => (
     <FormFieldPaper title={label} error={!!errors[name]} required={required}>
       <Controller
@@ -61,7 +61,6 @@ export function AddressStep() {
             label={label}
             fullWidth
             required={required}
-            slotProps={readOnly ? { input: { readOnly: true } } : undefined}
             error={!!errors[name]}
             helperText={errors[name]?.message}
           />
@@ -99,10 +98,33 @@ export function AddressStep() {
           )}
         />
       </FormFieldPaper>
-      {textField("state", "Estado", true, true)}
-      {textField("city", "Cidade", true, true)}
-      {textField("neighborhood", "Bairro", true, true)}
-      {textField("street", "Rua", true, true)}
+      <FormFieldPaper
+        title="Endereço"
+        error={derivedFields.some((field) => !!errors[field])}
+        required
+      >
+        {derivedFields.map((name) => (
+          <Controller
+            key={name}
+            name={name}
+            control={control}
+            render={({ field }) => (
+              <TextField
+                {...field}
+                value={field.value ?? ""}
+                variant="standard"
+                label={derivedFieldLabels[name]}
+                fullWidth
+                required
+                slotProps={{ input: { readOnly: true } }}
+                disabled
+                error={!!errors[name]}
+                helperText={errors[name]?.message}
+              />
+            )}
+          />
+        ))}
+      </FormFieldPaper>
       {textField("number", "Número", true)}
       {textField("complement", "Complemento")}
     </>
