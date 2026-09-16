@@ -21,7 +21,7 @@ import {
   HourglassEmptyOutlined,
   StorefrontOutlined,
 } from "@mui/icons-material";
-import { Link as RouterLink } from "@tanstack/react-router";
+import { createLink, Link as RouterLink } from "@tanstack/react-router";
 import { useState, type ReactNode, type SyntheticEvent } from "react";
 import {
   useBusiness,
@@ -48,6 +48,8 @@ interface TabPanelProps {
   index: number;
   value: number;
 }
+
+const RouterButton = createLink(Button);
 
 function businessTypeLabel(type: BusinessType): string {
   if (type === "RESELLER") return "Revendedor";
@@ -364,14 +366,14 @@ export function BusinessDetails({ businessId }: BusinessDetailsProps) {
                 <Typography variant="h6" sx={{ mb: 1 }}>
                   Estabelecimento não credenciado na OWN
                 </Typography>
-                <Button
-                  href={`/business-list/${business.id}/credenciamento-own`}
+                <RouterButton
+                  to="/business-list/$id/credenciamento-own"
+                  params={{ id: String(business.id) }}
                   variant="contained"
                   startIcon={<AddBusinessOutlined />}
-                  component={RouterLink}
                 >
                   Credenciar
-                </Button>
+                </RouterButton>
               </Box>
             )}
           </TabPanel>

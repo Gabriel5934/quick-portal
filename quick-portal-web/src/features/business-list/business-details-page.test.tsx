@@ -1,6 +1,6 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { AnchorHTMLAttributes, ReactNode } from "react";
+import type { AnchorHTMLAttributes, ElementType, ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Business } from "#hooks/quickApi/useBusinesses";
 import { useBusiness } from "#hooks/quickApi/useBusinesses";
@@ -10,22 +10,30 @@ import {
 } from "#hooks/quickApi/useOwnBusinesses";
 import { BusinessDetails } from "./business-details-page";
 
-vi.mock("@tanstack/react-router", () => ({
-  Link: ({
-    children,
-    to,
-    params,
-    ...props
-  }: AnchorHTMLAttributes<HTMLAnchorElement> & {
+vi.mock("@tanstack/react-router", () => {
+  type MockLinkProps = AnchorHTMLAttributes<HTMLAnchorElement> & {
     children: ReactNode;
     to: string;
     params?: { id: string };
-  }) => (
-    <a {...props} href={params ? to.replace("$id", params.id) : to}>
-      {children}
-    </a>
-  ),
-}));
+  };
+  const destination = (to: string, params?: { id: string }) =>
+    params ? to.replace("$id", params.id) : to;
+
+  return {
+    Link: ({ children, to, params, ...props }: MockLinkProps) => (
+      <a {...props} href={destination(to, params)}>
+        {children}
+      </a>
+    ),
+    createLink:
+      (Component: ElementType) =>
+      ({ children, to, params, ...props }: MockLinkProps) => (
+        <Component {...props} href={destination(to, params)}>
+          {children}
+        </Component>
+      ),
+  };
+});
 
 vi.mock("#hooks/quickApi/useBusinesses", () => ({
   useBusiness: vi.fn(),
@@ -136,11 +144,12 @@ describe("BusinessDetails", () => {
     await user.click(screen.getByRole("tab", { name: "OWN" }));
 
     expect(
-      screen.getByText("Estabelecimento ainda não credenciado na OWN"),
+      screen.getByText("Estabelecimento não credenciado na OWN"),
     ).toBeInTheDocument();
-    expect(
-      screen.getByRole("link", { name: /Credenciar na OWN/ }),
-    ).toHaveAttribute("href", "/business-list/73/credenciamento-own");
+    expect(screen.getByRole("link", { name: "Credenciar" })).toHaveAttribute(
+      "href",
+      "/business-list/73/credenciamento-own",
+    );
   });
 
   it("shows the unavailable state in the Cielo tab", async () => {
