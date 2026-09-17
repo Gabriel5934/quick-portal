@@ -1,4 +1,7 @@
 import base64
+from urllib.parse import quote
+
+from django.conf import settings
 
 PARTNER_CNPJ = "37924499000133"
 CONTRACT_TYPE = "W"
@@ -54,7 +57,12 @@ def build_own_business_signup_payload(own_business):
         "logradouro": own_business.street,
         "numeroEndereco": own_business.address_number,
         "complemento": own_business.address_complement or "",
-        "urlCallback": "",
+        "urlCallback": (
+            f"{settings.OWN_CALLBACK_BASE_URL.rstrip('/')}/own/callback/"
+            f"{quote(settings.OWN_CALLBACK_SECRET, safe='')}/"
+            if settings.OWN_CALLBACK_BASE_URL and settings.OWN_CALLBACK_SECRET
+            else ""
+        ),
         "bairro": own_business.neighborhood,
         "municipio": own_business.city,
         "uf": own_business.state,

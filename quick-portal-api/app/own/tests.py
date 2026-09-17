@@ -41,6 +41,7 @@ from own.models import (
     OwnRegistrationStatus,
 )
 from own.services.own_auth import OwnAuthError
+from own.services.own_signup import build_own_business_signup_payload
 from quickportal.models import (
     Business,
     BusinessMembership,
@@ -78,6 +79,69 @@ class OwnAuthTokenEndpointTests(TestCase):
         self.assertEqual(response.status_code, 502)
         self.assertEqual(response.data["error"], "own_auth_failed")
         get_own_token.assert_called_once_with()
+
+
+class OwnSignupCallbackTests(TestCase):
+    def test_disabled_callback_is_not_available(self):
+        with override_settings(OWN_CALLBACK_BASE_URL="", OWN_CALLBACK_SECRET=""):
+            response = self.client.post("/own/callback/example-secret/", data=b"{}", content_type="application/json")
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_captures_post_without_authentication_or_changing_signup(self):
+        with TemporaryDirectory() as trace_dir, override_settings(
+            OWN_CALLBACK_BASE_URL="https://qa.example.com",
+            OWN_CALLBACK_SECRET="example-secret",
+            OWN_CALLBACK_TRACE_DIR=trace_dir,
+        ):
+            response = self.client.post(
+                "/own/callback/example-secret/",
+                data=b'{"status":"approved"}',
+                content_type="application/json",
+            )
+            traces = list(Path(trace_dir).glob("*.json"))
+            self.assertEqual(len(traces), 1)
+            capture = json.loads(traces[0].read_text(encoding="utf-8"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {"received": True})
+        self.assertEqual(capture["method"], "POST")
+        self.assertEqual(capture["body_text"], '{"status":"approved"}')
+        self.assertEqual(capture["content_type"], "application/json")
+        self.assertFalse(OwnBusiness.objects.exists())
+
+    def test_captures_get_and_rejects_wrong_secret(self):
+        with TemporaryDirectory() as trace_dir, override_settings(
+            OWN_CALLBACK_BASE_URL="https://qa.example.com",
+            OWN_CALLBACK_SECRET="example-secret",
+            OWN_CALLBACK_TRACE_DIR=trace_dir,
+        ):
+            wrong_secret = self.client.post("/own/callback/wrong-secret/")
+            response = self.client.get("/own/callback/example-secret/?status=approved")
+            traces = list(Path(trace_dir).glob("*.json"))
+            capture = json.loads(traces[0].read_text(encoding="utf-8"))
+
+        self.assertEqual(wrong_secret.status_code, 404)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(traces), 1)
+        self.assertEqual(capture["method"], "GET")
+        self.assertEqual(capture["query_string"], "status=approved")
+
+    def test_rejects_oversized_callback_without_capture(self):
+        with TemporaryDirectory() as trace_dir, override_settings(
+            OWN_CALLBACK_BASE_URL="https://qa.example.com",
+            OWN_CALLBACK_SECRET="example-secret",
+            OWN_CALLBACK_TRACE_DIR=trace_dir,
+        ):
+            response = self.client.post(
+                "/own/callback/example-secret/",
+                data=b"x" * (64 * 1024 + 1),
+                content_type="application/octet-stream",
+            )
+            traces = list(Path(trace_dir).glob("*.json"))
+
+        self.assertEqual(response.status_code, 413)
+        self.assertEqual(traces, [])
 
 
 class OwnMerchantServiceTests(TestCase):
@@ -184,6 +248,20 @@ class OwnBusinessModelTests(TestCase):
         self.assertEqual(own_business.plan.activity, self.activity)
         with self.assertRaises(ValidationError):
             self.create_own_business()
+
+    def test_uses_configured_callback_url_in_signup_payload(self):
+        own_business = self.create_own_business()
+
+        with override_settings(
+            OWN_CALLBACK_BASE_URL="https://qa.example.com",
+            OWN_CALLBACK_SECRET="example-secret",
+        ):
+            payload = build_own_business_signup_payload(own_business)
+
+        self.assertEqual(
+            payload["urlCallback"],
+            "https://qa.example.com/own/callback/example-secret/",
+        )
 
     def test_full_clean_reports_an_invalid_plan_id(self):
         own_business = self.create_own_business()

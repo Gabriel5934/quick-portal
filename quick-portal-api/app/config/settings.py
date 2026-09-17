@@ -187,3 +187,6 @@ OWN_REGISTRATION_TRACE_ENABLED = os.environ.get(
     "OWN_REGISTRATION_TRACE_ENABLED", "0"
 ).lower() in {"1", "true", "yes", "on"}
 OWN_REGISTRATION_TRACE_DIR = BASE_DIR / "logs" / "own_registration"
+OWN_CALLBACK_BASE_URL = os.environ.get("OWN_CALLBACK_BASE_URL", "")
+OWN_CALLBACK_SECRET = os.environ.get("OWN_CALLBACK_SECRET", "")
+OWN_CALLBACK_TRACE_DIR = BASE_DIR / "logs" / "own_callbacks"

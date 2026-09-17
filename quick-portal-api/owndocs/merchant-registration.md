@@ -6,6 +6,45 @@ This endpoint is used to register a merchant (`lojista`) in the OWN Acquiring pl
 
 The registration process creates a commercial establishment and submits it for contract analysis.
 
+## Inspecting callback notifications (diagnostic only)
+
+The available OWN reference describes `urlCallback` but does not specify the
+notification method, payload, or authentication. To inspect a real notification,
+set these values in `quick-portal-api/.env.dev` and restart the root Compose
+`web` service:
+
+```env
+OWN_CALLBACK_BASE_URL=https://your-public-api-host.example
+OWN_CALLBACK_SECRET=generate-a-random-url-safe-secret
+```
+
+Generate the secret with `python -c 'import secrets; print(secrets.token_urlsafe(32))'`.
+The base URL must be a public HTTPS origin that forwards `/own/` to Django; OWN
+cannot call back to `localhost`. When both values are set, new registrations
+send `https://your-public-api-host.example/own/callback/<secret>/` as
+`urlCallback`. Existing registrations are unchanged.
+
+The endpoint accepts GET, POST, PUT, and PATCH so the method can be observed.
+It needs no portal JWT or CSRF token; possession of the secret URL is the only
+access check. Each request is saved under
+`quick-portal-api/app/logs/own_callbacks/` with method, query string,
+content type, header names, and the raw body as UTF-8 text (or Base64 for
+non-UTF-8). The response is `{"received": true}`. Captures are git-ignored,
+may contain personal data, and should be deleted after inspection. The endpoint
+does **not** validate OWN's identity or update signup status.
+
+You can verify the receiver locally before registering a merchant:
+
+```bash
+curl -i -X POST "http://localhost:8080/own/callback/REPLACE_WITH_SECRET/" \
+  -H 'Content-Type: application/json' \
+  -d '{"test":true}'
+```
+
+Then inspect the newest JSON file in `quick-portal-api/app/logs/own_callbacks/`.
+Only turn this capture on for a controlled test; remove the two environment
+values and restart `web` to disable it.
+
 ---
 
 ## Endpoint

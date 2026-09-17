@@ -1,5 +1,6 @@
 from django.urls import path
 
+from own.callback import own_signup_callback
 from own.views import (
     OwnActivityListView,
     OwnAuthTokenView,
@@ -14,6 +15,7 @@ from own.views import (
 
 
 urlpatterns = [
+    path("callback/<str:secret>/", own_signup_callback, name="own_signup_callback"),
     path("auth/", OwnAuthTokenView.as_view(), name="own_auth"),
     path("activities/", OwnActivityListView.as_view(), name="own_activity_list"),
     path("businesses/", OwnBusinessSignupView.as_view(), name="own_business_list_create"),
