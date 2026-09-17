@@ -82,7 +82,7 @@ def _record_registration_state(own_business, registration_status, error=""):
 
 
 def _submit_registration(own_business):
-    """Submit ``own_business`` to OWN and return ``(result, error_response)``."""
+    """Submit ``own_business`` to OWN and return its response, if successful."""
     payload = build_own_business_signup_payload(own_business)
     try:
         result = register_merchant(payload)
@@ -92,32 +92,16 @@ def _submit_registration(own_business):
             OwnRegistrationStatus.API_REQUEST_FAILED,
             str(exc),
         )
-        return None, Response(
-            {"error": "own_auth_failed", "detail": str(exc)},
-            status=status.HTTP_502_BAD_GATEWAY,
-        )
+        return None
     except MerchantRegistrationError as exc:
         registration_status = (
             OwnRegistrationStatus.API_REQUEST_FAILED
-            if exc.status_code is not None
+            if exc.status_code is not None and 400 <= exc.status_code < 500
+            and exc.status_code not in {408, 409}
             else OwnRegistrationStatus.UNKNOWN
         )
         _record_registration_state(own_business, registration_status, str(exc))
-        error_status = (
-            status.HTTP_400_BAD_REQUEST
-            if exc.status_code and 400 <= exc.status_code < 500
-            else status.HTTP_502_BAD_GATEWAY
-        )
-        return None, Response(
-            {
-                "error": "merchant_registration_failed",
-                "detail": str(exc),
-                "upstream_status": exc.status_code,
-                "upstream_body": exc.response_body,
-                "registration_status": registration_status,
-            },
-            status=error_status,
-        )
+        return None
 
     with transaction.atomic():
         locked_signup = OwnBusiness.objects.select_for_update().get(pk=own_business.pk)
@@ -136,7 +120,7 @@ def _submit_registration(own_business):
             ]
         )
     own_business.refresh_from_db()
-    return result, None
+    return result
 
 
 def _manageable_signup_or_404(user, pk, lock=False):
@@ -191,8 +175,8 @@ class OwnBusinessSignupView(ListCreateAPIView):
 
         ``request`` contains the existing business ID and acquirer-specific
         fields. ``args`` and ``kwargs`` are standard DRF view arguments. The
-        response is HTTP 201 with local and upstream data on success, or a
-        scoped validation/upstream error response on failure.
+        response is HTTP 201 whenever the local signup was saved. Its
+        registration status records the outcome of the OWN submission.
         """
         business_id = request.data.get("business")
         if business_id is None:
@@ -243,12 +227,10 @@ class OwnBusinessSignupView(ListCreateAPIView):
             serializer.cleanup_files()
             raise
 
-        result, error_response = _submit_registration(own_business)
-        if error_response is not None:
-            return error_response
-
+        result = _submit_registration(own_business)
         output = self.get_serializer(own_business).data
-        output["registration"] = result
+        if result is not None:
+            output["registration"] = result
         return Response(output, status=status.HTTP_201_CREATED)
 
 
@@ -259,31 +241,19 @@ class OwnBusinessRetryView(APIView):
         """Retry failed signup ``pk`` and return its refreshed registration result."""
         with transaction.atomic():
             own_business = _manageable_signup_or_404(request.user, pk, lock=True)
-            is_stale_pending = (
-                own_business.registration_status == OwnRegistrationStatus.PENDING
-                and own_business.updated_at <= timezone.now() - PENDING_RETRY_AFTER
-            )
-            if (
-                own_business.registration_status != OwnRegistrationStatus.API_REQUEST_FAILED
-                and not is_stale_pending
-            ):
+            if own_business.registration_status != OwnRegistrationStatus.API_REQUEST_FAILED:
                 return Response(
-                    {
-                        "detail": (
-                            "Only failed or interrupted OWN signups can be retried."
-                        )
-                    },
+                    {"detail": "Only failed OWN signups can be retried."},
                     status=status.HTTP_409_CONFLICT,
                 )
             _record_registration_state(own_business, OwnRegistrationStatus.PENDING)
-        result, error_response = _submit_registration(own_business)
-        if error_response is not None:
-            return error_response
+        result = _submit_registration(own_business)
         output = OwnBusinessSignupSerializer(
             own_business,
             context={"request": request},
         ).data
-        output["registration"] = result
+        if result is not None:
+            output["registration"] = result
         return Response(output)
 
 
@@ -353,9 +323,16 @@ class OwnBusinessReconcileView(APIView):
             )
         with transaction.atomic():
             own_business = _manageable_signup_or_404(request.user, pk, lock=True)
-            if own_business.registration_status != OwnRegistrationStatus.UNKNOWN:
+            is_stale_pending = (
+                own_business.registration_status == OwnRegistrationStatus.PENDING
+                and own_business.updated_at <= timezone.now() - PENDING_RETRY_AFTER
+            )
+            if (
+                own_business.registration_status != OwnRegistrationStatus.UNKNOWN
+                and not is_stale_pending
+            ):
                 return Response(
-                    {"detail": "Only unknown OWN signups require reconciliation."},
+                    {"detail": "Only unknown or interrupted OWN signups require reconciliation."},
                     status=status.HTTP_409_CONFLICT,
                 )
             if registered:

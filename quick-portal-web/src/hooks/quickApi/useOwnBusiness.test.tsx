@@ -2,7 +2,11 @@ import type { ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { useOwnBusiness } from "./useOwnBusiness";
+import {
+  useOwnBusiness,
+  useRetryOwnBusiness,
+  useUpdateOwnBusiness,
+} from "./useOwnBusiness";
 
 vi.mock("#hooks/auth/useToken", () => ({
   useToken: () => ({ data: "access-token" }),
@@ -47,7 +51,11 @@ describe("useOwnBusiness", () => {
   });
 
   it("creates an OWN signup with the acquirer-specific payload", async () => {
-    fetchMock.mockResolvedValue({ ok: true });
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: () =>
+        Promise.resolve({ id: 91, registration_status: "REGISTERED" }),
+    });
     const { result } = renderHook(() => useOwnBusiness(), {
       wrapper: Wrapper,
     });
@@ -89,10 +97,64 @@ describe("useOwnBusiness", () => {
     });
   });
 
-  it("shows the detail returned by an OWN registration failure", async () => {
+  it("treats a saved signup rejected by OWN as a successful local creation", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: () =>
+        Promise.resolve({ id: 91, registration_status: "API_REQUEST_FAILED" }),
+    });
+    const { result } = renderHook(() => useOwnBusiness(), {
+      wrapper: Wrapper,
+    });
+
+    act(() => result.current.mutate(payload));
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data?.registration_status).toBe("API_REQUEST_FAILED");
+  });
+
+  it("patches only changed fields before retrying the saved signup", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: () =>
+        Promise.resolve({ id: 91, registration_status: "REGISTERED" }),
+    });
+    const { businessId, ...values } = payload;
+    const { result: update } = renderHook(() => useUpdateOwnBusiness(), {
+      wrapper: Wrapper,
+    });
+
+    act(() =>
+      update.current.mutate({
+        id: 91,
+        businessId,
+        values,
+        changedFields: ["signatoryEmail", "account"],
+      }),
+    );
+
+    await waitFor(() => expect(update.current.isSuccess).toBe(true));
+    const [url, options] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toContain("/own/businesses/91/");
+    expect(options.method).toBe("PATCH");
+    expect(JSON.parse(options.body as string)).toEqual({
+      signatory_email: "maria@example.com",
+      bank_account: "00123456",
+    });
+
+    const { result: retry } = renderHook(() => useRetryOwnBusiness(), {
+      wrapper: Wrapper,
+    });
+    act(() => retry.current.mutate({ id: 91, businessId }));
+    await waitFor(() => expect(retry.current.isSuccess).toBe(true));
+    expect(fetchMock.mock.calls[1][0]).toContain("/own/businesses/91/retry/");
+    expect(fetchMock.mock.calls[1][1]).toMatchObject({ method: "POST" });
+  });
+
+  it("shows the detail returned by an API validation failure", async () => {
     fetchMock.mockResolvedValue({
       ok: false,
-      json: () => Promise.resolve({ detail: "Credenciamento recusado." }),
+      json: () => Promise.resolve({ detail: "Dados inválidos." }),
     });
     const { result } = renderHook(() => useOwnBusiness(), {
       wrapper: Wrapper,
@@ -101,6 +163,6 @@ describe("useOwnBusiness", () => {
     act(() => result.current.mutate(payload));
 
     await waitFor(() => expect(result.current.isError).toBe(true));
-    expect(result.current.error).toEqual(new Error("Credenciamento recusado."));
+    expect(result.current.error).toEqual(new Error("Dados inválidos."));
   });
 });

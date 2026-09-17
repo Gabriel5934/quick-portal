@@ -1,9 +1,20 @@
 import { zodResolver } from "@hookform/resolvers/zod";
+import Alert from "@mui/material/Alert";
+import Button from "@mui/material/Button";
+import CircularProgress from "@mui/material/CircularProgress";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
-import { useNavigate } from "@tanstack/react-router";
+import { createLink, useNavigate } from "@tanstack/react-router";
 import { FormProvider, useForm } from "react-hook-form";
-import { useOwnBusiness } from "#hooks/quickApi/useOwnBusiness";
+import {
+  useOwnBusiness,
+  useRetryOwnBusiness,
+  useUpdateOwnBusiness,
+} from "#hooks/quickApi/useOwnBusiness";
+import {
+  useOwnBusinessForBusiness,
+  type OwnBusinessDetails,
+} from "#hooks/quickApi/useOwnBusinesses";
 import {
   MultiStepFormShell,
   WizardActions,
@@ -32,34 +43,79 @@ const validationSchemas = [
   addressSchema,
   commercialPlanSchema,
 ] as const;
+const RouterButton = createLink(Button);
 
-export function OwnBusiness({ businessId }: { businessId: number }) {
+function formatCurrency(value: string): string {
+  return Number(value).toLocaleString("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+  });
+}
+
+function savedValues(ownBusiness: OwnBusinessDetails): OwnBusinessFormValues {
+  return {
+    bankCode: ownBusiness.bank_code,
+    branch: ownBusiness.bank_branch,
+    branchDigit: ownBusiness.bank_branch_digit,
+    account: ownBusiness.bank_account,
+    accountDigit: ownBusiness.bank_account_digit,
+    postalCode: ownBusiness.postal_code.replace(/(\d{5})(\d{3})/, "$1-$2"),
+    state: ownBusiness.state,
+    city: ownBusiness.city,
+    neighborhood: ownBusiness.neighborhood,
+    street: ownBusiness.street,
+    number: ownBusiness.address_number,
+    complement: ownBusiness.address_complement,
+    planId: ownBusiness.plan,
+    signatoryName: ownBusiness.signatory_name,
+    signatoryCpf: ownBusiness.signatory_cpf.replace(
+      /(\d{3})(\d{3})(\d{3})(\d{2})/,
+      "$1.$2.$3-$4",
+    ),
+    signatoryEmail: ownBusiness.signatory_email,
+    expectedRevenue: formatCurrency(ownBusiness.forecast_revenue),
+    commitedRevenue: formatCurrency(ownBusiness.contract_revenue),
+    quantityPos: ownBusiness.pos_quantity,
+  };
+}
+
+function OwnBusinessForm({
+  businessId,
+  savedBusiness,
+}: {
+  businessId: number;
+  savedBusiness: OwnBusinessDetails | null;
+}) {
   const [currentStep, setCurrentStep] = useState(0);
   const navigate = useNavigate();
   const ownBusiness = useOwnBusiness();
+  const updateOwnBusiness = useUpdateOwnBusiness();
+  const retryOwnBusiness = useRetryOwnBusiness();
   const methods = useForm<OwnBusinessFormValues>({
     resolver: zodResolver(ownBusinessSchema),
-    defaultValues: {
-      bankCode: "",
-      branch: "",
-      branchDigit: "",
-      account: "",
-      accountDigit: "",
-      postalCode: "",
-      state: "",
-      city: "",
-      neighborhood: "",
-      street: "",
-      number: "",
-      complement: "",
-      planId: undefined,
-      signatoryName: "",
-      signatoryCpf: "",
-      signatoryEmail: "",
-      expectedRevenue: "",
-      commitedRevenue: "",
-      quantityPos: undefined,
-    },
+    defaultValues: savedBusiness
+      ? savedValues(savedBusiness)
+      : {
+          bankCode: "",
+          branch: "",
+          branchDigit: "",
+          account: "",
+          accountDigit: "",
+          postalCode: "",
+          state: "",
+          city: "",
+          neighborhood: "",
+          street: "",
+          number: "",
+          complement: "",
+          planId: undefined,
+          signatoryName: "",
+          signatoryCpf: "",
+          signatoryEmail: "",
+          expectedRevenue: "",
+          commitedRevenue: "",
+          quantityPos: undefined,
+        },
   });
 
   function applyValidationErrors(
@@ -85,15 +141,39 @@ export function OwnBusiness({ businessId }: { businessId: number }) {
     setCurrentStep((step) => step + 1);
   }
 
-  function submit(values: OwnBusinessFormValues) {
-    ownBusiness.mutate(
-      { businessId, ...values },
-      {
-        onSuccess: () => void navigate({ to: "/business-list" }),
-        onError: (error) =>
-          methods.setError("root", { message: error.message }),
-      },
-    );
+  async function submit(values: OwnBusinessFormValues) {
+    try {
+      if (savedBusiness) {
+        const changedFields = Object.keys(
+          methods.formState.dirtyFields,
+        ) as (keyof OwnBusinessFormValues)[];
+        if (changedFields.length > 0) {
+          await updateOwnBusiness.mutateAsync({
+            id: savedBusiness.id,
+            businessId,
+            values,
+            changedFields,
+          });
+        }
+        await retryOwnBusiness.mutateAsync({
+          id: savedBusiness.id,
+          businessId,
+        });
+      } else {
+        await ownBusiness.mutateAsync({ businessId, ...values });
+      }
+      await navigate({
+        to: "/business-list/$id",
+        params: { id: String(businessId) },
+      });
+    } catch (error) {
+      methods.setError("root", {
+        message:
+          error instanceof Error
+            ? error.message
+            : "Erro ao credenciar o estabelecimento na OWN.",
+      });
+    }
   }
 
   return (
@@ -101,8 +181,16 @@ export function OwnBusiness({ businessId }: { businessId: number }) {
       <MultiStepFormShell
         breadcrumb={{ to: "/business-list", label: "Estabelecimentos" }}
         currentLabel="Credenciamento OWN"
-        title="Credenciamento OWN do EC"
-        subtitle="Informe os dados bancários, o endereço e as condições comerciais para credenciar o estabelecimento na OWN."
+        title={
+          savedBusiness
+            ? "Revisar credenciamento OWN"
+            : "Credenciamento OWN do EC"
+        }
+        subtitle={
+          savedBusiness
+            ? "Revise os dados do credenciamento antes de reenviar à OWN."
+            : "Informe os dados bancários, o endereço e as condições comerciais para credenciar o estabelecimento na OWN."
+        }
         steps={steps}
         currentStep={currentStep}
       >
@@ -131,7 +219,12 @@ export function OwnBusiness({ businessId }: { businessId: number }) {
             </Typography>
           )}
           <WizardActions
-            onCancel={() => void navigate({ to: "/business-list" })}
+            onCancel={() =>
+              void navigate({
+                to: "/business-list/$id",
+                params: { id: String(businessId) },
+              })
+            }
             onBack={
               currentStep > 0
                 ? () => setCurrentStep((step) => step - 1)
@@ -139,13 +232,69 @@ export function OwnBusiness({ businessId }: { businessId: number }) {
             }
             submitLabel={
               currentStep === steps.length - 1
-                ? "Finalizar credenciamento"
+                ? savedBusiness
+                  ? "Reenviar à OWN"
+                  : "Finalizar credenciamento"
                 : "Continuar"
             }
-            loading={currentStep === steps.length - 1 && ownBusiness.isPending}
+            loading={
+              currentStep === steps.length - 1 &&
+              (ownBusiness.isPending ||
+                updateOwnBusiness.isPending ||
+                retryOwnBusiness.isPending)
+            }
           />
         </Stack>
       </MultiStepFormShell>
     </FormProvider>
+  );
+}
+
+export function OwnBusiness({ businessId }: { businessId: number }) {
+  const {
+    data: savedBusiness,
+    isLoading,
+    error,
+  } = useOwnBusinessForBusiness(businessId);
+
+  if (error) {
+    return (
+      <Alert severity="error">
+        {error instanceof Error
+          ? error.message
+          : "Erro ao carregar o credenciamento OWN."}
+      </Alert>
+    );
+  }
+
+  if (isLoading || savedBusiness === undefined) {
+    return <CircularProgress aria-label="Carregando credenciamento OWN" />;
+  }
+
+  if (
+    savedBusiness &&
+    savedBusiness.registration_status !== "API_REQUEST_FAILED"
+  ) {
+    return (
+      <Alert severity="info">
+        Este credenciamento não pode ser reenviado no momento. Consulte seu
+        status nos detalhes do estabelecimento.{" "}
+        <RouterButton
+          to="/business-list/$id"
+          params={{ id: String(businessId) }}
+          size="small"
+        >
+          Ver detalhes
+        </RouterButton>
+      </Alert>
+    );
+  }
+
+  return (
+    <OwnBusinessForm
+      key={savedBusiness?.id ?? "new"}
+      businessId={businessId}
+      savedBusiness={savedBusiness}
+    />
   );
 }

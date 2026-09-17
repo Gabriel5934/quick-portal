@@ -14,10 +14,32 @@ Child instructions take precedence for application-specific work.
 - Run Git commands from this workspace root. The application directories are
   regular directories in this repository, not nested Git repositories.
 - Keep related frontend and backend work in the same branch, commit, and PR.
-- Run application commands from the relevant child directory.
+- Run frontend npm commands from `quick-portal-web/`. Run integrated Docker
+  Compose commands from this Git root.
 - Keep frontend and backend dependencies, builds, and deployments independent.
 - Never stage `.monorepo-backup/`, local environments, or credentials.
 - Check the root `git status` before finishing.
+
+## Integrated Docker Compose project
+
+The root `docker-compose.yml` includes the child development Compose files and
+runs as the `quick-portal` project. Use it when checking the running monorepo
+stack. Its services are `app` (React frontend), `web` (Django API), `db`
+(PostgreSQL), `nginx` (API proxy), and `docs` (VitePress).
+
+```bash
+# Run from this Git root
+docker compose ls --all
+docker compose ps
+docker compose exec -T web python manage.py showmigrations own
+```
+
+Running `docker compose ps` inside `quick-portal-api/` or `quick-portal-web/`
+checks a separate child project; an empty result there does **not** mean the
+root `quick-portal` services are stopped. If a sandboxed Docker command reports
+permission denied for the Docker socket, request elevated Docker access and
+retry before concluding that services are unavailable. Do not print container
+environment variables or credentials during diagnostics.
 
 ## Frontend: `quick-portal-web/`
 
@@ -31,6 +53,7 @@ npm run build     # TypeScript check and production build
 npm run lint      # ESLint
 npm run preview   # Preview the production build
 
+# Standalone frontend Compose project only
 docker compose up --build
 docker compose -f docker-compose.dev.yml up
 docker compose up --build --force-recreate
@@ -54,6 +77,9 @@ Important conventions:
 
 **Stack:** Django 5, Django REST Framework, SimpleJWT, PostgreSQL 16, nginx, and
 Docker Compose.
+
+The commands below target the standalone backend Compose project. For the
+running integrated stack, use the root commands above.
 
 ```bash
 cd quick-portal-api
@@ -99,14 +125,15 @@ cd quick-portal-web
 npm run lint
 npm run build
 
-# Backend
-cd quick-portal-api
-docker compose exec web ruff check
-docker compose exec web python manage.py test quickportal
+# Backend: run from the Git root against the integrated stack
+cd ..
+docker compose exec -T web ruff check
+docker compose exec -T web python manage.py test quickportal
 ```
 
-If Docker services are not running, report which backend checks could not be
-executed rather than claiming they passed.
+If the root Docker services are not running or cannot be accessed after the
+permission retry, report which backend checks could not be executed rather
+than claiming they passed.
 
 ## Scopes
 
@@ -178,5 +205,6 @@ The fee model is supposed to be a data source and not created by end users. It r
 Never manually create or modify migrations. Always start by modifying the model and then letting Django auto-generate the migrations
 
 ```
-docker compose exec web python manage.py makemigrations
+# Run from the Git root against the integrated stack
+docker compose exec -T web python manage.py makemigrations
 ```

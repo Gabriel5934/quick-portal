@@ -18,6 +18,10 @@ docker compose -f docker-compose.dev.yml up      # Dev with hot reload
 docker compose up --build --force-recreate       # Rebuild after dependency changes
 ```
 
+These Docker commands target the standalone frontend project. To inspect the
+running integrated `quick-portal` stack, run `docker compose ps` from the
+parent monorepo root; its `app` service is this React frontend.
+
 Tests use Vitest. Run `npm test` along with lint and build for relevant changes.
 
 ## Architecture

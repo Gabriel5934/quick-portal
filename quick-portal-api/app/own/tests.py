@@ -48,7 +48,7 @@ from quickportal.models import (
     BusinessType,
     DocumentType,
 )
-from own.services.own_merchant import MerchantRegistrationError
+from own.services.own_merchant import MerchantRegistrationError, register_merchant
 
 
 class OwnAuthTokenEndpointTests(TestCase):
@@ -79,6 +79,27 @@ class OwnAuthTokenEndpointTests(TestCase):
         self.assertEqual(response.data["error"], "own_auth_failed")
         get_own_token.assert_called_once_with()
 
+
+class OwnMerchantServiceTests(TestCase):
+    @patch("own.services.own_merchant._write_registration_trace")
+    @patch("own.services.own_merchant.requests.post")
+    @patch("own.services.own_merchant.get_own_token", return_value="token")
+    def test_malformed_success_response_is_an_unknown_outcome(
+        self,
+        get_own_token,
+        post,
+        write_trace,
+    ):
+        post.return_value.status_code = 200
+        post.return_value.json.side_effect = ValueError("invalid JSON")
+        post.return_value.text = "invalid JSON"
+
+        with self.assertRaises(MerchantRegistrationError) as error:
+            register_merchant({})
+
+        self.assertEqual(error.exception.status_code, 200)
+        get_own_token.assert_called_once_with()
+        write_trace.assert_called_once()
 
 class OwnFeeChoiceTests(TestCase):
     def test_rejects_the_retired_anticipation_method(self):
@@ -455,12 +476,78 @@ class OwnBusinessSignupEndpointTests(TestCase):
                 2,
             )
 
-        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.status_code, 201)
         own_business = OwnBusiness.objects.get()
+        self.assertEqual(response.data["id"], own_business.pk)
+        self.assertEqual(
+            response.data["registration_status"],
+            OwnRegistrationStatus.API_REQUEST_FAILED,
+        )
         self.assertEqual(
             own_business.registration_status,
             OwnRegistrationStatus.API_REQUEST_FAILED,
         )
+
+    @patch("own.views.register_merchant")
+    @patch("own.serializers.fetch_cep_info")
+    def test_own_server_error_is_unknown_and_cannot_be_retried(
+        self,
+        fetch_cep_info,
+        register_merchant,
+    ):
+        fetch_cep_info.return_value = {
+            "street": "Rua Milton Martins",
+            "neighborhood": "Urbanova",
+            "city": "São José dos Campos",
+            "state": "SP",
+        }
+        register_merchant.side_effect = MerchantRegistrationError(
+            "server error", status_code=500
+        )
+
+        with TemporaryDirectory() as media_root, override_settings(MEDIA_ROOT=media_root):
+            response = self.client.post("/own/businesses/", self.payload(), format="json")
+            own_business = OwnBusiness.objects.get()
+            retry_response = self.client.post(
+                f"/own/businesses/{own_business.pk}/retry/"
+            )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.data["registration_status"], OwnRegistrationStatus.UNKNOWN)
+        self.assertEqual(retry_response.status_code, 409)
+        register_merchant.assert_called_once()
+
+    @patch("own.views.register_merchant")
+    @patch("own.serializers.fetch_cep_info")
+    def test_retry_returns_saved_failure_status_after_another_own_rejection(
+        self,
+        fetch_cep_info,
+        register_merchant,
+    ):
+        fetch_cep_info.return_value = {
+            "street": "Rua Milton Martins",
+            "neighborhood": "Urbanova",
+            "city": "São José dos Campos",
+            "state": "SP",
+        }
+        register_merchant.side_effect = MerchantRegistrationError(
+            "rejected", status_code=400
+        )
+
+        with TemporaryDirectory() as media_root, override_settings(MEDIA_ROOT=media_root):
+            self.client.post("/own/businesses/", self.payload(), format="json")
+            own_business = OwnBusiness.objects.get()
+            response = self.client.post(
+                f"/own/businesses/{own_business.pk}/retry/"
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["id"], own_business.pk)
+        self.assertEqual(
+            response.data["registration_status"],
+            OwnRegistrationStatus.API_REQUEST_FAILED,
+        )
+        self.assertEqual(register_merchant.call_count, 2)
 
     @patch("own.views.register_merchant")
     @patch("own.serializers.fetch_cep_info")
@@ -640,7 +727,12 @@ class OwnBusinessSignupEndpointTests(TestCase):
         with TemporaryDirectory() as media_root, override_settings(MEDIA_ROOT=media_root):
             response = self.client.post("/own/businesses/", self.payload(), format="json")
             own_business = OwnBusiness.objects.get()
-            self.assertEqual(response.status_code, 502)
+            self.assertEqual(response.status_code, 201)
+            self.assertEqual(response.data["id"], own_business.pk)
+            self.assertEqual(
+                response.data["registration_status"],
+                OwnRegistrationStatus.UNKNOWN,
+            )
             self.assertEqual(
                 own_business.registration_status,
                 OwnRegistrationStatus.UNKNOWN,
@@ -684,7 +776,7 @@ class OwnBusinessSignupEndpointTests(TestCase):
 
     @patch("own.views.register_merchant")
     @patch("own.serializers.fetch_cep_info")
-    def test_retries_an_interrupted_pending_registration(
+    def test_interrupted_pending_registration_requires_reconciliation_before_retry(
         self,
         fetch_cep_info,
         register_merchant,
@@ -707,9 +799,20 @@ class OwnBusinessSignupEndpointTests(TestCase):
                 registration_status=OwnRegistrationStatus.PENDING,
                 updated_at=timezone.now() - timedelta(minutes=6),
             )
+            response = self.client.post(
+                f"/own/businesses/{own_business.pk}/retry/"
+            )
+            self.assertEqual(response.status_code, 409)
+            register_merchant.assert_called_once()
+
+            reconcile_response = self.client.post(
+                f"/own/businesses/{own_business.pk}/reconcile/",
+                {"registered": False},
+                format="json",
+            )
+            self.assertEqual(reconcile_response.status_code, 200)
             register_merchant.side_effect = None
             register_merchant.return_value = {"protocolo": "RESUMED-1"}
-
             response = self.client.post(
                 f"/own/businesses/{own_business.pk}/retry/"
             )

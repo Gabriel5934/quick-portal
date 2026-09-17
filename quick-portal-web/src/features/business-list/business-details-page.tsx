@@ -18,6 +18,7 @@ import {
 import {
   AddBusinessOutlined,
   ArrowBackOutlined,
+  Circle,
   HourglassEmptyOutlined,
   StorefrontOutlined,
 } from "@mui/icons-material";
@@ -119,6 +120,69 @@ function ownStatusLabel(status: OwnRegistrationStatus): string {
   if (status === "PENDING") return "Pendente";
   if (status === "API_REQUEST_FAILED") return "Falha no credenciamento";
   return "Status desconhecido";
+}
+
+function OwnStatusCard({
+  businessId,
+  ownBusiness,
+}: {
+  businessId: number;
+  ownBusiness: OwnBusinessDetails | null;
+}) {
+  const status = ownBusiness?.registration_status;
+  const label =
+    status === "API_REQUEST_FAILED"
+      ? "ERRO NO CADASTRO"
+      : status === "REGISTERED"
+        ? "CREDENCIADO"
+        : status === "PENDING"
+          ? "PENDENTE"
+          : status === "UNKNOWN"
+            ? "VERIFICAÇÃO NECESSÁRIA"
+            : "NÃO CREDENCIADO";
+  const color =
+    status === "API_REQUEST_FAILED"
+      ? "error.main"
+      : status === "REGISTERED"
+        ? "success.main"
+        : status === "PENDING" || status === "UNKNOWN"
+          ? "warning.main"
+          : "text.disabled";
+
+  return (
+    <Paper
+      variant="outlined"
+      sx={{
+        p: 2,
+        mb: 2,
+        display: "flex",
+        alignItems: { xs: "flex-start", sm: "center" },
+        flexDirection: { xs: "column", sm: "row" },
+        justifyContent: "space-between",
+        gap: 1,
+      }}
+    >
+      <Typography variant="body2">OWN</Typography>
+      <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+        <Circle aria-hidden sx={{ fontSize: 16, color }} />
+        <Typography variant="body2" role="status">
+          {label}
+        </Typography>
+        {status === "API_REQUEST_FAILED" && (
+          <RouterButton
+            to="/business-list/$id/credenciamento-own"
+            params={{ id: String(businessId) }}
+            variant="contained"
+            color="inherit"
+            size="small"
+            sx={{ ml: 1 }}
+          >
+            Revisar
+          </RouterButton>
+        )}
+      </Box>
+    </Paper>
+  );
 }
 
 function getDetailRows(business: Business): DetailRow[] {
@@ -246,7 +310,7 @@ export function BusinessDetails({ businessId }: BusinessDetailsProps) {
     data: ownBusiness,
     isLoading: isOwnBusinessLoading,
     error: ownBusinessError,
-  } = useOwnBusinessForBusiness(businessId, activeTab === 1);
+  } = useOwnBusinessForBusiness(businessId);
 
   function handleTabChange(_: SyntheticEvent, nextTab: number) {
     setActiveTab(nextTab);
@@ -311,44 +375,91 @@ export function BusinessDetails({ businessId }: BusinessDetailsProps) {
           <CircularProgress />
         </Box>
       ) : business ? (
-        <Paper variant="outlined">
-          <Tabs
-            value={activeTab}
-            onChange={handleTabChange}
-            variant="scrollable"
-            scrollButtons="auto"
-            aria-label="Dados do estabelecimento por adquirente"
-            sx={{ borderBottom: 1, borderColor: "divider" }}
-          >
-            <Tab label="Quick" {...tabA11yProps(0)} />
-            <Tab label="OWN" {...tabA11yProps(1)} />
-            <Tab label="Cielo" {...tabA11yProps(2)} />
-          </Tabs>
-
-          <TabPanel value={activeTab} index={0}>
-            <DetailsTable
-              ariaLabel="Dados Quick do estabelecimento"
-              rows={getDetailRows(business)}
-            />
-          </TabPanel>
-
-          <TabPanel value={activeTab} index={1}>
-            {ownBusinessError ? (
-              <Alert severity="error">
-                {ownBusinessError instanceof Error
-                  ? ownBusinessError.message
-                  : "Erro ao carregar o credenciamento OWN."}
-              </Alert>
-            ) : isOwnBusinessLoading ? (
-              <Box sx={{ display: "flex", justifyContent: "center", py: 6 }}>
-                <CircularProgress />
-              </Box>
-            ) : ownBusiness ? (
-              <DetailsTable
-                ariaLabel="Dados OWN do estabelecimento"
-                rows={getOwnDetailRows(ownBusiness)}
+        <>
+          {ownBusinessError ? (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              {ownBusinessError instanceof Error
+                ? ownBusinessError.message
+                : "Erro ao carregar o credenciamento OWN."}
+            </Alert>
+          ) : isOwnBusinessLoading || ownBusiness === undefined ? (
+            <Paper variant="outlined" sx={{ p: 2, mb: 2 }}>
+              <CircularProgress
+                size={20}
+                aria-label="Carregando status do credenciamento OWN"
               />
-            ) : (
+            </Paper>
+          ) : (
+            <OwnStatusCard businessId={business.id} ownBusiness={ownBusiness} />
+          )}
+          <Paper variant="outlined">
+            <Tabs
+              value={activeTab}
+              onChange={handleTabChange}
+              variant="scrollable"
+              scrollButtons="auto"
+              aria-label="Dados do estabelecimento por adquirente"
+              sx={{ borderBottom: 1, borderColor: "divider" }}
+            >
+              <Tab label="Quick" {...tabA11yProps(0)} />
+              <Tab label="OWN" {...tabA11yProps(1)} />
+              <Tab label="Cielo" {...tabA11yProps(2)} />
+            </Tabs>
+
+            <TabPanel value={activeTab} index={0}>
+              <DetailsTable
+                ariaLabel="Dados Quick do estabelecimento"
+                rows={getDetailRows(business)}
+              />
+            </TabPanel>
+
+            <TabPanel value={activeTab} index={1}>
+              {ownBusinessError ? (
+                <Alert severity="error">
+                  {ownBusinessError instanceof Error
+                    ? ownBusinessError.message
+                    : "Erro ao carregar o credenciamento OWN."}
+                </Alert>
+              ) : isOwnBusinessLoading ? (
+                <Box sx={{ display: "flex", justifyContent: "center", py: 6 }}>
+                  <CircularProgress />
+                </Box>
+              ) : ownBusiness ? (
+                <DetailsTable
+                  ariaLabel="Dados OWN do estabelecimento"
+                  rows={getOwnDetailRows(ownBusiness)}
+                />
+              ) : (
+                <Box
+                  sx={{
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    textAlign: "center",
+                    py: { xs: 4, sm: 7 },
+                    px: 2,
+                  }}
+                >
+                  <StorefrontOutlined
+                    color="disabled"
+                    sx={{ fontSize: 56, mb: 2 }}
+                  />
+                  <Typography variant="h6" sx={{ mb: 1 }}>
+                    Estabelecimento não credenciado na OWN
+                  </Typography>
+                  <RouterButton
+                    to="/business-list/$id/credenciamento-own"
+                    params={{ id: String(business.id) }}
+                    variant="contained"
+                    startIcon={<AddBusinessOutlined />}
+                  >
+                    Credenciar
+                  </RouterButton>
+                </Box>
+              )}
+            </TabPanel>
+
+            <TabPanel value={activeTab} index={2}>
               <Box
                 sx={{
                   display: "flex",
@@ -359,50 +470,21 @@ export function BusinessDetails({ businessId }: BusinessDetailsProps) {
                   px: 2,
                 }}
               >
-                <StorefrontOutlined
+                <HourglassEmptyOutlined
                   color="disabled"
                   sx={{ fontSize: 56, mb: 2 }}
                 />
                 <Typography variant="h6" sx={{ mb: 1 }}>
-                  Estabelecimento não credenciado na OWN
+                  Cielo ainda não está disponível
                 </Typography>
-                <RouterButton
-                  to="/business-list/$id/credenciamento-own"
-                  params={{ id: String(business.id) }}
-                  variant="contained"
-                  startIcon={<AddBusinessOutlined />}
-                >
-                  Credenciar
-                </RouterButton>
+                <Typography color="text.secondary">
+                  Os dados de credenciamento da Cielo estarão disponíveis em
+                  breve.
+                </Typography>
               </Box>
-            )}
-          </TabPanel>
-
-          <TabPanel value={activeTab} index={2}>
-            <Box
-              sx={{
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                textAlign: "center",
-                py: { xs: 4, sm: 7 },
-                px: 2,
-              }}
-            >
-              <HourglassEmptyOutlined
-                color="disabled"
-                sx={{ fontSize: 56, mb: 2 }}
-              />
-              <Typography variant="h6" sx={{ mb: 1 }}>
-                Cielo ainda não está disponível
-              </Typography>
-              <Typography color="text.secondary">
-                Os dados de credenciamento da Cielo estarão disponíveis em
-                breve.
-              </Typography>
-            </Box>
-          </TabPanel>
-        </Paper>
+            </TabPanel>
+          </Paper>
+        </>
       ) : null}
     </Box>
   );

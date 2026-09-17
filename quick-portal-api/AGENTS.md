@@ -1,9 +1,27 @@
 # AGENTS.md
 
-This file provides guidance to Codex (Codex.ai/code) when working with code in this application. Run application commands from this
-directory and Git commands from the parent monorepo root.
+This file provides guidance to Codex (Codex.ai/code) when working with code in
+this application. Run Git commands and integrated Docker Compose commands from
+the parent monorepo root.
 
-## Commands
+The running monorepo stack is the root `quick-portal` Compose project. In it,
+`web` is Django, `app` is the React frontend, and `db` is PostgreSQL. First
+check `docker compose ps` from the parent root. The Compose files in this
+directory instead target the separate `quick-portal-api` project, which may be
+stopped while the root stack is running. If Docker socket access is denied by
+the sandbox, request elevated access and retry before reporting that services
+are unavailable.
+
+For the running integrated stack, use commands such as these from the parent
+root:
+
+```bash
+docker compose exec -T web python manage.py showmigrations own
+docker compose exec -T web python manage.py test own quickportal
+docker compose exec -T web ruff check
+```
+
+## Standalone backend Compose commands
 
 ```bash
 # Start all services (PostgreSQL + Django dev server)

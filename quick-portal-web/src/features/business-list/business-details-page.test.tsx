@@ -106,7 +106,8 @@ describe("BusinessDetails", () => {
     render(<BusinessDetails businessId={73} />);
 
     expect(useBusiness).toHaveBeenCalledWith(73);
-    expect(useOwnBusinessForBusiness).toHaveBeenCalledWith(73, false);
+    expect(useOwnBusinessForBusiness).toHaveBeenCalledWith(73);
+    expect(screen.getByRole("status")).toHaveTextContent("NÃO CREDENCIADO");
     const table = screen.getByRole("table", {
       name: "Dados Quick do estabelecimento",
     });
@@ -128,7 +129,8 @@ describe("BusinessDetails", () => {
 
     await user.click(screen.getByRole("tab", { name: "OWN" }));
 
-    expect(useOwnBusinessForBusiness).toHaveBeenLastCalledWith(73, true);
+    expect(useOwnBusinessForBusiness).toHaveBeenLastCalledWith(73);
+    expect(screen.getByRole("status")).toHaveTextContent("CREDENCIADO");
     const table = screen.getByRole("table", {
       name: "Dados OWN do estabelecimento",
     });
@@ -151,6 +153,41 @@ describe("BusinessDetails", () => {
       "/business-list/73/credenciamento-own",
     );
   });
+
+  it("offers review only for a failed OWN signup", () => {
+    vi.mocked(useOwnBusinessForBusiness).mockReturnValue({
+      data: {
+        ...ownBusiness,
+        registration_status: "API_REQUEST_FAILED",
+        registration_error: "rejected",
+      },
+      isLoading: false,
+      error: null,
+    } as unknown as ReturnType<typeof useOwnBusinessForBusiness>);
+
+    render(<BusinessDetails businessId={73} />);
+
+    expect(screen.getByRole("status")).toHaveTextContent("ERRO NO CADASTRO");
+    expect(screen.getByRole("link", { name: "Revisar" })).toHaveAttribute(
+      "href",
+      "/business-list/73/credenciamento-own",
+    );
+  });
+
+  it.each(["PENDING", "UNKNOWN", "REGISTERED"] as const)(
+    "does not offer retry for %s",
+    (registration_status) => {
+      vi.mocked(useOwnBusinessForBusiness).mockReturnValue({
+        data: { ...ownBusiness, registration_status },
+        isLoading: false,
+        error: null,
+      } as unknown as ReturnType<typeof useOwnBusinessForBusiness>);
+
+      render(<BusinessDetails businessId={73} />);
+
+      expect(screen.queryByRole("link", { name: "Revisar" })).toBeNull();
+    },
+  );
 
   it("shows the unavailable state in the Cielo tab", async () => {
     const user = userEvent.setup();

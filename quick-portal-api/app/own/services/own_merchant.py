@@ -77,7 +77,15 @@ def register_merchant(payload: dict) -> dict:
 
     _write_registration_trace(payload, url, response=response)
     if response.status_code == 200:
-        return response.json()
+        try:
+            result = response.json()
+        except ValueError as exc:
+            raise MerchantRegistrationError(
+                "OWN returned an invalid registration response",
+                status_code=200,
+                response_body=response.text,
+            ) from exc
+        return result
 
     raise MerchantRegistrationError(
         f"Merchant registration failed with status {response.status_code}",
