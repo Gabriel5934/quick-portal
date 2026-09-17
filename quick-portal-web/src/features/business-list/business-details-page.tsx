@@ -173,7 +173,6 @@ function OwnStatusCard({
             to="/business-list/$id/credenciamento-own"
             params={{ id: String(businessId) }}
             variant="contained"
-            color="inherit"
             size="small"
             sx={{ ml: 1 }}
           >

@@ -371,7 +371,10 @@ class OwnBusinessSignupEndpointTests(TestCase):
         self.assertEqual(own_business.core_protocol, "PROTO-1")
         self.assertEqual(
             own_business.registration_status,
-            OwnRegistrationStatus.REGISTERED,
+            OwnRegistrationStatus.PENDING,
+        )
+        self.assertEqual(
+            response.data["registration_status"], OwnRegistrationStatus.PENDING
         )
         self.assertEqual(own_business.partners.count(), 1)
         self.assertEqual(own_business.attachments.count(), 1)
@@ -587,7 +590,10 @@ class OwnBusinessSignupEndpointTests(TestCase):
         self.assertEqual(own_business.signatory_email, "corrected@example.com")
         self.assertEqual(own_business.bank_account, "00999999")
         self.assertEqual(retry_response.status_code, 200, retry_response.data)
-        self.assertEqual(own_business.registration_status, OwnRegistrationStatus.REGISTERED)
+        self.assertEqual(own_business.registration_status, OwnRegistrationStatus.PENDING)
+        self.assertEqual(
+            retry_response.data["registration_status"], OwnRegistrationStatus.PENDING
+        )
         payload = register_merchant.call_args.args[0]
         self.assertIn("/corrected@example.com/", payload["identificadorCliente"])
 
@@ -770,7 +776,7 @@ class OwnBusinessSignupEndpointTests(TestCase):
         own_business.refresh_from_db()
         self.assertEqual(
             own_business.registration_status,
-            OwnRegistrationStatus.REGISTERED,
+            OwnRegistrationStatus.PENDING,
         )
         self.assertEqual(own_business.core_protocol, "RETRY-1")
 
@@ -821,7 +827,7 @@ class OwnBusinessSignupEndpointTests(TestCase):
         own_business.refresh_from_db()
         self.assertEqual(
             own_business.registration_status,
-            OwnRegistrationStatus.REGISTERED,
+            OwnRegistrationStatus.PENDING,
         )
         self.assertEqual(own_business.core_protocol, "RESUMED-1")
 

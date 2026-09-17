@@ -108,7 +108,7 @@ def _submit_registration(own_business):
         protocol = result.get("protocolo") if isinstance(result, Mapping) else None
         if protocol:
             locked_signup.core_protocol = str(protocol)
-        locked_signup.registration_status = OwnRegistrationStatus.REGISTERED
+        locked_signup.registration_status = OwnRegistrationStatus.PENDING
         locked_signup.registration_error = ""
         locked_signup.full_clean()
         locked_signup.save(
