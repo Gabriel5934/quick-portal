@@ -61,19 +61,25 @@ def register_merchant(payload: dict) -> dict:
     token = get_own_token()
     url = f"{settings.OWN_BASE_URL}/cadastrarConveniada"
 
-    try:
-        response = requests.post(
-            url,
-            headers={
-                "Authorization": f"Bearer {token}",
-                "Content-Type": "application/json",
-            },
-            json=payload,
-            timeout=30,
-        )
-    except requests.RequestException as exc:
-        _write_registration_trace(payload, url, error=exc)
-        raise MerchantRegistrationError(f"Connection error: {exc}") from exc
+    if settings.DEBUG and settings.OWN_DEBUG_FORCE_HTTP_400:
+        response = requests.Response()
+        response.status_code = 400
+        response._content = b'{"detail":"Forced OWN HTTP 400 for retry testing."}'
+        response.headers["Content-Type"] = "application/json"
+    else:
+        try:
+            response = requests.post(
+                url,
+                headers={
+                    "Authorization": f"Bearer {token}",
+                    "Content-Type": "application/json",
+                },
+                json=payload,
+                timeout=30,
+            )
+        except requests.RequestException as exc:
+            _write_registration_trace(payload, url, error=exc)
+            raise MerchantRegistrationError(f"Connection error: {exc}") from exc
 
     _write_registration_trace(payload, url, response=response)
     if response.status_code == 200:

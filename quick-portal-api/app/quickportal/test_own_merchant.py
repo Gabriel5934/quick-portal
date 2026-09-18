@@ -3,8 +3,10 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import Mock, patch
 
+from django.core.cache import cache
 from django.test import SimpleTestCase, override_settings
 
+from own.services.own_auth import OWN_TOKEN_CACHE_KEY, get_own_token
 from own.services.own_merchant import (
     MerchantRegistrationError,
     register_merchant,
@@ -85,3 +87,56 @@ class OwnMerchantTraceTests(SimpleTestCase):
                 register_merchant(self.payload)
 
             self.assertEqual(list(Path(directory).glob("*.json")), [])
+
+
+class OwnDebugFailureTests(SimpleTestCase):
+    @patch("own.services.own_merchant.get_own_token", return_value="token")
+    @patch("own.services.own_merchant.requests.post")
+    def test_forced_400_uses_normal_rejection_without_contacting_own(
+        self, post, get_own_token
+    ):
+        with TemporaryDirectory() as directory, override_settings(
+            DEBUG=True,
+            OWN_DEBUG_FORCE_HTTP_400=True,
+            OWN_REGISTRATION_TRACE_ENABLED=True,
+            OWN_REGISTRATION_TRACE_DIR=Path(directory),
+        ):
+            with self.assertRaises(MerchantRegistrationError) as error:
+                register_merchant({"cnpj": "61805098000149"})
+            trace_path = next(Path(directory).glob("*.json"))
+            trace = json.loads(trace_path.read_text(encoding="utf-8"))
+
+        get_own_token.assert_called_once_with()
+        post.assert_not_called()
+        self.assertEqual(error.exception.status_code, 400)
+        self.assertIn("Forced OWN HTTP 400", error.exception.response_body)
+        self.assertEqual(trace["response"]["status_code"], 400)
+
+    @patch("own.services.own_merchant.get_own_token", return_value="token")
+    @patch("own.services.own_merchant.requests.post")
+    def test_force_flag_is_ignored_when_debug_is_off(self, post, get_own_token):
+        post.return_value = Mock(status_code=200)
+        post.return_value.json.return_value = {"protocolo": "real-response"}
+
+        with override_settings(DEBUG=False, OWN_DEBUG_FORCE_HTTP_400=True):
+            result = register_merchant({})
+
+        self.assertEqual(result, {"protocolo": "real-response"})
+        get_own_token.assert_called_once_with()
+        post.assert_called_once()
+
+    @patch("own.services.own_auth.requests.post")
+    def test_auth_request_is_not_forced_to_400(self, post):
+        post.return_value = Mock(status_code=200)
+        post.return_value.json.return_value = {
+            "access_token": "real-token",
+            "expires_in": 300,
+        }
+        cache.delete(OWN_TOKEN_CACHE_KEY)
+        try:
+            with override_settings(DEBUG=True, OWN_DEBUG_FORCE_HTTP_400=True):
+                self.assertEqual(get_own_token(), "real-token")
+        finally:
+            cache.delete(OWN_TOKEN_CACHE_KEY)
+
+        post.assert_called_once()

@@ -347,6 +347,50 @@ class OwnBusinessSignupEndpointTests(TestCase):
             ],
         }
 
+    @patch("own.services.own_merchant.requests.post")
+    @patch("own.services.own_merchant.get_own_token", return_value="token")
+    @patch("own.serializers.fetch_cep_info")
+    def test_debug_400_keeps_signup_and_retry_in_failed_state(
+        self, fetch_cep_info, get_own_token, post
+    ):
+        fetch_cep_info.return_value = {
+            "street": "Rua Milton Martins",
+            "neighborhood": "Urbanova",
+            "city": "São José dos Campos",
+            "state": "SP",
+        }
+
+        with TemporaryDirectory() as media_root, override_settings(
+            DEBUG=True,
+            OWN_DEBUG_FORCE_HTTP_400=True,
+            OWN_REGISTRATION_TRACE_ENABLED=False,
+            MEDIA_ROOT=media_root,
+        ):
+            create_response = self.client.post(
+                "/own/businesses/", self.payload(), format="json"
+            )
+            own_business = OwnBusiness.objects.get()
+            retry_response = self.client.post(
+                f"/own/businesses/{own_business.pk}/retry/"
+            )
+
+        own_business.refresh_from_db()
+        self.assertEqual(create_response.status_code, 201, create_response.data)
+        self.assertEqual(retry_response.status_code, 200, retry_response.data)
+        self.assertEqual(
+            create_response.data["registration_status"],
+            OwnRegistrationStatus.API_REQUEST_FAILED,
+        )
+        self.assertEqual(
+            retry_response.data["registration_status"],
+            OwnRegistrationStatus.API_REQUEST_FAILED,
+        )
+        self.assertEqual(
+            own_business.registration_status, OwnRegistrationStatus.API_REQUEST_FAILED
+        )
+        self.assertEqual(get_own_token.call_count, 2)
+        post.assert_not_called()
+
     @patch("own.views.register_merchant")
     @patch("own.serializers.fetch_cep_info")
     def test_creates_records_and_sends_derived_own_payload(
