@@ -3,7 +3,10 @@ import { useEffect } from "react";
 import { Controller, useFormContext, useWatch } from "react-hook-form";
 import { PatternFormat } from "react-number-format";
 import { CepValidationError, useCep } from "#hooks/brasilApi/useCep";
-import { FormFieldPaper } from "../../../components/multi-step-form";
+import {
+  DerivedTextField,
+  FormFieldPaper,
+} from "../../../components/multi-step-form";
 import type { OwnBusinessFormValues } from "./types";
 
 const derivedFields = ["state", "city", "neighborhood", "street"] as const;
@@ -24,7 +27,7 @@ export function AddressStep() {
     formState: { errors },
   } = useFormContext<OwnBusinessFormValues>();
   const postalCode = useWatch({ control, name: "postalCode" }) ?? "";
-  const { data: address, error } = useCep(postalCode);
+  const { data: address, error, isFetching: isCepLoading } = useCep(postalCode);
 
   useEffect(() => {
     if (postalCode.replace(/\D/g, "").length < 8) {
@@ -109,15 +112,12 @@ export function AddressStep() {
             name={name}
             control={control}
             render={({ field }) => (
-              <TextField
+              <DerivedTextField
                 {...field}
                 value={field.value ?? ""}
-                variant="standard"
                 label={derivedFieldLabels[name]}
-                fullWidth
                 required
-                slotProps={{ input: { readOnly: true } }}
-                disabled
+                loading={isCepLoading}
                 error={!!errors[name]}
                 helperText={errors[name]?.message}
               />

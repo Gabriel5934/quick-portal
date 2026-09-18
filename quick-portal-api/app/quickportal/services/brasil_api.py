@@ -61,9 +61,7 @@ def _fetch_brasil_api_resource(url: str, resource: str) -> dict:
 
 
 def fetch_bank_info(code: str) -> dict:
-    return _fetch_brasil_api_resource(
-        BRASIL_API_BANK_URL.format(code=code), "bank"
-    )
+    return _fetch_brasil_api_resource(BRASIL_API_BANK_URL.format(code=code), "bank")
 
 
 def fetch_cep_info(cep: str) -> dict:

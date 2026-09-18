@@ -1,38 +1,18 @@
 import FormControlLabel from "@mui/material/FormControlLabel";
-import InputAdornment from "@mui/material/InputAdornment";
 import Radio from "@mui/material/Radio";
 import RadioGroup from "@mui/material/RadioGroup";
 import Switch from "@mui/material/Switch";
 import TextField from "@mui/material/TextField";
-import RefreshOutlined from "@mui/icons-material/RefreshOutlined";
-import { keyframes } from "@mui/material/styles";
 import { useEffect } from "react";
 import { Controller, useFormContext } from "react-hook-form";
 import { PatternFormat } from "react-number-format";
 import { useCnpj } from "#hooks/brasilApi/useCnpj";
-import { FormFieldPaper } from "../../../components/multi-step-form";
+import {
+  DerivedTextField,
+  FormFieldPaper,
+} from "../../../components/multi-step-form";
 import { useBusinessScope } from "../../../layout/business-context";
 import type { NewBusinessFormValues } from "./types";
-
-const spin = keyframes`
-  to {
-    transform: rotate(360deg);
-  }
-`;
-
-function CnpjLoadingAdornment({ loading }: { loading: boolean }) {
-  if (!loading) return null;
-
-  return (
-    <InputAdornment position="start">
-      <RefreshOutlined
-        aria-hidden="true"
-        fontSize="small"
-        sx={{ animation: `${spin} 1s linear infinite` }}
-      />
-    </InputAdornment>
-  );
-}
 
 export function RegistrationStep() {
   const { business } = useBusinessScope();
@@ -170,35 +150,15 @@ export function RegistrationStep() {
 
       {isCnpj && (
         <FormFieldPaper title="Dados cadastrais">
-          <TextField
-            variant="standard"
+          <DerivedTextField
             label="Razão Social"
             value={name}
-            fullWidth
-            slotProps={{
-              input: {
-                readOnly: true,
-                startAdornment: (
-                  <CnpjLoadingAdornment loading={isCnpjLoading} />
-                ),
-              },
-            }}
-            disabled
+            loading={isCnpjLoading}
           />
-          <TextField
-            variant="standard"
+          <DerivedTextField
             label="Nome Fantasia"
             value={nomeFantasia}
-            fullWidth
-            slotProps={{
-              input: {
-                readOnly: true,
-                startAdornment: (
-                  <CnpjLoadingAdornment loading={isCnpjLoading} />
-                ),
-              },
-            }}
-            disabled
+            loading={isCnpjLoading}
           />
         </FormFieldPaper>
       )}

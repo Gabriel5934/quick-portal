@@ -38,7 +38,7 @@ vi.mock("#hooks/brasilApi/useBanks", () => ({
 }));
 
 vi.mock("#hooks/brasilApi/useCep", () => ({
-  useCep: () => ({ data: undefined, error: null }),
+  useCep: () => ({ data: undefined, error: null, isFetching: false }),
   CepValidationError: class extends Error {},
 }));
 
@@ -52,6 +52,9 @@ vi.mock("../../../components/multi-step-form", () => ({
   ),
   FormFieldPaper: ({ children }: { children: ReactNode }) => (
     <div>{children}</div>
+  ),
+  DerivedTextField: ({ label, value }: { label: string; value: string }) => (
+    <input aria-label={label} value={value} disabled readOnly />
   ),
   WizardActions: ({
     onBack,
