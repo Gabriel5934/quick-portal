@@ -173,6 +173,16 @@ class OwnBusinessSignupSerializer(serializers.ModelSerializer):
             "updated_at",
         ]
 
+    def validate_plan(self, plan):
+        business = self.context.get("business") or getattr(self.instance, "business", None)
+        if business is not None and plan.owner_business_id is not None:
+            expected_owner_id = business.parent_id or business.pk
+            if plan.owner_business_id != expected_owner_id:
+                raise serializers.ValidationError(
+                    "The plan does not belong to this business scope."
+                )
+        return plan
+
     def to_internal_value(self, data):
         """Preflight raw request ``data`` and return DRF's validated mapping."""
         if not isinstance(data, Mapping):
@@ -473,6 +483,7 @@ class OwnPlanSerializer(serializers.ModelSerializer):
         model = OwnPlan
         fields = [
             "id",
+            "owner_business",
             "created_by",
             "created_at",
             "updated_by",
@@ -485,7 +496,7 @@ class OwnPlanSerializer(serializers.ModelSerializer):
             "fees",
         ]
         read_only_fields = [
-            "id", "created_by", "created_at", "updated_by", "updated_at"
+            "id", "owner_business", "created_by", "created_at", "updated_by", "updated_at"
         ]
 
     def validate_fees(self, fees):

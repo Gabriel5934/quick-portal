@@ -1,60 +1,57 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToken } from "#hooks/auth/useToken";
-import type { ValidationErrors } from "#hooks/types";
+import type { OwnPlanFee } from "./useOwnPlans";
 
 export interface CreatePlanPayload {
-  name: string;
+  title: string;
   description: string;
-  split: boolean;
-  anticipation: boolean;
-  anticipation_fee: string | null;
-  cnae: string;
-  fees: {
-    fee: number;
-    value: string;
-  }[];
+  anticipation_type: "None" | "Rotating";
+  activity: number;
+  basketId: number;
+  fees: OwnPlanFee[];
 }
 
-type CreatePlanResponse = { id: number };
-
-async function fetchCreatePlan(
-  payload: CreatePlanPayload,
-  token: string,
-): Promise<CreatePlanResponse> {
-  const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/plans/`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify(payload),
-  });
-
-  const data = (await res.json().catch(() => null)) as
-    | (Partial<CreatePlanResponse> & ValidationErrors)
-    | null;
-
-  if (!res.ok) {
-    const keys = Object.keys(data ?? {});
-    const errors = data as ValidationErrors;
-    const first = keys.length ? errors[keys[0]] : null;
-    const message = Array.isArray(first) ? first[0] : first;
-    throw new Error(message || "Erro ao criar plano.");
+function firstError(body: unknown): string | null {
+  if (typeof body === "string") return body;
+  if (!body || typeof body !== "object") return null;
+  for (const value of Object.values(body)) {
+    const message = firstError(value);
+    if (message) return message;
   }
-
-  if (!data?.id) throw new Error("Resposta inválida do servidor.");
-
-  return { id: data.id };
+  return null;
 }
 
-export function useCreatePlan() {
+async function createPlan(
+  payload: CreatePlanPayload,
+  businessId: number,
+  token: string,
+): Promise<{ id: number }> {
+  const response = await fetch(
+    `${import.meta.env.VITE_API_BASE_URL}/own/plans/?business=${businessId}`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(payload),
+    },
+  );
+  const body: unknown = await response.json().catch(() => null);
+  if (!response.ok) throw new Error(firstError(body) ?? "Erro ao criar plano.");
+  if (!body || typeof body !== "object" || !("id" in body) || typeof body.id !== "number") {
+    throw new Error("Resposta inválida do servidor.");
+  }
+  return { id: body.id };
+}
+
+export function useCreatePlan(businessId: number | undefined) {
   const { data: token } = useToken();
-  const qc = useQueryClient();
+  const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (payload: CreatePlanPayload) =>
-      fetchCreatePlan(payload, token!),
+    mutationFn: (payload: CreatePlanPayload) => createPlan(payload, businessId!, token!),
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ["plans"] });
+      void queryClient.invalidateQueries({ queryKey: ["own-plans"] });
     },
   });
 }

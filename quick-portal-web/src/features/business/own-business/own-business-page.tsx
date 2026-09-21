@@ -209,9 +209,9 @@ function OwnBusinessForm({
         >
           {currentStep === 0 && <BankStep />}
           {currentStep === 1 && <AddressStep />}
-          {currentStep === 2 && <OwnRegistrationStep />}
+          {currentStep === 2 && <OwnRegistrationStep businessId={businessId} />}
           {currentStep === 3 && (
-            <OwnBusinessReviewStep values={methods.getValues()} />
+            <OwnBusinessReviewStep businessId={businessId} values={methods.getValues()} />
           )}
           {methods.formState.errors.root && (
             <Typography color="error">

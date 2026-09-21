@@ -3,6 +3,7 @@ from datetime import timedelta
 
 from django.db import transaction
 from django.db import IntegrityError
+from django.db.models import Q
 from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework.generics import (
     ListAPIView,
@@ -13,11 +14,13 @@ from rest_framework.views import APIView
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
 from rest_framework.response import Response
 from rest_framework import status
 
 from own.models import (
     OwnActivity,
+    OwnBasket,
     OwnBusiness,
     OwnFee,
     OwnPlan,
@@ -30,10 +33,11 @@ from own.serializers import (
     OwnFeeSerializer,
     OwnPlanSerializer,
 )
-from quickportal.models import BusinessRole
+from quickportal.models import BusinessRole, BusinessType
 from quickportal.services.brasil_api import BrasilApiError
 from quickportal.services.business_access import (
     accessible_businesses,
+    effective_business_role,
     get_accessible_business_or_404,
 )
 from own.services.own_auth import OwnAuthError, get_own_token
@@ -189,12 +193,14 @@ class OwnBusinessSignupView(ListCreateAPIView):
             business_id,
             roles=WRITE_ROLES,
         )
+        _signup_plan_owner_or_404(request.user, business)
         if OwnBusiness.objects.filter(business=business).exists():
             return Response(
                 {"business": ["This business already has an OWN signup."]},
                 status=status.HTTP_409_CONFLICT,
             )
         serializer = self.get_serializer(data=request.data)
+        serializer.context["business"] = business
         try:
             serializer.is_valid(raise_exception=True)
             with transaction.atomic():
@@ -376,38 +382,107 @@ class OwnActivityListView(ListAPIView):
     queryset = OwnActivity.objects.all()
 
 
+class OwnBasketAnticipationFeeView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, pk):
+        basket = get_object_or_404(OwnBasket, pk=pk)
+        return Response({
+            "basketId": basket.pk,
+            "anticipation_fee": format(basket.anticipation_fee, "f"),
+        })
+
+
+def _plan_scope_business(request, *, writing=False):
+    business_id = request.query_params.get("business")
+    if not business_id:
+        raise ValidationError({"business": ["This query parameter is required."]})
+    business = get_accessible_business_or_404(
+        request.user,
+        business_id,
+        roles=WRITE_ROLES if writing else None,
+    )
+    if business.type == BusinessType.STORE:
+        if writing:
+            raise ValidationError({"business": ["A store cannot own plans."]})
+        if business.parent_id is not None and not accessible_businesses(request.user).filter(
+            pk=business.parent_id
+        ).exists():
+            raise NotFound()
+        return business.parent
+    return business
+
+
+def _signup_plan_owner_or_404(user, business):
+    owner_id = business.parent_id or business.pk
+    return get_accessible_business_or_404(user, owner_id, roles=WRITE_ROLES)
+
+
 class OwnPlanListCreateView(ListCreateAPIView):
     permission_classes = [IsAuthenticated]
     serializer_class = OwnPlanSerializer
 
     def get_queryset(self):
-        """Return plans with their audit, activity, basket, and fee relations.
-
-        ``self`` is the active list/create view. The returned optimized queryset
-        is used to serve the authenticated request.
-        """
-        return OwnPlan.objects.select_related(
-            "activity", "basketId", "created_by", "updated_by"
+        queryset = OwnPlan.objects.select_related(
+            "owner_business", "activity", "basketId", "created_by", "updated_by"
         ).prefetch_related("fees")
+        signup_business_id = self.request.query_params.get("signup_business")
+        if signup_business_id is not None:
+            signup_business = get_accessible_business_or_404(
+                self.request.user, signup_business_id, roles=WRITE_ROLES
+            )
+            owner = _signup_plan_owner_or_404(self.request.user, signup_business)
+            return queryset.filter(owner_business=owner)
+
+        business = _plan_scope_business(self.request)
+        if business is None:
+            return queryset.none()
+        if business.type == BusinessType.RESELLER:
+            return queryset.filter(
+                Q(owner_business=business)
+                | Q(
+                    owner_business__parent=business,
+                    owner_business__type=BusinessType.RE_RESELLER,
+                )
+            )
+        return queryset.filter(owner_business=business)
+
+    def create(self, request, *args, **kwargs):
+        self._owner_business = _plan_scope_business(request, writing=True)
+        return super().create(request, *args, **kwargs)
 
     def perform_create(self, serializer):
-        """Save ``serializer`` with the requesting user as both audit users.
-
-        ``serializer`` is the validated plan serializer. Returns ``None``.
-        """
-        serializer.save(created_by=self.request.user, updated_by=self.request.user)
+        serializer.save(
+            owner_business=self._owner_business,
+            created_by=self.request.user,
+            updated_by=self.request.user,
+        )
 
 
 class OwnPlanDetailView(RetrieveUpdateDestroyAPIView):
     permission_classes = [IsAuthenticated]
     serializer_class = OwnPlanSerializer
-    queryset = OwnPlan.objects.select_related(
-        "activity", "basketId", "created_by", "updated_by"
-    ).prefetch_related("fees")
+
+    def get_queryset(self):
+        queryset = OwnPlan.objects.select_related(
+            "owner_business", "activity", "basketId", "created_by", "updated_by"
+        ).prefetch_related("fees")
+        if self.request.user.is_superuser:
+            return queryset
+        return queryset.filter(
+            owner_business__in=accessible_businesses(self.request.user).exclude(
+                type=BusinessType.STORE
+            )
+        )
+
+    def _check_write_access(self, instance):
+        if effective_business_role(self.request.user, instance.owner_business) not in WRITE_ROLES:
+            raise PermissionDenied("You cannot change this plan.")
 
     def perform_update(self, serializer):
-        """Save ``serializer`` with the requesting user as the updating user.
-
-        ``serializer`` is the validated plan serializer. Returns ``None``.
-        """
+        self._check_write_access(serializer.instance)
         serializer.save(updated_by=self.request.user)
+
+    def perform_destroy(self, instance):
+        self._check_write_access(instance)
+        instance.delete()

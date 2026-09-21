@@ -347,6 +347,77 @@ class OwnBusinessSignupEndpointTests(TestCase):
             ],
         }
 
+    def test_rejects_a_plan_owned_by_another_business(self):
+        reseller = Business.objects.create(
+            type=BusinessType.RESELLER, document_type=DocumentType.CNPJ,
+            document="12345678000188", name="Unrelated reseller",
+            email="unrelated@example.com", phone="11999999996",
+        )
+        self.plan.owner_business = reseller
+        self.plan.save()
+
+        response = self.client.post("/own/businesses/", self.payload(), format="json")
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("plan", response.data)
+
+    @patch("own.views.register_merchant")
+    @patch("own.serializers.fetch_cep_info")
+    def test_re_reseller_signup_uses_parent_reseller_plan(
+        self, fetch_cep_info, register_merchant
+    ):
+        reseller = Business.objects.create(
+            type=BusinessType.RESELLER, document_type=DocumentType.CNPJ,
+            document="12345678000187", name="Parent reseller",
+            email="parent@example.com", phone="11999999995",
+        )
+        re_reseller = Business.objects.create(
+            type=BusinessType.RE_RESELLER, parent=reseller,
+            document_type=DocumentType.CNPJ, document="12345678000186",
+            name="Child re-reseller", email="child@example.com",
+            phone="11999999994",
+        )
+        BusinessMembership.objects.create(
+            user=self.user, business=reseller, role=BusinessRole.MANAGER
+        )
+        self.plan.owner_business = reseller
+        self.plan.save()
+        child_plan = OwnPlan.objects.create(
+            owner_business=re_reseller, created_by=self.user, updated_by=self.user,
+            title="Child plan", activity=self.activity, basketId_id=117,
+        )
+        payload = self.payload()
+        payload["business"] = re_reseller.pk
+        payload["plan"] = child_plan.pk
+
+        rejected = self.client.post("/own/businesses/", payload, format="json")
+        self.assertEqual(rejected.status_code, 400, rejected.data)
+        self.assertIn("plan", rejected.data)
+
+        child_user = User.objects.create_user("self-signup-user")
+        BusinessMembership.objects.create(
+            user=child_user, business=re_reseller, role=BusinessRole.MANAGER
+        )
+        payload["plan"] = self.plan.pk
+        self.client.force_authenticate(child_user)
+        self.assertEqual(
+            self.client.post("/own/businesses/", payload, format="json").status_code,
+            404,
+        )
+        self.client.force_authenticate(self.user)
+
+        fetch_cep_info.return_value = {
+            "street": "Rua Milton Martins", "neighborhood": "Urbanova",
+            "city": "São José dos Campos", "state": "SP",
+        }
+        register_merchant.return_value = {"protocolo": "PROTO-1"}
+        with TemporaryDirectory() as media_root, override_settings(MEDIA_ROOT=media_root):
+            response = self.client.post("/own/businesses/", payload, format="json")
+
+        self.assertEqual(response.status_code, 201, response.data)
+        self.assertEqual(OwnBusiness.objects.get(business=re_reseller).plan, self.plan)
+        register_merchant.assert_called_once()
+
     @patch("own.services.own_merchant.requests.post")
     @patch("own.services.own_merchant.get_own_token", return_value="token")
     @patch("own.serializers.fetch_cep_info")
@@ -427,6 +498,7 @@ class OwnBusinessSignupEndpointTests(TestCase):
         self.assertEqual(sent_payload["cnae"], self.activity.pk)
         self.assertEqual(sent_payload["mcc"], self.activity.mcc)
         self.assertEqual(sent_payload["idCesta"], self.plan.basketId_id)
+        self.assertEqual(sent_payload["tarifacao"], [{"id": 801, "valor": "1.7500000000"}])
         self.assertEqual(sent_payload["cnpjParceiro"], "37924499000133")
         self.assertEqual(sent_payload["cnpjOrigem"], "37924499000133")
         self.assertEqual(sent_payload["complemento"], "Suite 1")
@@ -1216,6 +1288,23 @@ class OwnPlanEndpointTests(TestCase):
         """Use ``self`` to create plan endpoint fixtures; return ``None``."""
         self.user = User.objects.create_user("plan-user")
         self.other_user = User.objects.create_user("plan-editor")
+        self.reseller = Business.objects.create(
+            type=BusinessType.RESELLER, document_type=DocumentType.CNPJ,
+            document="12345678000190", name="Reseller", email="reseller@example.com",
+            phone="11999999999",
+        )
+        self.re_reseller = Business.objects.create(
+            type=BusinessType.RE_RESELLER, parent=self.reseller,
+            document_type=DocumentType.CNPJ, document="12345678000191",
+            name="Re-reseller", email="child@example.com", phone="11999999998",
+        )
+        self.other_reseller = Business.objects.create(
+            type=BusinessType.RESELLER, document_type=DocumentType.CNPJ,
+            document="12345678000192", name="Other reseller",
+            email="other@example.com", phone="11999999997",
+        )
+        BusinessMembership.objects.create(user=self.user, business=self.reseller, role=BusinessRole.ADMIN)
+        BusinessMembership.objects.create(user=self.other_user, business=self.reseller, role=BusinessRole.MANAGER)
         self.activity = OwnActivity.objects.create(
             cnae=5829800, description="Activity", mcc=2741
         )
@@ -1229,7 +1318,7 @@ class OwnPlanEndpointTests(TestCase):
         """Use ``self`` to verify audited plan CRUD and fee replacement; return ``None``."""
         self.assertEqual(self.client.get("/own/plans/").status_code, 401)
         self.client.force_authenticate(self.user)
-        response = self.client.post("/own/plans/", {
+        response = self.client.post(f"/own/plans/?business={self.reseller.pk}", {
             "title": "Standard",
             "description": "A plan",
             "anticipation_type": "Rotating",
@@ -1243,6 +1332,7 @@ class OwnPlanEndpointTests(TestCase):
         self.assertEqual(plan.created_by, self.user)
         self.assertEqual(plan.updated_by, self.user)
         self.assertEqual(plan.basketId_id, 117)
+        self.assertEqual(plan.owner_business, self.reseller)
         self.assertEqual(plan.fees.get().fee, self.fee)
 
         self.client.force_authenticate(self.other_user)
@@ -1262,7 +1352,7 @@ class OwnPlanEndpointTests(TestCase):
         OwnBasket.objects.filter(pk=117).update(fee_amount=2)
         self.client.force_authenticate(self.user)
 
-        response = self.client.post("/own/plans/", {
+        response = self.client.post(f"/own/plans/?business={self.reseller.pk}", {
             "title": "Incomplete",
             "activity": self.activity.pk,
             "basketId": 117,
@@ -1272,6 +1362,79 @@ class OwnPlanEndpointTests(TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn("fees", response.data)
         self.assertFalse(OwnPlan.objects.exists())
+
+    def test_reseller_sees_child_plans_but_re_reseller_sees_only_its_own(self):
+        child_user = User.objects.create_user("child-plan-user")
+        BusinessMembership.objects.create(
+            user=child_user, business=self.re_reseller, role=BusinessRole.ADMIN
+        )
+        parent_plan = OwnPlan.objects.create(
+            owner_business=self.reseller, created_by=self.user, updated_by=self.user,
+            title="Parent", activity=self.activity, basketId_id=117,
+        )
+        child_plan = OwnPlan.objects.create(
+            owner_business=self.re_reseller, created_by=child_user, updated_by=child_user,
+            title="Child", activity=self.activity, basketId_id=117,
+        )
+        OwnPlan.objects.create(
+            owner_business=self.other_reseller, created_by=self.user, updated_by=self.user,
+            title="Unrelated", activity=self.activity, basketId_id=117,
+        )
+
+        self.client.force_authenticate(self.user)
+        response = self.client.get(f"/own/plans/?business={self.reseller.pk}")
+        self.assertEqual({plan["id"] for plan in response.data}, {parent_plan.pk, child_plan.pk})
+        signup_response = self.client.get(
+            f"/own/plans/?signup_business={self.re_reseller.pk}"
+        )
+        self.assertEqual(signup_response.status_code, 200, signup_response.data)
+        self.assertEqual([plan["id"] for plan in signup_response.data], [parent_plan.pk])
+
+        store = Business.objects.create(
+            type=BusinessType.STORE, parent=self.re_reseller,
+            document_type=DocumentType.CNPJ, document="12345678000194",
+            name="Child store", email="store@example.com", phone="11999999996",
+        )
+        store_signup_response = self.client.get(
+            f"/own/plans/?signup_business={store.pk}"
+        )
+        self.assertEqual(store_signup_response.status_code, 200, store_signup_response.data)
+        self.assertEqual([plan["id"] for plan in store_signup_response.data], [child_plan.pk])
+
+        self.client.force_authenticate(child_user)
+        response = self.client.get(f"/own/plans/?business={self.re_reseller.pk}")
+        self.assertEqual([plan["id"] for plan in response.data], [child_plan.pk])
+        self.assertEqual(
+            self.client.get(
+                f"/own/plans/?signup_business={self.re_reseller.pk}"
+            ).status_code,
+            404,
+        )
+        child_store_signup_response = self.client.get(
+            f"/own/plans/?signup_business={store.pk}"
+        )
+        self.assertEqual(
+            [plan["id"] for plan in child_store_signup_response.data],
+            [child_plan.pk],
+        )
+        self.assertEqual(self.client.get(f"/own/plans/{parent_plan.pk}/").status_code, 404)
+        self.assertEqual(
+            self.client.post(
+                f"/own/plans/?business={self.reseller.pk}", {
+                    "title": "Unauthorized", "activity": self.activity.pk,
+                    "basketId": 117,
+                    "fees": [{"fee": self.fee.pk, "value": "1.5"}],
+                }, format="json"
+            ).status_code,
+            404,
+        )
+
+    def test_anticipation_fee_endpoint_returns_selected_basket_fee(self):
+        OwnBasket.objects.filter(pk=117).update(anticipation_fee=Decimal("1.25"))
+        self.client.force_authenticate(self.user)
+        response = self.client.get("/own/baskets/117/anticipation-fee/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data, {"basketId": 117, "anticipation_fee": "1.2500000000"})
 
     def test_direct_model_save_validates_anticipation_type(self):
         """Use ``self`` to verify direct saves reject invalid choices; return ``None``."""
@@ -1284,5 +1447,18 @@ class OwnPlanEndpointTests(TestCase):
             basketId=OwnBasket.objects.get(pk=117),
         )
 
+        with self.assertRaises(ValidationError):
+            plan.save()
+
+    def test_store_cannot_own_a_plan(self):
+        store = Business.objects.create(
+            type=BusinessType.STORE, parent=self.reseller,
+            document_type=DocumentType.CNPJ, document="12345678000193",
+            name="Store", email="store-plan@example.com", phone="11999999995",
+        )
+        plan = OwnPlan(
+            owner_business=store, created_by=self.user, updated_by=self.user,
+            title="Store plan", activity=self.activity, basketId_id=117,
+        )
         with self.assertRaises(ValidationError):
             plan.save()

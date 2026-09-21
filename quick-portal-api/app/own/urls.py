@@ -2,6 +2,7 @@ from django.urls import path
 
 from own.views import (
     OwnActivityListView,
+    OwnBasketAnticipationFeeView,
     OwnAuthTokenView,
     OwnBusinessDetailView,
     OwnBusinessSignupView,
@@ -16,6 +17,7 @@ from own.views import (
 urlpatterns = [
     path("auth/", OwnAuthTokenView.as_view(), name="own_auth"),
     path("activities/", OwnActivityListView.as_view(), name="own_activity_list"),
+    path("baskets/<int:pk>/anticipation-fee/", OwnBasketAnticipationFeeView.as_view(), name="own_basket_anticipation_fee"),
     path("businesses/", OwnBusinessSignupView.as_view(), name="own_business_list_create"),
     path("businesses/<int:pk>/", OwnBusinessDetailView.as_view(), name="own_business_detail"),
     path("businesses/<int:pk>/retry/", OwnBusinessRetryView.as_view(), name="own_business_retry"),

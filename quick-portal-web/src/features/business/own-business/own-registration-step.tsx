@@ -2,15 +2,21 @@ import AddIcon from "@mui/icons-material/Add";
 import Autocomplete from "@mui/material/Autocomplete";
 import Button from "@mui/material/Button";
 import TextField from "@mui/material/TextField";
-import { Link as RouterLink } from "@tanstack/react-router";
+import { createLink } from "@tanstack/react-router";
 import { Controller, useFormContext } from "react-hook-form";
 import { NumericFormat, PatternFormat } from "react-number-format";
-import { useOwnPlans } from "#hooks/quickApi/useOwnPlans";
+import { useOwnPlansForSignup } from "#hooks/quickApi/useOwnPlans";
+import { useAllBusinesses } from "#hooks/quickApi/useBusinesses";
 import { FormFieldPaper } from "../../../components/multi-step-form";
 import type { OwnBusinessFormValues } from "./types";
 
-export function OwnRegistrationStep() {
-  const { data: plans = [] } = useOwnPlans();
+const RouterButton = createLink(Button);
+
+export function OwnRegistrationStep({ businessId }: { businessId: number }) {
+  const { data: plans = [] } = useOwnPlansForSignup(businessId);
+  const { data: businesses = [] } = useAllBusinesses();
+  const targetBusiness = businesses.find((business) => business.id === businessId);
+  const planOwnerId = targetBusiness?.parent ?? targetBusiness?.id;
   const {
     control,
     formState: { errors },
@@ -150,16 +156,16 @@ export function OwnRegistrationStep() {
             />
           )}
         />
-        <Button
-          component={RouterLink}
+        <RouterButton
           to="/novo-plano"
+          search={{ business: planOwnerId ?? undefined }}
           variant="outlined"
           size="small"
           startIcon={<AddIcon />}
           sx={{ alignSelf: "flex-start" }}
         >
           Novo plano
-        </Button>
+        </RouterButton>
       </FormFieldPaper>
       {currencyField("expectedRevenue", "Faturamento esperado")}
       {currencyField("commitedRevenue", "Faturamento comprometido")}

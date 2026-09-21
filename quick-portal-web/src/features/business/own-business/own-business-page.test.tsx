@@ -43,7 +43,11 @@ vi.mock("#hooks/brasilApi/useCep", () => ({
 }));
 
 vi.mock("#hooks/quickApi/useOwnPlans", () => ({
-  useOwnPlans: () => ({ data: [{ id: 18, title: "Plano Teste" }] }),
+  useOwnPlansForSignup: () => ({ data: [{ id: 18, title: "Plano Teste" }] }),
+}));
+
+vi.mock("#hooks/quickApi/useBusinesses", () => ({
+  useAllBusinesses: () => ({ data: [{ id: 73, type: "STORE", parent: 2 }] }),
 }));
 
 vi.mock("../../../components/multi-step-form", () => ({

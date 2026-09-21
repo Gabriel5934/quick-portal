@@ -13,9 +13,13 @@ import {
   Typography,
 } from "@mui/material";
 import { useNavigate } from "@tanstack/react-router";
-import { usePlans } from "#hooks/quickApi/usePlans";
+import { useAllBusinesses } from "#hooks/quickApi/useBusinesses";
+import { useOwnActivities } from "#hooks/quickApi/useOwnActivities";
+import { useOwnPlans } from "#hooks/quickApi/useOwnPlans";
+import { useBusinessScope } from "../../layout/business-context";
+import { BASKETS } from "./catalog";
 
-function formatCnae(value: string): string {
+function formatCnae(value: number): string {
   const stringValue = String(value);
   const digits = stringValue.replace(/\D/g, "");
   return digits.length === 7
@@ -25,7 +29,10 @@ function formatCnae(value: string): string {
 
 export function Plans() {
   const navigate = useNavigate();
-  const { data, isLoading, error } = usePlans();
+  const { business } = useBusinessScope();
+  const { data, isLoading, error } = useOwnPlans(business?.id);
+  const { data: activities = [] } = useOwnActivities();
+  const { data: businesses = [] } = useAllBusinesses();
 
   return (
     <Box>
@@ -97,8 +104,9 @@ export function Plans() {
               <TableHead>
                 <TableRow>
                   <TableCell>Nome</TableCell>
-                  <TableCell>CNAE</TableCell>
-                  <TableCell>Split</TableCell>
+                  <TableCell>Atividade</TableCell>
+                  <TableCell>Cesta</TableCell>
+                  <TableCell>Empresa</TableCell>
                   <TableCell>Antecipação</TableCell>
                   <TableCell>Criado em</TableCell>
                 </TableRow>
@@ -109,7 +117,7 @@ export function Plans() {
                     <TableRow key={plan.id} hover>
                       <TableCell>
                         <Typography variant="body2" sx={{ fontWeight: "bold" }}>
-                          {plan.name}
+                          {plan.title}
                         </Typography>
                         {plan.description && (
                           <Typography variant="caption" color="text.secondary">
@@ -117,20 +125,19 @@ export function Plans() {
                           </Typography>
                         )}
                       </TableCell>
-                      <TableCell>{formatCnae(plan.cnae_code)}</TableCell>
                       <TableCell>
-                        <Chip
-                          label={plan.split ? "Sim" : "Não"}
-                          size="small"
-                          color={plan.split ? "success" : "default"}
-                          variant="outlined"
-                        />
+                        {formatCnae(plan.activity)}
+                        <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
+                          {activities.find((activity) => activity.cnae === plan.activity)?.description}
+                        </Typography>
                       </TableCell>
+                      <TableCell>{BASKETS.find((basket) => basket.id === plan.basketId)?.name ?? plan.basketId}</TableCell>
+                      <TableCell>{businesses.find((item) => item.id === plan.owner_business)?.name ?? "—"}</TableCell>
                       <TableCell>
                         <Chip
-                          label={plan.anticipation ? "Sim" : "Não"}
+                          label={plan.anticipation_type === "Rotating" ? "Sim" : "Não"}
                           size="small"
-                          color={plan.anticipation ? "success" : "default"}
+                          color={plan.anticipation_type === "Rotating" ? "success" : "default"}
                           variant="outlined"
                         />
                       </TableCell>
@@ -141,7 +148,7 @@ export function Plans() {
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={5} align="center" sx={{ py: 6 }}>
+                    <TableCell colSpan={6} align="center" sx={{ py: 6 }}>
                       <Typography color="text.secondary">
                         Nenhum plano cadastrado
                       </Typography>

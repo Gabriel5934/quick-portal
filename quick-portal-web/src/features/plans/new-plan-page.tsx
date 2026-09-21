@@ -1,183 +1,70 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import Box from "@mui/material/Box";
-import Button from "@mui/material/Button";
-import Typography from "@mui/material/Typography";
+import { Box, Button, Typography } from "@mui/material";
 import { useNavigate } from "@tanstack/react-router";
-import type { FieldErrors } from "react-hook-form";
-import { FormProvider, useForm } from "react-hook-form";
+import { FormProvider, useForm, useWatch } from "react-hook-form";
+import { useBasketAnticipation } from "#hooks/quickApi/useBasketAnticipation";
 import { useCreatePlan } from "#hooks/quickApi/useCreatePlan";
-import type { CreatePlanPayload } from "#hooks/quickApi/useCreatePlan";
-import { useFees } from "#hooks/quickApi/useFees";
-import { networkCode, useNetworks } from "#hooks/quickApi/useNetworks";
+import { useOwnFees } from "#hooks/quickApi/useOwnFees";
+import { useAllBusinesses } from "#hooks/quickApi/useBusinesses";
+import { useBusinessScope } from "../../layout/business-context";
 import { FormPage } from "../../layout/form-page";
 import { BasicInfo } from "./BasicInfo";
 import { Fees } from "./Fees";
-import { newPlanSchema } from "./schemas";
-import type { NewPlanFormValues } from "./schemas";
+import { basketFees, buildPlanFees } from "./catalog";
+import { newPlanSchema, type NewPlanFormValues } from "./schemas";
 
-function percentToDecimal(value: string): string {
-  const n = Number(value.replace(",", "."));
-  if (Number.isNaN(n)) return "0";
-  return (n / 100).toString();
-}
-
-function buildFeesPayload(
-  values: NewPlanFormValues,
-  feeCatalog: NonNullable<ReturnType<typeof useFees>["data"]>,
-  paymentNetworkCodes: string[],
-): { fees: CreatePlanPayload["fees"]; missingFees: string[] } {
-  const fees: CreatePlanPayload["fees"] = [];
-  const missingFees: string[] = [];
-  const defaultNetworkFees = values.fees.default;
-  const defaultFees =
-    defaultNetworkFees && "debit" in defaultNetworkFees
-      ? defaultNetworkFees
-      : undefined;
-
-  for (const network of paymentNetworkCodes.filter((code) => code !== "pix")) {
-    const networkFees = values.fees[network];
-    if (!networkFees || !("debit" in networkFees)) {
-      missingFees.push(`${network} (configuração)`);
-      continue;
-    }
-    for (const [installments, row] of [
-      [0, networkFees.debit],
-      [1, networkFees.credit],
-    ] as const) {
-      const baseFee = feeCatalog[network][installments];
-      if (!baseFee) {
-        missingFees.push(
-          `${network} ${installments === 0 ? "débito" : "crédito 1x"}`,
-        );
-        continue;
-      }
-      fees.push({
-        fee: baseFee.id,
-        value: percentToDecimal(
-          row.commission || defaultFees?.[installments === 0 ? "debit" : "credit"].commission || "",
-        ),
-      });
-    }
-    for (const row of networkFees.installments) {
-      for (
-        let installments = row.from;
-        installments <= row.to;
-        installments++
-      ) {
-        const baseFee = feeCatalog[network][installments];
-        if (!baseFee) {
-          missingFees.push(`${network} ${installments}x`);
-          continue;
-        }
-        fees.push({
-          fee: baseFee.id,
-          value: percentToDecimal(
-            row.commission ||
-              defaultFees?.installments.find(
-                (candidate) =>
-                  candidate.from === row.from && candidate.to === row.to,
-              )?.commission ||
-              "",
-          ),
-        });
-      }
-    }
-  }
-
-  const pixNetworkFees = values.fees.pix;
-  const pixFee = feeCatalog.pix?.[-1];
-  if (pixFee && pixNetworkFees && "pix" in pixNetworkFees) {
-    fees.push({
-      fee: pixFee.id,
-      value: percentToDecimal(pixNetworkFees.pix.commission),
-    });
-  }
-
-  return { fees, missingFees };
-}
-
-export function NewPlan() {
+export function NewPlan({ ownerBusinessId }: { ownerBusinessId?: number }) {
   const navigate = useNavigate();
-  const { mutate: createPlan, isPending } = useCreatePlan();
-  const { data: networkOptions, error: networksError } = useNetworks();
-
+  const { business } = useBusinessScope();
+  const businessId = ownerBusinessId ?? business?.id;
+  const { data: businesses = [] } = useAllBusinesses();
+  const ownerBusiness = businesses.find((item) => item.id === businessId);
+  const { mutate: createPlan, isPending } = useCreatePlan(businessId);
+  const { data: catalog } = useOwnFees();
   const methods = useForm<NewPlanFormValues>({
     resolver: zodResolver(newPlanSchema),
     defaultValues: {
-      name: "",
+      title: "",
       description: "",
-      split: false,
-      anticipation: false,
-      anticipation_fee: "",
-      acquirerId: undefined,
-      cnae: "",
-      fees: {},
+      anticipation_type: "None",
+      markups: {},
+      defaults: {},
     },
   });
-  const acquirerId = methods.watch("acquirerId");
-  const cnae = methods.watch("cnae");
-  const { data: feeCatalog } = useFees(acquirerId, cnae);
+  const basketId = useWatch({ control: methods.control, name: "basketId" });
+  const anticipation = useBasketAnticipation(basketId);
 
-  function onSubmit(data: NewPlanFormValues) {
-    if (!feeCatalog) {
+  function onSubmit(values: NewPlanFormValues) {
+    if (!businessId || !catalog) {
+      methods.setError("root", { message: "Selecione uma empresa e carregue as taxas antes de salvar." });
+      return;
+    }
+    const fees = basketFees(catalog, values.basketId);
+    if (fees.length === 0) {
+      methods.setError("root", { message: "Não foram encontradas taxas para esta cesta." });
+      return;
+    }
+    if (values.anticipation_type === "Rotating" && !anticipation.data) {
+      methods.setError("root", { message: "Carregue a taxa de antecipação antes de salvar." });
+      return;
+    }
+    const { entries, missing } = buildPlanFees(fees, values.markups, values.defaults);
+    if (missing.length > 0) {
       methods.setError("root", {
-        message: "Carregue as taxas antes de salvar.",
+        message: `Informe acréscimos válidos para todas as taxas (${missing.length} pendentes). Primeira: ${missing[0]}.`,
       });
       return;
     }
-    if (!networkOptions) {
-      methods.setError("root", {
-        message: "Carregue as redes de pagamento antes de salvar.",
-      });
-      return;
-    }
-    const paymentNetworkCodes = networkOptions
-      .map(networkCode)
-      .filter((code) => !["acquirer", "default"].includes(code));
-    const { fees, missingFees } = buildFeesPayload(
-      data,
-      feeCatalog,
-      paymentNetworkCodes,
-    );
-    if (missingFees.length > 0) {
-      methods.setError("root", {
-        message: `Não há taxa base para: ${missingFees.join(", ")}.`,
-      });
-      return;
-    }
-    const payload: CreatePlanPayload = {
-      name: data.name,
-      description: data.description,
-      split: data.split,
-      anticipation: data.anticipation,
-      anticipation_fee: data.anticipation
-        ? percentToDecimal(data.anticipation_fee || "0")
-        : null,
-      cnae: data.cnae,
-      fees,
-    };
-
-    createPlan(payload, {
+    createPlan({
+      title: values.title,
+      description: values.description,
+      anticipation_type: values.anticipation_type,
+      activity: values.activity,
+      basketId: values.basketId,
+      fees: entries,
+    }, {
       onSuccess: () => void navigate({ to: "/planos-e-taxas" }),
-      onError: (err) => methods.setError("root", { message: err.message }),
-    });
-  }
-
-  function onInvalid(errors: FieldErrors<NewPlanFormValues>) {
-    const missing: string[] = [];
-    if (errors.name) missing.push("Nome");
-    if (errors.acquirerId) missing.push("Adquirente");
-    if (errors.cnae) missing.push("CNAE");
-    if (errors.anticipation_fee) missing.push("Acréscimo da antecipação");
-    if (errors.fees) {
-      const networks = Object.keys(errors.fees);
-      for (const n of networks) {
-        if (errors.fees[n]) missing.push(`Comissões de ${n}`);
-      }
-    }
-    const detail = missing.length ? ` Verifique: ${missing.join(", ")}.` : "";
-    methods.setError("root", {
-      message: `Preencha todos os campos obrigatórios.${detail}`,
+      onError: (error) => methods.setError("root", { message: error.message }),
     });
   }
 
@@ -187,44 +74,18 @@ export function NewPlan() {
         breadcrumbs={[{ to: "/planos-e-taxas", label: "Planos e Taxas" }]}
         currentLabel="Novo Plano"
         title="Novo Plano"
-        subtitle="Preencha as informações do plano e configure as taxas por rede."
+        subtitle={`Configure os acréscimos das taxas OWN${ownerBusiness ? ` para ${ownerBusiness.name}` : ""}.`}
       >
-        <Box
-          sx={{ display: "flex", flexDirection: "column", gap: 2 }}
-          component="form"
-          noValidate
-        >
+        <Box component="form" noValidate onSubmit={(event) => void methods.handleSubmit(onSubmit)(event)} sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
           <BasicInfo />
           <Fees />
           {methods.formState.errors.root && (
-            <Typography color="error">
-              {methods.formState.errors.root.message}
-            </Typography>
+            <Typography color="error">{methods.formState.errors.root.message}</Typography>
           )}
-          {networksError && !methods.formState.errors.root && (
-            <Typography color="error">
-              {networksError instanceof Error
-                ? networksError.message
-                : "Erro ao carregar redes de pagamento."}
-            </Typography>
-          )}
-        </Box>
-
-        <Box sx={{ display: "flex", justifyContent: "space-between" }}>
-          <Button
-            variant="outlined"
-            color="error"
-            onClick={() => void navigate({ to: "/planos-e-taxas" })}
-          >
-            Cancelar
-          </Button>
-          <Button
-            variant="contained"
-            loading={isPending}
-            onClick={() => void methods.handleSubmit(onSubmit, onInvalid)()}
-          >
-            Salvar
-          </Button>
+          <Box sx={{ display: "flex", justifyContent: "space-between" }}>
+            <Button variant="outlined" color="error" onClick={() => void navigate({ to: "/planos-e-taxas" })}>Cancelar</Button>
+            <Button type="submit" variant="contained" loading={isPending} disabled={!businessId}>Salvar</Button>
+          </Box>
         </Box>
       </FormPage>
     </FormProvider>

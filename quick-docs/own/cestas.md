@@ -90,32 +90,27 @@ Com esses dois chegamos no número de `140 taxas`.
 ## Na API da Quick
 
 Na API do portal quick as taxas da OWN são retornadas pelo endpoint `/own/fees`. O seeding dessas taxas no banco de dados é feito
-através do management command `load_own_fees` que espera um arquivo json com a resposta raw da own como o nome `load-consultar-cesta.json`
+através do management command `load_own_fees` que espera um arquivo json com a resposta raw da own como o nome `load_consultar_cesta.json`
 na raíz de `/app`.
 
-Existem três modelos de lookup para as bandeiras, canais e métodos de pagamentos. Os dados desses modelos são adicionados pela mesma
-migration que os cria.
+As bandeiras, canais e métodos são valores de texto em `OwnFee`. A opção "Padrão" usada no formulário de planos é somente um atalho visual para preencher acréscimos iguais em várias bandeiras.
 
 ```json
 {
   "id": 14965,
   "basketId": 117,
-  "basketName": "Bandeira",
-  "value": 0.0,
-  "baseMdr": 1.79,
-  "network": {
-    "id": 1,
-    "name": "Visa"
-  },
-  "channel": {
-    "id": 1,
-    "name": "Physical"
-  },
-  "method": {
-    "id": 2,
-    "name": "Debit"
-  },
+  "value": "0.0000000000",
+  "baseMdr": "1.7900000000",
+  "network": "Visa",
+  "channel": "Physical",
+  "method": "Debit",
   "installment": null,
   "upperInstallment": null
 }
+```
+
+O endpoint autenticado `GET /own/baskets/{id}/anticipation-fee/` retorna a taxa de antecipação da cesta selecionada:
+
+```json
+{ "basketId": 117, "anticipation_fee": "1.2500000000" }
 ```
