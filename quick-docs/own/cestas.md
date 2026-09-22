@@ -90,8 +90,8 @@ Com esses dois chegamos no número de `140 taxas`.
 ## Na API da Quick
 
 Na API do portal quick as taxas da OWN são retornadas pelo endpoint `/own/fees`. O seeding dessas taxas no banco de dados é feito
-através do management command `load_own_fees` que espera um arquivo json com a resposta raw da own como o nome `load_consultar_cesta.json`
-na raíz de `/app`.
+através do management command `load_own_fees`, que por padrão espera um arquivo JSON com a resposta raw da OWN em
+`/app/load_consultar_cesta.json`.
 
 As bandeiras, canais e métodos são valores de texto em `OwnFee`. A opção "Padrão" usada no formulário de planos é somente um atalho visual para preencher acréscimos iguais em várias bandeiras.
 

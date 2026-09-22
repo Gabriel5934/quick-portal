@@ -15,6 +15,7 @@ from django.db import IntegrityError, transaction
 from django.test import override_settings, TestCase
 from django.utils import timezone
 from rest_framework.test import APIClient
+from rest_framework import serializers
 
 from own.management.commands.load_own_fees import (
     Command as LoadOwnFeesCommand,
@@ -40,6 +41,7 @@ from own.models import (
     OwnPartnerAttachmentType,
     OwnRegistrationStatus,
 )
+from own.serializers import OwnBusinessSignupSerializer
 from own.services.own_auth import OwnAuthError
 from quickportal.models import (
     Business,
@@ -360,6 +362,21 @@ class OwnBusinessSignupEndpointTests(TestCase):
 
         self.assertEqual(response.status_code, 400)
         self.assertIn("plan", response.data)
+
+    def test_parentless_store_accepts_only_legacy_ownerless_plan_scope(self):
+        serializer = OwnBusinessSignupSerializer(
+            context={"business": self.business}
+        )
+
+        self.assertIs(serializer.validate_plan(self.plan), self.plan)
+
+        OwnPlan.objects.filter(pk=self.plan.pk).update(
+            owner_business=self.business
+        )
+        self.plan.refresh_from_db()
+
+        with self.assertRaises(serializers.ValidationError):
+            serializer.validate_plan(self.plan)
 
     @patch("own.views.register_merchant")
     @patch("own.serializers.fetch_cep_info")

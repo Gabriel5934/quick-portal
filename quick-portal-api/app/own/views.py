@@ -386,6 +386,13 @@ class OwnBasketAnticipationFeeView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, pk):
+        """Return the configured anticipation fee for one OWN basket.
+
+        ``request`` is the authenticated DRF request and ``pk`` is the basket's
+        primary key. Returns a DRF ``Response`` containing the basket ID and its
+        decimal anticipation fee formatted as a string. A missing basket raises
+        ``Http404`` through ``get_object_or_404``.
+        """
         basket = get_object_or_404(OwnBasket, pk=pk)
         return Response({
             "basketId": basket.pk,
@@ -394,6 +401,16 @@ class OwnBasketAnticipationFeeView(APIView):
 
 
 def _plan_scope_business(request, *, writing=False):
+    """Resolve the business scope for an OWN plan management request.
+
+    ``request`` is the authenticated DRF request whose ``business`` query
+    parameter identifies the requested scope. ``writing`` controls whether the
+    user must have a role in ``WRITE_ROLES`` and whether store ownership is
+    rejected. Returns the requested non-store business; for read requests
+    involving a store, returns its accessible parent, or ``None`` when the store
+    is parentless. Raises DRF validation or not-found errors for missing or
+    inaccessible scopes.
+    """
     business_id = request.query_params.get("business")
     if not business_id:
         raise ValidationError({"business": ["This query parameter is required."]})
@@ -414,6 +431,14 @@ def _plan_scope_business(request, *, writing=False):
 
 
 def _signup_plan_owner_or_404(user, business):
+    """Return the accessible plan-owner scope used during signup.
+
+    ``user`` is the authenticated user performing the signup and ``business``
+    is the existing target business being registered with OWN. Returns the
+    target's direct parent, or the target itself when it has no parent, after
+    requiring a role in ``WRITE_ROLES``. Raises ``NotFound`` when that owner
+    scope is inaccessible.
+    """
     owner_id = business.parent_id or business.pk
     return get_accessible_business_or_404(user, owner_id, roles=WRITE_ROLES)
 

@@ -24,6 +24,7 @@ from own.models import (
 )
 from quickportal.services.brasil_api import fetch_cep_info
 from own.validators import validate_cpf
+from quickportal.models import BusinessType
 
 
 MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024
@@ -176,7 +177,11 @@ class OwnBusinessSignupSerializer(serializers.ModelSerializer):
     def validate_plan(self, plan):
         business = self.context.get("business") or getattr(self.instance, "business", None)
         if business is not None and plan.owner_business_id is not None:
-            expected_owner_id = business.parent_id or business.pk
+            expected_owner_id = (
+                business.parent_id
+                if business.type == BusinessType.STORE
+                else business.parent_id or business.pk
+            )
             if plan.owner_business_id != expected_owner_id:
                 raise serializers.ValidationError(
                     "The plan does not belong to this business scope."
