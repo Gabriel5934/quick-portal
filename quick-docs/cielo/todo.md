@@ -205,6 +205,9 @@ If `nome_fantasia` is empty, `FancyName` must remain an empty string.
 - Lock the underlying `Business` while creating a Cielo seller so concurrent
   requests cannot bypass the one-to-one or unique-document rules and submit
   duplicates to Cielo.
+- Commit a locally valid provisional `INTERVENTION_REQUIRED` seller before the
+  irreversible onboarding request. Remove it for failures known to occur before
+  transmission; retain it if persisting the Cielo outcome fails.
 - Lock the `CieloBusiness` row while evaluating and performing a retry so the
   cooldown check is atomic.
 
@@ -256,14 +259,16 @@ redirect and render the saved status.
 
 ### Failure classification
 
-- Quick faults create no new record: local validation, BrasilAPI validation or
-  CNPJ/CEP lookup failure, missing/invalid Quick configuration, Cielo
-  `invalid_client` caused by Quick credentials, local payload construction,
-  and database or other backend failures.
+- Quick faults known to occur before transmission create no new record: local
+  validation, BrasilAPI validation or CNPJ/CEP lookup failure, missing/invalid
+  Quick configuration, Cielo `invalid_client` caused by Quick credentials,
+  local payload construction, and initial database failures.
 - Cielo faults create `FAILED`: onboarding `4xx`/`5xx`, Cielo authentication
   service outage/`5xx`/rate limiting/malformed response, DNS and connection
   failures, and a missing onboarding response.
 - An unusable onboarding `2xx` creates `INTERVENTION_REQUIRED`.
+- A Cielo outcome that cannot be persisted leaves the provisional
+  `INTERVENTION_REQUIRED` record in place.
 - A valid onboarding `2xx` with a 36-character `MerchantId` creates `PENDING`.
 
 For retries, a Quick fault leaves the existing record unchanged. A Cielo fault
@@ -322,12 +327,12 @@ document when it differs from the business document.
 
 ## Submission result UX
 
-| Result                                                                              | Backend expectation                                   | Frontend expectation                                    |
-| ----------------------------------------------------------------------------------- | ----------------------------------------------------- | ------------------------------------------------------- |
-| Quick validation, configuration, credentials, or backend failure                    | Do not create a Cielo seller record.                  | Remain on the review step and display an error message. |
-| Cielo `4xx`/`5xx`, service outage, timeout, connection failure, or missing response | Create the Cielo seller with `FAILED`.                | Redirect to the underlying business details page.       |
-| Malformed Cielo `2xx`                                                               | Create the Cielo seller with `INTERVENTION_REQUIRED`. | Redirect to the underlying business details page.       |
-| Valid Cielo `2xx`                                                                   | Create the Cielo seller with `PENDING`.               | Redirect to the underlying business details page.       |
+| Result                                                                               | Backend expectation                         | Frontend expectation                                    |
+| ------------------------------------------------------------------------------------ | ------------------------------------------- | ------------------------------------------------------- |
+| Quick validation, configuration, credentials, or backend failure before transmission | Do not create a Cielo seller record.        | Remain on the review step and display an error message. |
+| Cielo `4xx`/`5xx`, service outage, timeout, connection failure, or missing response  | Create the Cielo seller with `FAILED`.      | Redirect to the underlying business details page.       |
+| Malformed or locally unpersistable Cielo outcome                                     | Keep the seller as `INTERVENTION_REQUIRED`. | Redirect to the underlying business details page.       |
+| Valid Cielo `2xx`                                                                    | Create the Cielo seller with `PENDING`.     | Redirect to the underlying business details page.       |
 
 ## Implementation sequence
 
@@ -367,13 +372,14 @@ create tests outside the cases listed below.
 
 Create backend and frontend tests for every row in the submission result table:
 
-- Quick validation, configuration, credentials, or backend failure creates no
-  record; the frontend remains on the review step and displays the error.
+- Quick validation, configuration, credentials, or backend failure before
+  transmission creates no record; the frontend remains on the review step and
+  displays the error.
 - Cielo `4xx`/`5xx`, service outage, timeout, connection failure, or missing
   response creates a `FAILED` record; the frontend redirects to business
   details.
-- A malformed Cielo `2xx` response creates an `INTERVENTION_REQUIRED` record;
-  the frontend redirects to business details.
+- A malformed or locally unpersistable Cielo outcome creates or retains an
+  `INTERVENTION_REQUIRED` record; the frontend redirects to business details.
 - A valid Cielo `2xx` response creates a `PENDING` record; the frontend
   redirects to business details.
 

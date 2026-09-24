@@ -349,10 +349,16 @@ validation failure and prevents the Cielo request.
   duplicated on the Cielo seller.
 - Do not save incomplete or locally invalid forms. Only locally valid and fully
   enriched sellers are sent to Cielo.
-- A failure attributable to Quick must not create or modify a seller. This
-  includes local validation failures, local backend failures, invalid or
-  missing local configuration, and authentication rejection caused by invalid
-  Quick credentials. Return an error that can be displayed on the form.
+- A failure attributable to Quick before onboarding transmission must not
+  create or modify a seller. This includes local validation failures, invalid
+  or missing local configuration, and authentication rejection caused by
+  invalid Quick credentials. Return an error that can be displayed on the
+  form.
+- After local validation and enrichment, persist the seller as
+  `INTERVENTION_REQUIRED` before the irreversible onboarding request. Replace
+  that provisional status with the classified Cielo outcome. If Quick cannot
+  persist the outcome after Cielo may have accepted the seller, retain the
+  provisional record so duplicate creation and user retry remain blocked.
 - A failure attributable to Cielo or communication with Cielo must create the
   locally valid seller in `FAILED`. This includes Cielo `4xx` and `5xx`
   onboarding responses, Cielo service errors, timeouts, connection failures,
@@ -553,7 +559,8 @@ for `FAILED` after the cooldown has elapsed or when `last_submitted_at` is null.
 - An accepted retry returns `200` with the persisted outcome.
 - A cooldown rejection returns `429`, sets `Retry-After`, and returns
   `detail`, `retry_after_seconds`, and `retry_available_at`.
-- Quick-side errors use normal DRF non-2xx responses and never create a record.
+- Quick-side errors known to occur before onboarding transmission use normal
+  DRF non-2xx responses and never create a record.
 - Do not propagate a Cielo error status after persisting a local seller; return
   the local success status and serialized seller instead.
 
@@ -642,9 +649,9 @@ Replace the existing Cielo-unavailable tab on business details:
 Submission begins from the review step. The frontend handles the result as
 follows:
 
-| Result                                                                              | Persisted result        | Frontend behavior                                       |
-| ----------------------------------------------------------------------------------- | ----------------------- | ------------------------------------------------------- |
-| Quick validation, configuration, credentials, or backend failure                    | No Cielo seller record  | Remain on the review step and display an error message. |
-| Cielo `4xx`/`5xx`, service outage, timeout, connection failure, or missing response | `FAILED`                | Redirect to the underlying business details page.       |
-| Malformed Cielo `2xx`                                                               | `INTERVENTION_REQUIRED` | Redirect to the underlying business details page.       |
-| Valid Cielo `2xx`                                                                   | `PENDING`               | Redirect to the underlying business details page.       |
+| Result                                                                               | Persisted result        | Frontend behavior                                       |
+| ------------------------------------------------------------------------------------ | ----------------------- | ------------------------------------------------------- |
+| Quick validation, configuration, credentials, or backend failure before transmission | No Cielo seller record  | Remain on the review step and display an error message. |
+| Cielo `4xx`/`5xx`, service outage, timeout, connection failure, or missing response  | `FAILED`                | Redirect to the underlying business details page.       |
+| Malformed or locally unpersistable Cielo outcome                                     | `INTERVENTION_REQUIRED` | Redirect to the underlying business details page.       |
+| Valid Cielo `2xx`                                                                    | `PENDING`               | Redirect to the underlying business details page.       |
