@@ -95,15 +95,17 @@ String. Quick's merchant id, 36 characters long. Stored in an environment variab
 #### `ContactPhone` _required_
 
 String. Phone number of the person responsible for the seller. Numeric string. 11 characters long. \
-Frontend mask: (XX) XXXXX-XXXX
+Source: `Business.phone`. The frontend displays it as read-only.
 
 #### `ContactName` _required_
 
 String. Name of the person responsible for the seller. Maximum of 100 characters.
+For CPF it comes from `Business.name`; for CNPJ it is a Cielo-specific input.
 
 #### `MailAddress` _required_
 
-String. Business email address of the seller. Maximum of 50 characters.
+String. Business email address of the seller. Maximum of 50 characters. Source:
+`Business.email`; the frontend displays it as read-only.
 
 #### `Website`
 
@@ -111,9 +113,12 @@ String. Business website address of the seller. Maximum of 200 characters.
 
 #### `DocumentType` _required_
 
-String. Either "CPF" or "CNPJ"
+String. Either "CPF" or "CNPJ". Source: `Business.document_type`; the frontend
+displays it as read-only.
 
 #### `DocumentNumber` _required_
+
+Source: canonical `Business.document`; the frontend displays it as read-only.
 
 - CPF \
   Numeric string, 11 characters long \
@@ -134,7 +139,7 @@ Legal name of the company behind the seller. Maximum of 100 characters.
   - Frontend: not displayed
 - CNPJ
   - Fetches `razao_social` from BrasilAPI
-  - Frontend: disabled, presentation only field
+  - Frontend: not displayed
 
 #### `FancyName` _required_
 
@@ -145,7 +150,7 @@ Trade name of the company behind the seller, maximum of 50 characters
   - Frontend: not displayed
 - CNPJ
   - Fetches `nome_fantasia` from BrasilAPI
-  - Frontend: disabled, presentation only field
+  - Frontend: not displayed
 
 #### `BirthdayDate` _only required when DocumentType is "CPF"_
 
@@ -182,9 +187,10 @@ Numeric string. Account digit. Maximum of 1 character.
 
 Numeric string. Agency number. Maximum of 4 characters. Inputs containing only 0 are invalid.
 
-#### `BankAccount.AgencyDigit` _required_
+#### `BankAccount.AgencyDigit`
 
-Numeric string or "x". Account digit. Maximum of 1 character. Not required on the frontend, when not provided defaults to "x"
+Optional numeric string. Agency digit, exactly one character when provided.
+Omit it from the Cielo payload when the agency has no digit.
 
 #### `BankAccount.DocumentType` _required_
 
@@ -252,7 +258,7 @@ Build the Cielo request with its documented PascalCase names. Do not send
   "MailAddress": "seller@example.com",
   "Website": "https://example.com",
   "DocumentType": "CNPJ",
-  "DocumentNumber": "12BC34501DE35",
+  "DocumentNumber": "12ABC34501DE35",
   "CorporateName": "Seller Corporate Ltda",
   "FancyName": "Seller",
   "BankAccount": {
@@ -261,7 +267,6 @@ Build the Cielo request with its documented PascalCase names. Do not send
     "Number": "1234567890",
     "VerifierDigit": "1",
     "AgencyNumber": "1234",
-    "AgencyDigit": "x",
     "DocumentType": "CPF",
     "DocumentNumber": "52998224725"
   },
@@ -299,9 +304,10 @@ independently according to each field's own document type.
 
 For a seller CNPJ, the frontend must complete mathematical validation before
 enabling or making the BrasilAPI lookup. An invalid CNPJ must not produce a
-BrasilAPI request. A valid lookup populates the managed, read-only
-`CorporateName` and `FancyName` fields. A pending or failed lookup prevents the
-user from leaving the identification step and displays a form error.
+BrasilAPI request. A valid lookup obtains the managed `CorporateName` and
+`FancyName` values without rendering those fields. A pending or failed lookup
+prevents the user from leaving the identification step and displays a form
+error.
 
 Frontend validation is for immediate feedback and does not replace backend
 validation. Before making its own BrasilAPI CNPJ request, the backend
@@ -311,8 +317,8 @@ or lookup failure prevents a request to Cielo.
 ## Managed CNPJ fields
 
 Use `GET https://brasilapi.com.br/api/cnpj/v1/{cnpj}` for the CNPJ lookup in
-both frontend and backend. The frontend call provides immediate managed-field
-feedback; the backend repeats the lookup and its result is authoritative.
+both frontend and backend. The frontend call validates that enrichment can
+complete; the backend repeats the lookup and its result is authoritative.
 
 For a CNPJ seller, obtain the following fields from BrasilAPI:
 
@@ -337,6 +343,9 @@ validation failure and prevents the Cielo request.
 - A Cielo seller has a one-to-one relationship with a generic Quick Portal
   `Business`. A generic business may have at most one Cielo seller.
 - Cielo seller document numbers are unique.
+- The related `Business` is the source of truth for seller document type,
+  document number, CPF name, email, and mobile phone; those fields are not
+  duplicated on the Cielo seller.
 - Do not save incomplete or locally invalid forms. Only locally valid and fully
   enriched sellers are sent to Cielo.
 - A failure attributable to Quick must not create or modify a seller. This
@@ -396,7 +405,8 @@ following are true:
   passed since it.
 
 The retry endpoint accepts no seller fields. It rebuilds the Cielo payload from
-the persisted seller and sends it unchanged. A retry requested during the
+the persisted Cielo-specific seller values and the shared fields on the
+underlying generic business. A retry requested during the
 cooldown must not contact Cielo or modify the seller, and the response must tell
 the client when retry becomes available. Cooldown enforcement must be atomic so
 concurrent requests cannot both reach Cielo.
@@ -417,8 +427,9 @@ Implement a `CieloBusiness` model in the `cielo` Django app with database table
 `cielo_businesses`. Use a one-to-one `business` field with reverse name
 `cielo_business`.
 
-Store these fields directly on the model so the complete Cielo request can be
-rebuilt without the frontend:
+Store these Cielo-specific fields directly on the model. Rebuild the complete
+request without the frontend by combining them with the related generic
+`Business`:
 
 | Model field                   | Requirement                                                                             |
 | ----------------------------- | --------------------------------------------------------------------------------------- |
@@ -426,14 +437,10 @@ rebuilt without the frontend:
 | `status`                      | Required `CieloSubmissionStatus`: `FAILED`, `PENDING`, or `INTERVENTION_REQUIRED`.      |
 | `merchant_id`                 | Nullable/blank, maximum 36 characters. Populated only from a valid onboarding `2xx`.    |
 | `last_submitted_at`           | Nullable timezone-aware datetime governed by the transmission and cooldown rules above. |
-| `contact_phone`               | Required, exactly 11 digits.                                                            |
-| `contact_name`                | Required, maximum 100 characters.                                                       |
-| `mail_address`                | Required email, maximum 50 characters.                                                  |
+| `contact_name`                | Required for CNPJ and blank for CPF, maximum 100 characters.                            |
 | `website`                     | Optional/blank, maximum 200 characters.                                                 |
-| `document_type`               | Required Cielo document-type choice.                                                    |
-| `document_number`             | Required canonical CPF/CNPJ, maximum 14 characters, globally unique.                    |
-| `corporate_name`              | Required, maximum 100 characters; managed by the backend.                               |
-| `fancy_name`                  | Maximum 50 characters and allowed to be blank; managed by the backend.                  |
+| `corporate_name`              | Required for CNPJ and blank for CPF, maximum 100 characters; managed by the backend.    |
+| `fancy_name`                  | CNPJ-only managed value, maximum 50 characters and allowed to be blank.                 |
 | `birthday_date`               | Nullable; required only for CPF sellers.                                                |
 | `business_activity_id`        | Nullable/blank business-activity choice; required only for CPF sellers.                 |
 | `bank`                        | Required bank-code choice stored as a string.                                           |
@@ -441,7 +448,7 @@ rebuilt without the frontend:
 | `bank_account_number`         | Required digits, maximum 10 characters.                                                 |
 | `bank_account_verifier_digit` | Required digit, exactly one character.                                                  |
 | `bank_agency_number`          | Required digits, maximum four characters and not all zeros.                             |
-| `bank_agency_digit`           | Required one-character digit or lowercase `x`; default frontend omission to `x`.        |
+| `bank_agency_digit`           | Optional/blank; exactly one numeric character when provided.                            |
 | `bank_document_type`          | Required Cielo document-type choice.                                                    |
 | `bank_document_number`        | Required canonical CPF/CNPJ, maximum 14 characters.                                     |
 | `address_number`              | Required digits, maximum 15 characters.                                                 |
@@ -454,7 +461,16 @@ rebuilt without the frontend:
 | `created_at`                  | Automatically set at creation.                                                          |
 | `updated_at`                  | Automatically updated.                                                                  |
 
-CPF sellers copy `contact_name` into `corporate_name` and `fancy_name`.
+Do not duplicate seller document type, document number, CPF name, email, or
+mobile phone on `CieloBusiness`. Extract them from the related `Business` for
+every Cielo submission. The generic mobile must contain exactly 11 digits, the
+generic email must fit Cielo's 50-character limit, and the generic seller
+document remains mathematically validated and unique across Cielo sellers.
+
+CPF sellers derive `ContactName`, `CorporateName`, and `FancyName` from
+`Business.name` only while constructing the Cielo request; the name is not
+copied onto `CieloBusiness`. Because Cielo's narrowest destination field is
+`FancyName`, a CPF business name must contain at most 50 characters.
 CNPJ sellers ignore client-supplied managed names and overwrite them with the
 backend BrasilAPI result. The bank-account document is validated separately and
 may differ from the seller document.
@@ -483,12 +499,8 @@ Use this snake_case JSON contract:
 
 ```json
 {
-  "contact_phone": "11987654321",
   "contact_name": "Seller Contact",
-  "mail_address": "seller@example.com",
   "website": "https://example.com",
-  "document_type": "CNPJ",
-  "document_number": "12BC34501DE35",
   "birthday_date": null,
   "business_activity_id": null,
   "bank_account": {
@@ -497,7 +509,6 @@ Use this snake_case JSON contract:
     "number": "1234567890",
     "verifier_digit": "1",
     "agency_number": "1234",
-    "agency_digit": "x",
     "document_type": "CPF",
     "document_number": "52998224725"
   },
@@ -510,9 +521,13 @@ Use this snake_case JSON contract:
 ```
 
 For CPF, `birthday_date` and `business_activity_id` are required. For CNPJ,
-they must be null or omitted. Do not accept `corporate_name`, `fancy_name`,
+they must be null or omitted. `contact_name` is required for CNPJ and must be
+omitted for CPF. Do not accept seller `document_type`, seller `document_number`,
+CPF name, `mail_address`, `contact_phone`, `corporate_name`, `fancy_name`,
 `address.street`, `address.neighborhood`, `address.city`, `address.state`,
 `status`, `merchant_id`, or `last_submitted_at` from the client.
+`bank_account.agency_digit` is optional and must be omitted when the agency has
+no digit; when present, it must be one numeric character.
 
 ### Seller summary response
 
@@ -576,20 +591,27 @@ strings such as `"001"`. Do not scrape Cielo at runtime.
 
 The onboarding form has three data-entry steps and a separate review step:
 
-1. **Identification**: contact name, contact phone, email, website, seller
-   document type and number, CPF birthday and business activity when applicable,
-   and the read-only managed corporate/trade names for CNPJ.
+1. **Identification**: website; CPF birthday and searchable business activity
+   when applicable; and CNPJ contact name. Do not render the managed
+   corporate/trade names or fields already sourced from the generic business.
 2. **Address**: ZIP code, number, complement, and the read-only street,
    neighborhood, city, and state managed through BrasilAPI CEP.
-3. **Bank Account**: bank, account type, account number and verifier digit,
-   agency number and digit, and the account holder's document type and number.
-4. **Review**: display the canonical payload grouped by the three sections and
-   submit it to Quick.
+3. **Bank Account**: searchable bank, radio-button account type, account number
+   beside its verifier digit, agency number beside its optional numeric digit,
+   and the account holder's document type and number. A “same document” toggle
+   fills the generic business document, hides document type, and renders the
+   document number as a disabled managed field. Both editable and managed bank
+   document fields use the CPF or CNPJ display mask selected by their document
+   type while preserving canonical submission values. Turning the toggle off
+   clears the bank document number before custom entry.
+4. **Review**: display the Cielo-specific submission values grouped by the
+   three sections and submit them to Quick. Do not repeat fields sourced from
+   the generic business.
 
 The frontend applies mathematical validation to CPF and CNPJ values before
 allowing the user to progress. Only a mathematically valid seller CNPJ may
-trigger the BrasilAPI request that populates the managed corporate and trade
-names. CPF validation does not trigger a BrasilAPI lookup.
+trigger the BrasilAPI request that validates managed corporate and trade name
+enrichment. CPF validation does not trigger a BrasilAPI lookup.
 
 Place the feature under `src/features/cielo/`, with authenticated query and
 mutation hooks under `src/hooks/`. Add the route

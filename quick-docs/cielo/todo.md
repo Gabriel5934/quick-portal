@@ -14,6 +14,9 @@ implementing it.
 - Any authenticated user who has access to the underlying generic business may
   view and operate its Cielo onboarding flow.
 - A seller document number must be unique across Cielo sellers.
+- The generic `Business` is the source of truth for seller document type,
+  document number, CPF name, email, and mobile phone. Do not duplicate those
+  fields on `CieloBusiness` or accept them in the Cielo create request.
 
 ## Authentication and configuration
 
@@ -107,8 +110,9 @@ this feature.
   retry becomes available.
 - Enforce the cooldown atomically so concurrent retry requests cannot both
   reach Cielo.
-- The retry endpoint resends the persisted form exactly as stored. It does not
-  accept edits or rerun the frontend form steps.
+- The retry endpoint resends the persisted Cielo-specific values together with
+  the shared identity and contact values from the underlying `Business`. It
+  does not accept edits or rerun the frontend form steps.
 - A valid `2xx` retry response changes the seller to `PENDING` and saves the
   returned `MerchantId`.
 - An unusable `2xx` retry response changes the seller to
@@ -147,8 +151,8 @@ Implement the same mathematical CPF and CNPJ validation rules in the frontend:
   document fails mathematical validation.
 - For a seller CNPJ, run mathematical validation before enabling or making the
   BrasilAPI lookup. An invalid CNPJ must never produce a BrasilAPI request.
-- After a valid seller CNPJ is looked up, display `CorporateName` and
-  `FancyName` as managed, read-only form fields.
+- After a valid seller CNPJ is looked up, retain `CorporateName` and
+  `FancyName` for validation but do not render them in the form.
 - A pending or failed seller CNPJ lookup must prevent progression from the
   identification step and display an error on the form.
 
@@ -184,9 +188,10 @@ If `nome_fantasia` is empty, `FancyName` must remain an empty string.
   `cielo_businesses`, and expose it from the `cielo` Django app.
 - Relate it to `Business` with a `OneToOneField` whose reverse name is
   `cielo_business`.
-- Store every value required to rebuild the Cielo request directly on
-  `CieloBusiness`; do not create generic-business, address, or bank-account
-  child models for this MVP.
+- Store every Cielo-specific value required to rebuild the request directly on
+  `CieloBusiness`; shared identity and contact values come through its
+  `Business` relation. Do not create address or bank-account child models for
+  this MVP.
 - Name the status choices `CieloSubmissionStatus` with values `FAILED`,
   `PENDING`, and `INTERVENTION_REQUIRED`.
 - Add the `cielo` app to `INSTALLED_APPS` and include its URLs at `/cielo/`.
@@ -220,6 +225,12 @@ All routes require JWT authentication.
 The create request uses the snake_case, nested JSON contract documented in
 `quick-docs/cielo/index.md`. The retry request must reject seller fields rather
 than silently ignoring them.
+
+Validate the underlying business document, email, and mobile phone before
+submission. For CPF, derive Cielo's contact, corporate, and fancy names from
+`Business.name` at payload-construction time without copying the name onto
+`CieloBusiness`. For CNPJ, keep `contact_name` as a Cielo-specific required
+input and continue to manage corporate and fancy names through BrasilAPI.
 
 Every option endpoint returns a JSON array of objects shaped as
 `{"value": "...", "label": "..."}`. Keep bank and activity identifiers as
@@ -265,10 +276,22 @@ The seller form must contain three data-entry steps, followed by a separate
 review step. Use the exact field grouping documented under "Frontend flow" in
 `quick-docs/cielo/index.md`.
 
-The identification step must mathematically validate CPF and CNPJ values in the
-browser. For a seller CNPJ, a valid document triggers the BrasilAPI lookup used
-to populate the managed `CorporateName` and `FancyName` fields. The lookup must
-not run until mathematical validation succeeds.
+Use radio buttons for document and account types, autocomplete inputs for bank
+and business activity, and place each verifier digit beside its number. The
+agency digit is optional and numeric-only, with no `x` instruction or default.
+Provide a bank-holder “same document” toggle that hides document type and
+shows the generic business document in a disabled managed field when enabled.
+Turning the toggle off clears the bank document number.
+Apply the corresponding CPF or CNPJ display mask to both the editable and
+managed bank-document field without discarding alphanumeric CNPJ characters.
+Each Next attempt must replace stale step errors with current validation
+results, and empty required fields must display required messages.
+
+Do not render fields already sourced from the generic business in the Cielo
+form. The frontend must still mathematically validate the business CPF or CNPJ.
+For a seller CNPJ, a valid document triggers the BrasilAPI lookup used to
+validate the managed `CorporateName` and `FancyName` values without displaying
+them. The lookup must not run until mathematical validation succeeds.
 
 ### Frontend placement and behavior
 
@@ -366,7 +389,7 @@ Create backend and frontend tests for every row in the submission result table:
 
 Use the same canonical fixtures on both sides, including valid CPF
 `52998224725`, valid numeric CNPJ `11222333000181`, and valid alphanumeric CNPJ
-`12BC34501DE35`, plus variants with an altered check digit.
+`12ABC34501DE35`, plus variants with an altered check digit.
 
 ### Retry cooldown
 
