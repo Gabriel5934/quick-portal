@@ -160,6 +160,10 @@ export function useCreateCieloBusiness() {
     onSuccess: (seller, { businessId }) => {
       queryClient.setQueryData(["cielo-business", businessId], seller);
     },
+    onError: (_error, { businessId }) =>
+      queryClient.invalidateQueries({
+        queryKey: ["cielo-business", businessId],
+      }),
   });
 }
 
@@ -183,5 +187,9 @@ export function useRetryCieloBusiness() {
     onSuccess: (seller, { businessId }) => {
       queryClient.setQueryData(["cielo-business", businessId], seller);
     },
+    onError: (_error, { businessId }) =>
+      queryClient.invalidateQueries({
+        queryKey: ["cielo-business", businessId],
+      }),
   });
 }

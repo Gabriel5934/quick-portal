@@ -19,6 +19,15 @@ vi.mock("#hooks/quickApi/useCielo", () => ({
   useCreateCieloBusiness: () => ({ mutateAsync, isPending: false }),
 }));
 
+vi.mock("#hooks/brasilApi/useCep", () => ({
+  CepValidationError: class CepValidationError extends Error {},
+  useCep: () => ({
+    data: undefined,
+    error: null,
+    isFetching: false,
+  }),
+}));
+
 const business: Business = {
   id: 73,
   type: "STORE",

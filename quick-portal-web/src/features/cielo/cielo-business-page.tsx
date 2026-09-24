@@ -3,8 +3,14 @@ import Alert from "@mui/material/Alert";
 import CircularProgress from "@mui/material/CircularProgress";
 import Stack from "@mui/material/Stack";
 import { useNavigate } from "@tanstack/react-router";
-import { FormProvider, useForm, type FieldPath } from "react-hook-form";
+import {
+  FormProvider,
+  useForm,
+  useWatch,
+  type FieldPath,
+} from "react-hook-form";
 import { useMemo, useState } from "react";
+import { CepValidationError, useCep } from "#hooks/brasilApi/useCep";
 import { useCreateCieloBusiness } from "#hooks/quickApi/useCielo";
 import { useBusiness, type Business } from "#hooks/quickApi/useBusinesses";
 import {
@@ -84,8 +90,25 @@ function CieloBusinessForm({ business }: { business: Business }) {
       bankDocumentNumber: "",
     },
   });
+  const zipCode = useWatch({
+    control: methods.control,
+    name: "addressZipCode",
+  });
+  const cepQuery = useCep(zipCode);
 
   function advance() {
+    if (currentStep === 1 && (cepQuery.isFetching || cepQuery.error)) {
+      methods.clearErrors();
+      methods.setError("addressZipCode", {
+        type: "manual",
+        message: cepQuery.isFetching
+          ? "Aguarde a consulta do CEP"
+          : cepQuery.error instanceof CepValidationError
+            ? "CEP inválido"
+            : "Falha ao consultar o CEP na BrasilAPI",
+      });
+      return;
+    }
     methods.clearErrors();
     const schema = stepSchemas[currentStep];
     if (!schema) return;
@@ -105,16 +128,17 @@ function CieloBusinessForm({ business }: { business: Business }) {
   async function submit(values: CieloBusinessFormValues) {
     try {
       await createSeller.mutateAsync({ businessId, values });
-      await navigate({
-        to: "/business-list/$id",
-        params: { id: String(businessId) },
-        search: { tab: "cielo" },
-      });
     } catch {
       methods.setError("root", {
         message: "Tente novamente mais tarde",
       });
+      return;
     }
+    await navigate({
+      to: "/business-list/$id",
+      params: { id: String(businessId) },
+      search: { tab: "cielo" },
+    });
   }
 
   return (
@@ -143,7 +167,13 @@ function CieloBusinessForm({ business }: { business: Business }) {
           {currentStep === 0 ? (
             <CieloIdentificationStep business={business} />
           ) : null}
-          {currentStep === 1 ? <CieloAddressStep /> : null}
+          {currentStep === 1 ? (
+            <CieloAddressStep
+              address={cepQuery.data}
+              error={cepQuery.error}
+              isFetching={cepQuery.isFetching}
+            />
+          ) : null}
           {currentStep === 2 ? (
             <CieloBankAccountStep business={business} />
           ) : null}

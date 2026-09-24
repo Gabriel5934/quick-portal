@@ -45,4 +45,24 @@ describe("business registration document lookup", () => {
 
     await waitFor(() => expect(fetch).not.toHaveBeenCalled());
   });
+
+  it("calls BrasilAPI for a mathematically valid CNPJ", async () => {
+    vi.mocked(fetch).mockResolvedValue({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          razao_social: "Empresa Teste Ltda",
+          nome_fantasia: "Empresa Teste",
+          cnae_fiscal: 1234,
+        }),
+    } as Response);
+
+    render(<Harness document="12.ABC.345/01DE-35" />);
+
+    await waitFor(() =>
+      expect(fetch).toHaveBeenCalledWith(
+        "https://brasilapi.com.br/api/cnpj/v1/12ABC34501DE35",
+      ),
+    );
+  });
 });

@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 
-type CepData = {
+export type CepData = {
   cep: string;
   state: string;
   city: string;

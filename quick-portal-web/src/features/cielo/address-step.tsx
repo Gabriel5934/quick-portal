@@ -3,7 +3,7 @@ import TextField from "@mui/material/TextField";
 import { useEffect } from "react";
 import { Controller, useFormContext, useWatch } from "react-hook-form";
 import { PatternFormat } from "react-number-format";
-import { CepValidationError, useCep } from "#hooks/brasilApi/useCep";
+import { CepValidationError, type CepData } from "#hooks/brasilApi/useCep";
 import {
   DerivedTextField,
   FormFieldPaper,
@@ -17,7 +17,15 @@ const managedFields = [
   "addressState",
 ] as const;
 
-export function CieloAddressStep() {
+export function CieloAddressStep({
+  address,
+  error,
+  isFetching,
+}: {
+  address: CepData | undefined;
+  error: Error | null;
+  isFetching: boolean;
+}) {
   const {
     control,
     setValue,
@@ -26,10 +34,8 @@ export function CieloAddressStep() {
     formState: { errors },
   } = useFormContext<CieloBusinessFormValues>();
   const zipCode = useWatch({ control, name: "addressZipCode" });
-  const { data: address, error, isFetching } = useCep(zipCode);
 
   useEffect(() => {
-    if (zipCode.replace(/\D/g, "").length === 8) return;
     managedFields.forEach((field) => setValue(field, ""));
   }, [setValue, zipCode]);
 

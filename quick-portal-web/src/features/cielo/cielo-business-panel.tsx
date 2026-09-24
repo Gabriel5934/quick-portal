@@ -30,13 +30,6 @@ export function CieloBusinessPanel({ businessId }: { businessId: number }) {
   const { data: seller, isLoading, error } = useCieloBusiness(businessId);
   const retry = useRetryCieloBusiness();
 
-  if (isLoading || seller === undefined) {
-    return (
-      <Box sx={{ display: "flex", justifyContent: "center", py: 6 }}>
-        <CircularProgress aria-label="Carregando credenciamento Cielo" />
-      </Box>
-    );
-  }
   if (error) {
     return (
       <Alert severity="error">
@@ -44,6 +37,13 @@ export function CieloBusinessPanel({ businessId }: { businessId: number }) {
           ? error.message
           : "Erro ao carregar o credenciamento Cielo."}
       </Alert>
+    );
+  }
+  if (isLoading || seller === undefined) {
+    return (
+      <Box sx={{ display: "flex", justifyContent: "center", py: 6 }}>
+        <CircularProgress aria-label="Carregando credenciamento Cielo" />
+      </Box>
     );
   }
   if (!seller) {
