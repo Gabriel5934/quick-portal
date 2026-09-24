@@ -57,6 +57,7 @@ INSTALLED_APPS = [
     "corsheaders",
     "quickportal",
     "own",
+    "cielo",
 ]
 
 MIDDLEWARE = [
@@ -190,3 +191,14 @@ OWN_REGISTRATION_TRACE_ENABLED = os.environ.get(
     "OWN_REGISTRATION_TRACE_ENABLED", "0"
 ).lower() in {"1", "true", "yes", "on"}
 OWN_REGISTRATION_TRACE_DIR = BASE_DIR / "logs" / "own_registration"
+
+# Cielo seller onboarding configuration. The URL and credential values are
+# intentionally blank when unset; the Cielo service classifies that as a local
+# configuration failure before any seller is persisted.
+CIELO_AUTH_BASE_URL = os.environ.get("CIELO_AUTH_BASE_URL", "")
+CIELO_ONBOARDING_BASE_URL = os.environ.get("CIELO_ONBOARDING_BASE_URL", "")
+CIELO_MERCHANT_ID = os.environ.get("CIELO_MERCHANT_ID", "")
+CIELO_CLIENT_SECRET = os.environ.get("CIELO_CLIENT_SECRET", "")
+CIELO_RETRY_COOLDOWN_SECONDS = int(
+    os.environ.get("CIELO_RETRY_COOLDOWN_SECONDS", "300")
+)
