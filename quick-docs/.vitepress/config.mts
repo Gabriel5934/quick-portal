@@ -14,7 +14,7 @@ export default defineConfig({
     sidebar: [
       {
         text: "Cielo",
-        link: "/Cielo/",
+        link: "/cielo/",
         items: [
           { text: "Onboarding and Auth", link: "/cielo" },
           { text: "Prompt", link: "/cielo/todo" },
