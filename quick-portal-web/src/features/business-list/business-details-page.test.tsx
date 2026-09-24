@@ -43,6 +43,12 @@ vi.mock("#hooks/quickApi/useOwnBusinesses", () => ({
   useOwnBusinessForBusiness: vi.fn(),
 }));
 
+vi.mock("#features/cielo", () => ({
+  CieloBusinessPanel: ({ businessId }: { businessId: number }) => (
+    <div>Cielo seller {businessId}</div>
+  ),
+}));
+
 const business: Business = {
   id: 73,
   type: "STORE",
@@ -189,15 +195,13 @@ describe("BusinessDetails", () => {
     },
   );
 
-  it("shows the unavailable state in the Cielo tab", async () => {
+  it("shows the Cielo seller panel in the Cielo tab", async () => {
     const user = userEvent.setup();
     render(<BusinessDetails businessId={73} />);
 
     await user.click(screen.getByRole("tab", { name: "Cielo" }));
 
-    expect(
-      screen.getByText("Cielo ainda não está disponível"),
-    ).toBeInTheDocument();
+    expect(screen.getByText("Cielo seller 73")).toBeInTheDocument();
   });
 
   it("shows an error for an invalid business id", () => {
