@@ -124,6 +124,18 @@ describe("Cielo submission result UX", () => {
     expect(navigate).not.toHaveBeenCalled();
   });
 
+  it("shows appropriate error message when Quick cannot be reached", async () => {
+    mutateAsync.mockRejectedValue(new TypeError("Failed to fetch"));
+
+    await reachReviewAndSubmit();
+
+    expect(
+      await screen.findByText("Tente novamente mais tarde"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Revisão do payload")).toBeInTheDocument();
+    expect(navigate).not.toHaveBeenCalled();
+  });
+
   it.each(["FAILED", "INTERVENTION_REQUIRED", "PENDING"] as const)(
     "redirects persisted %s outcomes to the Cielo details tab",
     async (status) => {

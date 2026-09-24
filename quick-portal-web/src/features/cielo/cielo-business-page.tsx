@@ -144,10 +144,7 @@ function CieloBusinessForm({ business }: { business: Business }) {
       });
     } catch (error) {
       methods.setError("root", {
-        message:
-          error instanceof Error
-            ? error.message
-            : "Erro ao credenciar o estabelecimento na Cielo.",
+        message: "Tente novamente mais tarde",
       });
     }
   }
