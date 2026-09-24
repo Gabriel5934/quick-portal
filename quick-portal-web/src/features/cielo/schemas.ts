@@ -1,5 +1,9 @@
 import { z } from "zod";
-import { isValidCnpj, isValidCpf, normalizeDocument } from "./validators";
+import {
+  isValidCnpj,
+  isValidCpf,
+  normalizeDocument,
+} from "#features/business/document";
 
 export const documentTypeSchema = z.enum(["CPF", "CNPJ"]);
 
@@ -14,8 +18,6 @@ const identificationFieldsSchema = z.object({
     ),
   birthdayDate: z.string(),
   businessActivityId: z.string(),
-  corporateName: z.string(),
-  fancyName: z.string(),
 });
 
 export function createIdentificationSchema(documentType: "CPF" | "CNPJ") {
@@ -35,21 +37,12 @@ export function createIdentificationSchema(documentType: "CPF" | "CNPJ") {
           message: "Ramo de atividade é obrigatório",
         });
       }
-    } else {
-      if (!values.contactName) {
-        context.addIssue({
-          code: "custom",
-          path: ["contactName"],
-          message: "Nome do contato é obrigatório",
-        });
-      }
-      if (!values.corporateName) {
-        context.addIssue({
-          code: "custom",
-          path: ["corporateName"],
-          message: "Aguarde a consulta do CNPJ na BrasilAPI",
-        });
-      }
+    } else if (!values.contactName) {
+      context.addIssue({
+        code: "custom",
+        path: ["contactName"],
+        message: "Nome do contato é obrigatório",
+      });
     }
   });
 }
@@ -121,7 +114,7 @@ export const bankAccountSchema = z
     bankDocumentNumber: z.string().min(1, "Documento do titular é obrigatório"),
   })
   .superRefine((values, context) => {
-    if (!values.bankDocumentNumber) return;
+    if (values.sameBankDocument || !values.bankDocumentNumber) return;
     const canonical = normalizeDocument(
       values.bankDocumentNumber,
       values.bankDocumentType,

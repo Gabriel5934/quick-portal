@@ -1,4 +1,5 @@
 import { useMutation } from "@tanstack/react-query";
+import { normalizeDocument } from "#features/business/document";
 import type { NewBusinessFormValues } from "#features/business/new-business/types";
 import type { ValidationErrors } from "#hooks/types";
 import { useToken } from "#hooks/auth/useToken";
@@ -25,7 +26,7 @@ async function fetchCreateBusiness(
         type: payload.type,
         parent: payload.parentId,
         document_type: payload.documentType,
-        document: payload.document.replace(/\D/g, ""),
+        document: normalizeDocument(payload.document, payload.documentType),
         email: payload.email,
         phone: payload.celular.replace(/\D/g, ""),
         landline: payload.telefone.replace(/\D/g, ""),

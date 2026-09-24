@@ -12,12 +12,12 @@ import TextField from "@mui/material/TextField";
 import { Controller, useFormContext, useWatch } from "react-hook-form";
 import type { Business } from "#hooks/quickApi/useBusinesses";
 import { useCieloOptions } from "#hooks/quickApi/useCielo";
+import { formatDocument, normalizeDocument } from "#features/business/document";
 import {
   DerivedTextField,
   FormFieldPaper,
 } from "../../components/multi-step-form";
 import type { CieloBusinessFormValues } from "./types";
-import { formatDocument, normalizeDocument } from "./validators";
 
 export function CieloBankAccountStep({ business }: { business: Business }) {
   const {

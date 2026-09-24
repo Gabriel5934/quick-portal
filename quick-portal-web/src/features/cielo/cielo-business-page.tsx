@@ -22,7 +22,6 @@ import {
   createIdentificationSchema,
 } from "./schemas";
 import type { CieloBusinessFormValues } from "./types";
-import { isValidCnpj, isValidCpf, normalizeDocument } from "./validators";
 
 const steps = [
   "Identificação",
@@ -48,18 +47,6 @@ function CieloBusinessForm({ business }: { business: Business }) {
   const navigate = useNavigate();
   const createSeller = useCreateCieloBusiness();
   const businessId = business.id;
-  const businessDocument = normalizeDocument(
-    business.document,
-    business.document_type,
-  );
-  const isBusinessDocumentValid =
-    business.document_type === "CPF"
-      ? isValidCpf(businessDocument)
-      : isValidCnpj(businessDocument);
-  const isBusinessContactValid =
-    /^\d{11}$/.test(business.phone) &&
-    business.email.length <= 50 &&
-    (business.document_type !== "CPF" || business.name.length <= 50);
   const identificationSchema = useMemo(
     () => createIdentificationSchema(business.document_type),
     [business.document_type],
@@ -79,8 +66,6 @@ function CieloBusinessForm({ business }: { business: Business }) {
       website: "",
       birthdayDate: "",
       businessActivityId: "",
-      corporateName: "",
-      fancyName: "",
       addressZipCode: "",
       addressNumber: "",
       addressComplement: "",
@@ -102,16 +87,6 @@ function CieloBusinessForm({ business }: { business: Business }) {
 
   function advance() {
     methods.clearErrors();
-    if (
-      currentStep === 0 &&
-      (!isBusinessDocumentValid || !isBusinessContactValid)
-    ) {
-      methods.setError("root", {
-        message:
-          "Os dados cadastrais do estabelecimento são inválidos para a Cielo.",
-      });
-      return;
-    }
     const schema = stepSchemas[currentStep];
     if (!schema) return;
     const result = schema.safeParse(methods.getValues());
@@ -128,13 +103,6 @@ function CieloBusinessForm({ business }: { business: Business }) {
   }
 
   async function submit(values: CieloBusinessFormValues) {
-    if (!isBusinessDocumentValid || !isBusinessContactValid) {
-      methods.setError("root", {
-        message:
-          "Os dados cadastrais do estabelecimento são inválidos para a Cielo.",
-      });
-      return;
-    }
     try {
       await createSeller.mutateAsync({ businessId, values });
       await navigate({
@@ -142,7 +110,7 @@ function CieloBusinessForm({ business }: { business: Business }) {
         params: { id: String(businessId) },
         search: { tab: "cielo" },
       });
-    } catch (error) {
+    } catch {
       methods.setError("root", {
         message: "Tente novamente mais tarde",
       });

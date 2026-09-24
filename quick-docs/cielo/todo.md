@@ -146,15 +146,15 @@ account holder's document may differ from the seller's document.
 
 Implement the same mathematical CPF and CNPJ validation rules in the frontend:
 
-- Validate both the seller document and the bank-account holder document.
+- Validate the seller document in the generic business form and the
+  bank-account holder document in the Cielo form.
 - Show an inline form error and prevent step progression or submission when a
   document fails mathematical validation.
-- For a seller CNPJ, run mathematical validation before enabling or making the
-  BrasilAPI lookup. An invalid CNPJ must never produce a BrasilAPI request.
-- After a valid seller CNPJ is looked up, retain `CorporateName` and
-  `FancyName` for validation but do not render them in the form.
-- A pending or failed seller CNPJ lookup must prevent progression from the
-  identification step and display an error on the form.
+- For a seller CNPJ, the generic business form runs mathematical validation
+  before enabling or making the BrasilAPI lookup. An invalid CNPJ must never
+  produce a BrasilAPI request.
+- Do not repeat seller-document or generic-business field validation in the
+  Cielo form. Do not run a frontend CNPJ lookup from that form.
 
 Frontend validation improves feedback but does not replace backend validation.
 The backend must repeat all document validation and remains authoritative.
@@ -212,15 +212,15 @@ If `nome_fantasia` is empty, `FancyName` must remain an empty string.
 
 All routes require JWT authentication.
 
-| Method | Route | Purpose |
-| --- | --- | --- |
-| `GET` | `/cielo/businesses/<business_id>/` | Return the Cielo seller summary for an accessible generic business. Return `404` when the business is inaccessible, missing, or has no Cielo seller. |
-| `POST` | `/cielo/businesses/<business_id>/` | Validate, enrich, submit, and create the one Cielo seller for the business. |
-| `POST` | `/cielo/businesses/<business_id>/retry/` | Retry a `FAILED` seller using an empty request body and the persisted values. |
-| `GET` | `/cielo/options/document-types/` | Return document-type choices. |
-| `GET` | `/cielo/options/bank-account-types/` | Return bank-account-type choices. |
-| `GET` | `/cielo/options/business-activities/` | Return business-activity choices. |
-| `GET` | `/cielo/options/banks/` | Return bank-code choices. |
+| Method | Route                                    | Purpose                                                                                                                                              |
+| ------ | ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET`  | `/cielo/businesses/<business_id>/`       | Return the Cielo seller summary for an accessible generic business. Return `404` when the business is inaccessible, missing, or has no Cielo seller. |
+| `POST` | `/cielo/businesses/<business_id>/`       | Validate, enrich, submit, and create the one Cielo seller for the business.                                                                          |
+| `POST` | `/cielo/businesses/<business_id>/retry/` | Retry a `FAILED` seller using an empty request body and the persisted values.                                                                        |
+| `GET`  | `/cielo/options/document-types/`         | Return document-type choices.                                                                                                                        |
+| `GET`  | `/cielo/options/bank-account-types/`     | Return bank-account-type choices.                                                                                                                    |
+| `GET`  | `/cielo/options/business-activities/`    | Return business-activity choices.                                                                                                                    |
+| `GET`  | `/cielo/options/banks/`                  | Return bank-code choices.                                                                                                                            |
 
 The create request uses the snake_case, nested JSON contract documented in
 `quick-docs/cielo/index.md`. The retry request must reject seller fields rather
@@ -287,11 +287,11 @@ managed bank-document field without discarding alphanumeric CNPJ characters.
 Each Next attempt must replace stale step errors with current validation
 results, and empty required fields must display required messages.
 
-Do not render fields already sourced from the generic business in the Cielo
-form. The frontend must still mathematically validate the business CPF or CNPJ.
-For a seller CNPJ, a valid document triggers the BrasilAPI lookup used to
-validate the managed `CorporateName` and `FancyName` values without displaying
-them. The lookup must not run until mathematical validation succeeds.
+Do not render or validate fields already sourced from the generic business in
+the Cielo form. CPF/CNPJ mathematical validation, canonical normalization, and
+the frontend BrasilAPI CNPJ lookup belong to the generic business form. The
+Cielo form only validates its own inputs, including the bank-account holder
+document when it differs from the business document.
 
 ### Frontend placement and behavior
 
@@ -322,12 +322,12 @@ them. The lookup must not run until mathematical validation succeeds.
 
 ## Submission result UX
 
-| Result | Backend expectation | Frontend expectation |
-| --- | --- | --- |
-| Quick validation, configuration, credentials, or backend failure | Do not create a Cielo seller record. | Remain on the review step and display an error message. |
-| Cielo `4xx`/`5xx`, service outage, timeout, connection failure, or missing response | Create the Cielo seller with `FAILED`. | Redirect to the underlying business details page. |
-| Malformed Cielo `2xx` | Create the Cielo seller with `INTERVENTION_REQUIRED`. | Redirect to the underlying business details page. |
-| Valid Cielo `2xx` | Create the Cielo seller with `PENDING`. | Redirect to the underlying business details page. |
+| Result                                                                              | Backend expectation                                   | Frontend expectation                                    |
+| ----------------------------------------------------------------------------------- | ----------------------------------------------------- | ------------------------------------------------------- |
+| Quick validation, configuration, credentials, or backend failure                    | Do not create a Cielo seller record.                  | Remain on the review step and display an error message. |
+| Cielo `4xx`/`5xx`, service outage, timeout, connection failure, or missing response | Create the Cielo seller with `FAILED`.                | Redirect to the underlying business details page.       |
+| Malformed Cielo `2xx`                                                               | Create the Cielo seller with `INTERVENTION_REQUIRED`. | Redirect to the underlying business details page.       |
+| Valid Cielo `2xx`                                                                   | Create the Cielo seller with `PENDING`.               | Redirect to the underlying business details page.       |
 
 ## Implementation sequence
 
@@ -338,8 +338,9 @@ them. The lookup must not run until mathematical validation succeeds.
    submission service.
 3. Add serializers, detail/create/retry views, option views, access checks, and
    atomic create/retry locking.
-4. Add frontend validators, types, authenticated hooks, the four-step form,
-   route, business-details Cielo tab, status display, and cooldown-aware retry.
+4. Add shared business-document validators to the generic business form, then
+   add the Cielo types, authenticated hooks, four-step form, route,
+   business-details Cielo tab, status display, and cooldown-aware retry.
 5. Add only the automated tests enumerated below.
 6. Run the relevant verification commands without changing the exclusive test
    scope:
@@ -380,12 +381,13 @@ Create backend and frontend tests for every row in the submission result table:
 
 - Backend unit tests for mathematical CPF validation.
 - Backend unit tests for mathematical numeric and alphanumeric CNPJ validation.
-- Frontend unit tests for mathematical CPF validation.
-- Frontend unit tests for mathematical numeric and alphanumeric CNPJ validation.
+- Frontend generic-business-form unit tests for mathematical CPF validation.
+- Frontend generic-business-form unit tests for mathematical numeric and
+  alphanumeric CNPJ validation.
 - Backend integration tests proving that a mathematically invalid CNPJ does not
   call BrasilAPI.
-- Frontend integration tests proving that a mathematically invalid CNPJ does
-  not call BrasilAPI.
+- Frontend generic-business-form integration tests proving that a
+  mathematically invalid CNPJ does not call BrasilAPI.
 
 Use the same canonical fixtures on both sides, including valid CPF
 `52998224725`, valid numeric CNPJ `11222333000181`, and valid alphanumeric CNPJ

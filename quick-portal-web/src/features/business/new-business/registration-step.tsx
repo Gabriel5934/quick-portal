@@ -5,13 +5,13 @@ import Switch from "@mui/material/Switch";
 import TextField from "@mui/material/TextField";
 import { useEffect } from "react";
 import { Controller, useFormContext } from "react-hook-form";
-import { PatternFormat } from "react-number-format";
 import { useCnpj } from "#hooks/brasilApi/useCnpj";
 import {
   DerivedTextField,
   FormFieldPaper,
 } from "../../../components/multi-step-form";
 import { useBusinessScope } from "../../../layout/business-context";
+import { formatDocument } from "../document";
 import type { NewBusinessFormValues } from "./types";
 
 export function RegistrationStep() {
@@ -110,20 +110,22 @@ export function RegistrationStep() {
         <Controller
           name="document"
           control={control}
-          render={({ field: { ref, onChange, value, ...field } }) => (
-            <PatternFormat
+          render={({ field }) => (
+            <TextField
               {...field}
-              value={value}
-              format={isCpf ? "###.###.###-##" : "##.###.###/####-##"}
-              onValueChange={(values) => onChange(values.formattedValue)}
-              customInput={TextField}
-              getInputRef={ref}
+              value={formatDocument(field.value, documentType)}
+              onChange={(event) =>
+                field.onChange(formatDocument(event.target.value, documentType))
+              }
               variant="standard"
               label={isCpf ? "CPF" : "CNPJ"}
               fullWidth
               required
               error={Boolean(errors.document)}
               helperText={errors.document?.message}
+              slotProps={{
+                htmlInput: { maxLength: isCpf ? 14 : 18 },
+              }}
             />
           )}
         />

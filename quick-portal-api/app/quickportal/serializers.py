@@ -11,6 +11,7 @@ from quickportal.models import (
     DocumentType, RecurringFee, RecurringFeeTarget,
 )
 from quickportal.services.brasil_api import fetch_cnpj_info
+from quickportal.validators import validate_cnpj, validate_cpf
 
 
 class UserCreateSerializer(serializers.ModelSerializer):
@@ -81,6 +82,7 @@ class EmailTokenObtainPairSerializer(TokenObtainPairSerializer):
 class BusinessWriteSerializer(serializers.ModelSerializer):
     name = serializers.CharField(required=False, allow_blank=False)
     trade_name = serializers.CharField(required=False, allow_blank=True, default="")
+    email = serializers.EmailField(max_length=50)
     landline = serializers.CharField(required=False, allow_blank=True, default="")
     class Meta:
         model = Business
@@ -95,11 +97,13 @@ class BusinessWriteSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(f"{field_name} must contain only digits.")
         return value
 
-    def validate_document(self, value):
-        return self._validate_digits(value, "document")
-
     def validate_phone(self, value):
-        return self._validate_digits(value, "phone")
+        value = self._validate_digits(value, "phone")
+        if len(value) != 11:
+            raise serializers.ValidationError(
+                "phone must contain exactly 11 digits."
+            )
+        return value
 
     def validate_landline(self, value):
         return self._validate_digits(value, "landline")
@@ -121,6 +125,12 @@ class BusinessWriteSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError(immutable_errors)
 
         document_type = attrs.get("document_type") or getattr(self.instance, "document_type", None)
+        document = attrs.get("document") or getattr(self.instance, "document", None)
+        should_validate_document = (
+            self.instance is None
+            or "document" in self.initial_data
+            or "document_type" in self.initial_data
+        )
         business_type = attrs.get("type") or getattr(self.instance, "type", None)
         parent = attrs.get("parent", getattr(self.instance, "parent", None))
 
@@ -161,11 +171,26 @@ class BusinessWriteSerializer(serializers.ModelSerializer):
 
         if document_type == DocumentType.CPF:
             errors = {}
+            if should_validate_document:
+                try:
+                    validate_cpf(document)
+                except DjangoValidationError as exc:
+                    errors["document"] = exc.messages
             if not attrs.get("name") and not getattr(self.instance, "name", None):
                 errors["name"] = "This field is required when document_type is CPF."
+            name = attrs.get("name") or getattr(self.instance, "name", "")
+            if len(name) > 50:
+                errors["name"] = "Ensure this field has no more than 50 characters."
             if errors:
                 raise serializers.ValidationError(errors)
         elif document_type == DocumentType.CNPJ:
+            if should_validate_document:
+                try:
+                    validate_cnpj(document)
+                except DjangoValidationError as exc:
+                    raise serializers.ValidationError(
+                        {"document": exc.messages}
+                    ) from exc
             managed_fields = ("name", "trade_name")
             conflicting = [f for f in managed_fields if f in self.initial_data]
             if conflicting:
@@ -173,7 +198,6 @@ class BusinessWriteSerializer(serializers.ModelSerializer):
                     f: "This field is auto-populated for CNPJ and must not be provided."
                     for f in conflicting
                 })
-            document = attrs.get("document") or getattr(self.instance, "document", None)
             if document and self.instance is None:
                 info = fetch_cnpj_info(document)
                 attrs["trade_name"] = info["trade_name"]

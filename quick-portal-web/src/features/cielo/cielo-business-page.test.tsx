@@ -112,13 +112,13 @@ describe("Cielo submission result UX", () => {
     navigate.mockResolvedValue(undefined);
   });
 
-  it("keeps Quick-side failures on the review step and displays the error", async () => {
+  it("keeps Quick-side failures on the review step and displays the retry message", async () => {
     mutateAsync.mockRejectedValue(new Error("Configuração Cielo ausente"));
 
     await reachReviewAndSubmit();
 
     expect(
-      await screen.findByText("Configuração Cielo ausente"),
+      await screen.findByText("Tente novamente mais tarde"),
     ).toBeInTheDocument();
     expect(screen.getByText("Revisão do payload")).toBeInTheDocument();
     expect(navigate).not.toHaveBeenCalled();

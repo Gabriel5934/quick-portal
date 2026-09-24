@@ -95,7 +95,7 @@ String. Quick's merchant id, 36 characters long. Stored in an environment variab
 #### `ContactPhone` _required_
 
 String. Phone number of the person responsible for the seller. Numeric string. 11 characters long. \
-Source: `Business.phone`. The frontend displays it as read-only.
+Source: `Business.phone`. The Cielo form does not render it.
 
 #### `ContactName` _required_
 
@@ -105,7 +105,7 @@ For CPF it comes from `Business.name`; for CNPJ it is a Cielo-specific input.
 #### `MailAddress` _required_
 
 String. Business email address of the seller. Maximum of 50 characters. Source:
-`Business.email`; the frontend displays it as read-only.
+`Business.email`; the Cielo form does not render it.
 
 #### `Website`
 
@@ -113,12 +113,12 @@ String. Business website address of the seller. Maximum of 200 characters.
 
 #### `DocumentType` _required_
 
-String. Either "CPF" or "CNPJ". Source: `Business.document_type`; the frontend
-displays it as read-only.
+String. Either "CPF" or "CNPJ". Source: `Business.document_type`; the Cielo
+form does not render it.
 
 #### `DocumentNumber` _required_
 
-Source: canonical `Business.document`; the frontend displays it as read-only.
+Source: canonical `Business.document`; the Cielo form does not render it.
 
 - CPF \
   Numeric string, 11 characters long \
@@ -294,20 +294,20 @@ The backend accepts only canonical, unmasked input:
 - Phone numbers, bank fields, address number, and ZIP code: no display mask or
   punctuation.
 
-The frontend may display masks but must remove their punctuation before
-validation, lookup, and submission. It must uppercase CNPJ letters without
-discarding them; alphanumeric CNPJs must not be normalized to digits only.
+The generic business form may display masks but must remove their punctuation
+before validation, lookup, and submission. It must uppercase CNPJ letters
+without discarding them; alphanumeric CNPJs must not be normalized to digits
+only.
 
 CPF and CNPJ values must pass mathematical validation in both the frontend and
-backend. Validate the seller document and bank-account holder document
-independently according to each field's own document type.
+backend. The generic business form owns seller-document validation. The Cielo
+form must not revalidate any field sourced from the generic business. It only
+validates the independently supplied bank-account holder document.
 
-For a seller CNPJ, the frontend must complete mathematical validation before
-enabling or making the BrasilAPI lookup. An invalid CNPJ must not produce a
-BrasilAPI request. A valid lookup obtains the managed `CorporateName` and
-`FancyName` values without rendering those fields. A pending or failed lookup
-prevents the user from leaving the identification step and displays a form
-error.
+For a seller CNPJ, the generic business form must complete mathematical
+validation before enabling or making its BrasilAPI lookup. An invalid CNPJ must
+not produce a BrasilAPI request. The Cielo form neither repeats this lookup nor
+blocks progression based on generic business fields.
 
 Frontend validation is for immediate feedback and does not replace backend
 validation. Before making its own BrasilAPI CNPJ request, the backend
@@ -316,9 +316,10 @@ or lookup failure prevents a request to Cielo.
 
 ## Managed CNPJ fields
 
-Use `GET https://brasilapi.com.br/api/cnpj/v1/{cnpj}` for the CNPJ lookup in
-both frontend and backend. The frontend call validates that enrichment can
-complete; the backend repeats the lookup and its result is authoritative.
+Use `GET https://brasilapi.com.br/api/cnpj/v1/{cnpj}` during generic business
+creation and again in the Cielo backend. The generic business form performs the
+frontend lookup once; the Cielo backend repeats it and its result is
+authoritative for the outbound Cielo request.
 
 For a CNPJ seller, obtain the following fields from BrasilAPI:
 
@@ -608,10 +609,10 @@ The onboarding form has three data-entry steps and a separate review step:
    three sections and submit them to Quick. Do not repeat fields sourced from
    the generic business.
 
-The frontend applies mathematical validation to CPF and CNPJ values before
-allowing the user to progress. Only a mathematically valid seller CNPJ may
-trigger the BrasilAPI request that validates managed corporate and trade name
-enrichment. CPF validation does not trigger a BrasilAPI lookup.
+The Cielo form trusts the generic business fields and must not validate its
+document, email, mobile phone, or CPF name. CPF/CNPJ mathematical validation and
+the frontend CNPJ lookup belong to the generic business form. The Cielo form
+continues to validate the independently supplied bank-account holder document.
 
 Place the feature under `src/features/cielo/`, with authenticated query and
 mutation hooks under `src/hooks/`. Add the route

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isValidCnpj, isValidCpf, normalizeDocument } from "../document";
 
 function refineDocument(
   data: {
@@ -8,23 +9,30 @@ function refineDocument(
   },
   ctx: z.RefinementCtx,
 ) {
-  const digits = data.document.replace(/\D/g, "");
+  const canonical = normalizeDocument(data.document, data.documentType);
   if (data.documentType === "CPF") {
-    if (digits.length < 11) {
+    if (!isValidCpf(canonical)) {
       ctx.addIssue({
         code: "custom",
         message: "CPF inválido",
         path: ["document"],
       });
     }
-    if (!data.name) {
+    if (!data.name.trim()) {
       ctx.addIssue({
         code: "custom",
         message: "Nome Completo é obrigatório",
         path: ["name"],
       });
     }
-  } else if (digits.length < 14) {
+    if (data.name.length > 50) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Nome Completo deve ter no máximo 50 caracteres",
+        path: ["name"],
+      });
+    }
+  } else if (!isValidCnpj(canonical)) {
     ctx.addIssue({
       code: "custom",
       message: "CNPJ inválido",
@@ -39,11 +47,13 @@ const newBusinessBaseSchema = z.object({
   document: z.string(),
   name: z.string(),
   nomeFantasia: z.string().optional(),
-  email: z.email("Insira um email válido"),
+  email: z
+    .email("Insira um email válido")
+    .max(50, "Email deve ter no máximo 50 caracteres"),
   celular: z
     .string()
     .refine(
-      (value) => value.replace(/\D/g, "").length >= 11,
+      (value) => value.replace(/\D/g, "").length === 11,
       "Insira um celular válido",
     ),
   telefone: z.string(),

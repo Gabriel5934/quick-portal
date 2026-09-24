@@ -5,7 +5,7 @@ import type {
   CieloCreateRequest,
   CieloOption,
 } from "#features/cielo/types";
-import { normalizeDocument } from "#features/cielo/validators";
+import { normalizeDocument } from "#features/business/document";
 import { useAuthQuery } from "#hooks/auth/useAuthQuery";
 import { useToken } from "#hooks/auth/useToken";
 

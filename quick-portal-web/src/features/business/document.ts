@@ -12,6 +12,8 @@ const cnpjSeparators: Readonly<Record<number, string>> = {
   12: "-",
 };
 
+export type BusinessDocumentType = "CPF" | "CNPJ";
+
 export function normalizeCpf(value: string): string {
   return value.replace(/\D/g, "");
 }
@@ -20,11 +22,17 @@ export function normalizeCnpj(value: string): string {
   return value.replace(/[.\-/\s]/g, "").toUpperCase();
 }
 
-export function normalizeDocument(value: string, type: "CPF" | "CNPJ"): string {
+export function normalizeDocument(
+  value: string,
+  type: BusinessDocumentType,
+): string {
   return type === "CPF" ? normalizeCpf(value) : normalizeCnpj(value);
 }
 
-export function formatDocument(value: string, type: "CPF" | "CNPJ"): string {
+export function formatDocument(
+  value: string,
+  type: BusinessDocumentType,
+): string {
   const canonical = normalizeDocument(value, type)
     .replace(type === "CPF" ? /\D/g : /[^A-Z0-9]/g, "")
     .slice(0, type === "CPF" ? 11 : 14);
@@ -39,8 +47,9 @@ export function formatDocument(value: string, type: "CPF" | "CNPJ"): string {
 
 export function isValidCpf(value: string): boolean {
   const canonical = normalizeCpf(value);
-  if (!cpfPattern.test(canonical) || new Set(canonical).size === 1)
+  if (!cpfPattern.test(canonical) || new Set(canonical).size === 1) {
     return false;
+  }
 
   const digits = [...canonical].map(Number);
   for (const length of [9, 10]) {
