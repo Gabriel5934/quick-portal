@@ -99,6 +99,7 @@ class CieloDocumentValidatorTests(APITestCase):
     def test_cpf_mathematical_validation(self):
         self.assertTrue(is_valid_cpf("52998224725"))
         self.assertFalse(is_valid_cpf("52998224726"))
+        self.assertFalse(is_valid_cpf("５２９９８２２４７２５"))
 
     def test_numeric_and_alphanumeric_cnpj_mathematical_validation(self):
         self.assertTrue(is_valid_cnpj("11222333000181"))

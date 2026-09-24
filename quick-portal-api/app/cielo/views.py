@@ -114,24 +114,49 @@ class CieloBusinessView(APIView):
 
                 seller = CieloBusiness(
                     business=locked_business,
-                    status=CieloSubmissionStatus.FAILED,
+                    status=CieloSubmissionStatus.INTERVENTION_REQUIRED,
                     **values,
                 )
                 seller.full_clean()
-                outcome = submit_cielo_seller(seller)
-                _apply_outcome(seller, outcome)
-                seller.full_clean()
                 seller.save()
-        except CieloQuickConfigurationError as exc:
-            return _configuration_error_response(exc)
-        except CieloQuickCredentialsError as exc:
-            return _credentials_error_response(exc)
         except DjangoValidationError as exc:
             return Response(_django_validation_detail(exc), status=status.HTTP_400_BAD_REQUEST)
         except IntegrityError:
             return Response(
                 {"detail": "This business or document already has a Cielo seller."},
                 status=status.HTTP_409_CONFLICT,
+            )
+
+        try:
+            outcome = submit_cielo_seller(seller)
+        except CieloQuickConfigurationError as exc:
+            seller.delete()
+            return _configuration_error_response(exc)
+        except CieloQuickCredentialsError as exc:
+            seller.delete()
+            return _credentials_error_response(exc)
+        except Exception:
+            seller.delete()
+            raise
+
+        try:
+            with transaction.atomic():
+                seller = CieloBusiness.objects.select_for_update().get(pk=seller.pk)
+                _apply_outcome(seller, outcome)
+                seller.full_clean()
+                seller.save(
+                    update_fields=[
+                        "status",
+                        "merchant_id",
+                        "last_submitted_at",
+                        "updated_at",
+                    ]
+                )
+        except (DjangoValidationError, IntegrityError):
+            seller.refresh_from_db()
+            return Response(
+                CieloBusinessSummarySerializer(seller).data,
+                status=status.HTTP_201_CREATED,
             )
 
         return Response(

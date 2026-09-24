@@ -3,8 +3,8 @@ import re
 from django.core.exceptions import ValidationError
 
 
-CPF_PATTERN = re.compile(r"^\d{11}$")
-CNPJ_PATTERN = re.compile(r"^[A-Z0-9]{12}\d{2}$")
+CPF_PATTERN = re.compile(r"^[0-9]{11}$")
+CNPJ_PATTERN = re.compile(r"^[A-Z0-9]{12}[0-9]{2}$")
 
 
 def is_valid_cpf(value: str) -> bool:

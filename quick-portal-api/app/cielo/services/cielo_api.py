@@ -43,7 +43,15 @@ class CieloSubmissionOutcome:
 
 def _valid_base_url(value: str) -> bool:
     parsed = urlparse(value)
-    return parsed.scheme in {"http", "https"} and bool(parsed.netloc)
+    if not parsed.netloc:
+        return False
+    if parsed.scheme == "https":
+        return True
+    return (
+        settings.DEBUG
+        and parsed.scheme == "http"
+        and parsed.hostname in {"localhost", "127.0.0.1", "::1", "mock-cielo"}
+    )
 
 
 def _valid_merchant_id(value: object) -> bool:
