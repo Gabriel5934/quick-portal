@@ -19,7 +19,6 @@ import {
   AddBusinessOutlined,
   ArrowBackOutlined,
   Circle,
-  HourglassEmptyOutlined,
   StorefrontOutlined,
 } from "@mui/icons-material";
 import { createLink, Link as RouterLink } from "@tanstack/react-router";
@@ -34,9 +33,11 @@ import {
   type OwnBusinessDetails,
   type OwnRegistrationStatus,
 } from "#hooks/quickApi/useOwnBusinesses";
+import { CieloBusinessPanel } from "#features/cielo";
 
 interface BusinessDetailsProps {
   businessId: number | undefined;
+  selectedTab?: "quick" | "own" | "cielo";
 }
 
 interface DetailRow {
@@ -302,8 +303,13 @@ function DetailsTable({
   );
 }
 
-export function BusinessDetails({ businessId }: BusinessDetailsProps) {
-  const [activeTab, setActiveTab] = useState(0);
+const tabIndex = { quick: 0, own: 1, cielo: 2 } as const;
+
+export function BusinessDetails({
+  businessId,
+  selectedTab = "quick",
+}: BusinessDetailsProps) {
+  const [activeTab, setActiveTab] = useState<number>(tabIndex[selectedTab]);
   const { data: business, isLoading, error } = useBusiness(businessId);
   const {
     data: ownBusiness,
@@ -459,28 +465,7 @@ export function BusinessDetails({ businessId }: BusinessDetailsProps) {
             </TabPanel>
 
             <TabPanel value={activeTab} index={2}>
-              <Box
-                sx={{
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  textAlign: "center",
-                  py: { xs: 4, sm: 7 },
-                  px: 2,
-                }}
-              >
-                <HourglassEmptyOutlined
-                  color="disabled"
-                  sx={{ fontSize: 56, mb: 2 }}
-                />
-                <Typography variant="h6" sx={{ mb: 1 }}>
-                  Cielo ainda não está disponível
-                </Typography>
-                <Typography color="text.secondary">
-                  Os dados de credenciamento da Cielo estarão disponíveis em
-                  breve.
-                </Typography>
-              </Box>
+              <CieloBusinessPanel businessId={business.id} />
             </TabPanel>
           </Paper>
         </>

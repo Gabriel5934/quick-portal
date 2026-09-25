@@ -26,6 +26,7 @@ import { Route as AuthRoutesRecurringFeesNewReviewRouteImport } from './routes/_
 import { Route as AuthRoutesRecurringFeesNewPricingRouteImport } from './routes/_authRoutes/recurring-fees.new.pricing'
 import { Route as AuthRoutesRecurringFeesNewDetailsRouteImport } from './routes/_authRoutes/recurring-fees.new.details'
 import { Route as AuthRoutesBusinessListIdCredenciamentoOwnRouteImport } from './routes/_authRoutes/business-list_.$id_.credenciamento-own'
+import { Route as AuthRoutesBusinessListIdCredenciamentoCieloRouteImport } from './routes/_authRoutes/business-list_.$id_.credenciamento-cielo'
 
 const SignupRoute = SignupRouteImport.update({
   id: '/signup',
@@ -119,6 +120,12 @@ const AuthRoutesBusinessListIdCredenciamentoOwnRoute =
     path: '/business-list/$id/credenciamento-own',
     getParentRoute: () => AuthRoutesRouteRoute,
   } as any)
+const AuthRoutesBusinessListIdCredenciamentoCieloRoute =
+  AuthRoutesBusinessListIdCredenciamentoCieloRouteImport.update({
+    id: '/business-list_/$id_/credenciamento-cielo',
+    path: '/business-list/$id/credenciamento-cielo',
+    getParentRoute: () => AuthRoutesRouteRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -131,6 +138,7 @@ export interface FileRoutesByFullPath {
   '/sales': typeof AuthRoutesSalesRoute
   '/business-list/$id': typeof AuthRoutesBusinessListIdRoute
   '/recurring-fees/': typeof AuthRoutesRecurringFeesIndexRoute
+  '/business-list/$id/credenciamento-cielo': typeof AuthRoutesBusinessListIdCredenciamentoCieloRoute
   '/business-list/$id/credenciamento-own': typeof AuthRoutesBusinessListIdCredenciamentoOwnRoute
   '/recurring-fees/new/details': typeof AuthRoutesRecurringFeesNewDetailsRoute
   '/recurring-fees/new/pricing': typeof AuthRoutesRecurringFeesNewPricingRoute
@@ -148,6 +156,7 @@ export interface FileRoutesByTo {
   '/sales': typeof AuthRoutesSalesRoute
   '/business-list/$id': typeof AuthRoutesBusinessListIdRoute
   '/recurring-fees': typeof AuthRoutesRecurringFeesIndexRoute
+  '/business-list/$id/credenciamento-cielo': typeof AuthRoutesBusinessListIdCredenciamentoCieloRoute
   '/business-list/$id/credenciamento-own': typeof AuthRoutesBusinessListIdCredenciamentoOwnRoute
   '/recurring-fees/new/details': typeof AuthRoutesRecurringFeesNewDetailsRoute
   '/recurring-fees/new/pricing': typeof AuthRoutesRecurringFeesNewPricingRoute
@@ -168,6 +177,7 @@ export interface FileRoutesById {
   '/_authRoutes/sales': typeof AuthRoutesSalesRoute
   '/_authRoutes/business-list_/$id': typeof AuthRoutesBusinessListIdRoute
   '/_authRoutes/recurring-fees/': typeof AuthRoutesRecurringFeesIndexRoute
+  '/_authRoutes/business-list_/$id_/credenciamento-cielo': typeof AuthRoutesBusinessListIdCredenciamentoCieloRoute
   '/_authRoutes/business-list_/$id_/credenciamento-own': typeof AuthRoutesBusinessListIdCredenciamentoOwnRoute
   '/_authRoutes/recurring-fees/new/details': typeof AuthRoutesRecurringFeesNewDetailsRoute
   '/_authRoutes/recurring-fees/new/pricing': typeof AuthRoutesRecurringFeesNewPricingRoute
@@ -188,6 +198,7 @@ export interface FileRouteTypes {
     | '/sales'
     | '/business-list/$id'
     | '/recurring-fees/'
+    | '/business-list/$id/credenciamento-cielo'
     | '/business-list/$id/credenciamento-own'
     | '/recurring-fees/new/details'
     | '/recurring-fees/new/pricing'
@@ -205,6 +216,7 @@ export interface FileRouteTypes {
     | '/sales'
     | '/business-list/$id'
     | '/recurring-fees'
+    | '/business-list/$id/credenciamento-cielo'
     | '/business-list/$id/credenciamento-own'
     | '/recurring-fees/new/details'
     | '/recurring-fees/new/pricing'
@@ -224,6 +236,7 @@ export interface FileRouteTypes {
     | '/_authRoutes/sales'
     | '/_authRoutes/business-list_/$id'
     | '/_authRoutes/recurring-fees/'
+    | '/_authRoutes/business-list_/$id_/credenciamento-cielo'
     | '/_authRoutes/business-list_/$id_/credenciamento-own'
     | '/_authRoutes/recurring-fees/new/details'
     | '/_authRoutes/recurring-fees/new/pricing'
@@ -359,6 +372,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthRoutesBusinessListIdCredenciamentoOwnRouteImport
       parentRoute: typeof AuthRoutesRouteRoute
     }
+    '/_authRoutes/business-list_/$id_/credenciamento-cielo': {
+      id: '/_authRoutes/business-list_/$id_/credenciamento-cielo'
+      path: '/business-list/$id/credenciamento-cielo'
+      fullPath: '/business-list/$id/credenciamento-cielo'
+      preLoaderRoute: typeof AuthRoutesBusinessListIdCredenciamentoCieloRouteImport
+      parentRoute: typeof AuthRoutesRouteRoute
+    }
   }
 }
 
@@ -399,6 +419,7 @@ interface AuthRoutesRouteRouteChildren {
   AuthRoutesRecurringFeesRoute: typeof AuthRoutesRecurringFeesRouteWithChildren
   AuthRoutesSalesRoute: typeof AuthRoutesSalesRoute
   AuthRoutesBusinessListIdRoute: typeof AuthRoutesBusinessListIdRoute
+  AuthRoutesBusinessListIdCredenciamentoCieloRoute: typeof AuthRoutesBusinessListIdCredenciamentoCieloRoute
   AuthRoutesBusinessListIdCredenciamentoOwnRoute: typeof AuthRoutesBusinessListIdCredenciamentoOwnRoute
 }
 
@@ -410,6 +431,8 @@ const AuthRoutesRouteRouteChildren: AuthRoutesRouteRouteChildren = {
   AuthRoutesRecurringFeesRoute: AuthRoutesRecurringFeesRouteWithChildren,
   AuthRoutesSalesRoute: AuthRoutesSalesRoute,
   AuthRoutesBusinessListIdRoute: AuthRoutesBusinessListIdRoute,
+  AuthRoutesBusinessListIdCredenciamentoCieloRoute:
+    AuthRoutesBusinessListIdCredenciamentoCieloRoute,
   AuthRoutesBusinessListIdCredenciamentoOwnRoute:
     AuthRoutesBusinessListIdCredenciamentoOwnRoute,
 }

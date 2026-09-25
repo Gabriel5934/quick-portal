@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { isValidCnpj, normalizeCnpj } from "#features/business/document";
 
 type CnpjData = {
   cnpj: string;
@@ -15,8 +16,10 @@ type CnpjError = {
 export class CnpjValidationError extends Error {}
 
 async function fetchCnpj(cnpj: string): Promise<CnpjData> {
-  const digits = cnpj.replace(/\D/g, "");
-  const res = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${digits}`);
+  const canonical = normalizeCnpj(cnpj);
+  const res = await fetch(
+    `https://brasilapi.com.br/api/cnpj/v1/${encodeURIComponent(canonical)}`,
+  );
 
   if (!res.ok) {
     const body = (await res.json()) as CnpjError;
@@ -30,11 +33,11 @@ async function fetchCnpj(cnpj: string): Promise<CnpjData> {
 }
 
 export function useCnpj(cnpj: string, enabled = true) {
-  const digits = cnpj.replace(/\D/g, "");
+  const canonical = normalizeCnpj(cnpj);
   return useQuery({
-    queryKey: ["cnpj", digits],
+    queryKey: ["cnpj", canonical],
     queryFn: () => fetchCnpj(cnpj),
-    enabled: enabled && digits.length === 14,
+    enabled: enabled && isValidCnpj(canonical),
     retry: false,
   });
 }
