@@ -24,7 +24,6 @@ from cielo.serializers import (
     CieloBusinessCreateSerializer,
     CieloBusinessSummarySerializer,
 )
-from cielo.services.brasil_api import CieloBrasilApiError
 from cielo.services.cielo_api import (
     CieloQuickConfigurationError,
     CieloQuickCredentialsError,
@@ -32,6 +31,7 @@ from cielo.services.cielo_api import (
     submit_cielo_seller,
 )
 from quickportal.models import Business
+from quickportal.services.brasil_api import BrasilApiError
 from quickportal.services.business_access import get_accessible_business_or_404
 
 
@@ -44,12 +44,21 @@ def _credentials_error_response(exc):
 
 
 def _brasil_api_error_response(exc):
+    field = {
+        "cnpj": "document_number",
+        "cep": "address.zip_code",
+    }.get(exc.resource, "business")
+    message = {
+        "connection": "Não foi possível consultar a BrasilAPI.",
+        "http_error": "Não foi possível consultar os dados informados na BrasilAPI.",
+        "invalid_response": "A BrasilAPI retornou uma resposta inválida.",
+    }.get(exc.reason, str(exc))
     response_status = (
         status.HTTP_400_BAD_REQUEST
         if exc.status_code is not None and 400 <= exc.status_code < 500
         else status.HTTP_502_BAD_GATEWAY
     )
-    return Response({exc.field: [str(exc)]}, status=response_status)
+    return Response({field: [message]}, status=response_status)
 
 
 def _django_validation_detail(exc):
@@ -92,7 +101,7 @@ class CieloBusinessView(APIView):
         )
         try:
             serializer.is_valid(raise_exception=True)
-        except CieloBrasilApiError as exc:
+        except BrasilApiError as exc:
             return _brasil_api_error_response(exc)
 
         values = serializer.seller_values()

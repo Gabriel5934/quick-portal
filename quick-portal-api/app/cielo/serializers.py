@@ -14,8 +14,12 @@ from cielo.models import (
     CieloDocumentType,
     CieloSubmissionStatus,
 )
-from cielo.services.brasil_api import fetch_address, fetch_cnpj_names
 from cielo.validators import validate_cnpj, validate_cpf
+from quickportal.services.brasil_api import (
+    BrasilApiError,
+    fetch_cep_info,
+    fetch_cnpj_registration,
+)
 
 
 class RejectUnknownFieldsSerializer(serializers.Serializer):
@@ -137,13 +141,37 @@ class CieloBusinessCreateSerializer(RejectUnknownFieldsSerializer):
                 raise serializers.ValidationError({"birthday_date": ["This field must be null for CNPJ sellers."]})
             if activity not in {None, ""}:
                 raise serializers.ValidationError({"business_activity_id": ["This field must be null for CNPJ sellers."]})
-            attrs["corporate_name"], attrs["fancy_name"] = fetch_cnpj_names(
-                document_number
-            )
+            cnpj_info = fetch_cnpj_registration(document_number)
+            attrs["corporate_name"] = cnpj_info["name"]
+            attrs["fancy_name"] = cnpj_info["trade_name"]
             attrs["birthday_date"] = None
             attrs["business_activity_id"] = None
 
-        attrs.update(fetch_address(attrs["address"]["zip_code"]))
+        address = fetch_cep_info(attrs["address"]["zip_code"])
+        managed_address = {
+            "address_street": address.get("street"),
+            "address_neighborhood": address.get("neighborhood"),
+            "address_city": address.get("city"),
+            "address_state": address.get("state"),
+        }
+        if any(
+            not isinstance(value, str) or not value.strip()
+            for value in managed_address.values()
+        ):
+            raise BrasilApiError(
+                "Brasil API returned an incomplete address",
+                status_code=200,
+                resource="cep",
+                reason="invalid_response",
+            )
+        if len(managed_address["address_state"]) != 2:
+            raise BrasilApiError(
+                "Brasil API returned an invalid state",
+                status_code=200,
+                resource="cep",
+                reason="invalid_response",
+            )
+        attrs.update(managed_address)
         return attrs
 
     def seller_values(self) -> dict:

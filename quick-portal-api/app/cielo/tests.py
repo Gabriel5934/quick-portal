@@ -121,16 +121,20 @@ class CieloSubmissionBusinessRuleTests(APITestCase):
         self.business = create_business()
         self.url = f"/cielo/businesses/{self.business.pk}/"
         self.cnpj_patch = patch(
-            "cielo.serializers.fetch_cnpj_names",
-            return_value=("Seller Corporate Ltda", "Seller"),
+            "cielo.serializers.fetch_cnpj_registration",
+            return_value={
+                "name": "Seller Corporate Ltda",
+                "trade_name": "Seller",
+                "cod_cnae": None,
+            },
         )
         self.address_patch = patch(
-            "cielo.serializers.fetch_address",
+            "cielo.serializers.fetch_cep_info",
             return_value={
-                "address_street": "Praça da Sé",
-                "address_neighborhood": "Sé",
-                "address_city": "São Paulo",
-                "address_state": "SP",
+                "street": "Praça da Sé",
+                "neighborhood": "Sé",
+                "city": "São Paulo",
+                "state": "SP",
             },
         )
         self.cnpj_patch.start()
@@ -231,7 +235,7 @@ class CieloSubmissionBusinessRuleTests(APITestCase):
         self.business.document = "12ABC34501DE36"
         self.business.full_clean()
         self.business.save(update_fields=["document"])
-        with patch("cielo.serializers.fetch_cnpj_names") as fetch_cnpj:
+        with patch("cielo.serializers.fetch_cnpj_registration") as fetch_cnpj:
             response = self.client.post(
                 self.url,
                 cielo_payload(),
