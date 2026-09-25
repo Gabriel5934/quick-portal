@@ -22,6 +22,10 @@ class CieloQuickCredentialsError(Exception):
     pass
 
 
+class CieloQuickPreTransmissionError(Exception):
+    pass
+
+
 class CieloRemoteError(Exception):
     pass
 
@@ -216,12 +220,18 @@ def _contains_connection_reset(error: BaseException) -> bool:
 
 
 def submit_cielo_seller(seller) -> CieloSubmissionOutcome:
-    configuration = get_cielo_configuration()
-    payload = build_cielo_payload(seller, configuration.merchant_id)
     try:
+        configuration = get_cielo_configuration()
+        payload = build_cielo_payload(seller, configuration.merchant_id)
         token = get_cielo_token(configuration)
+    except (CieloQuickConfigurationError, CieloQuickCredentialsError):
+        raise
     except CieloRemoteError:
         return CieloSubmissionOutcome(status=CieloSubmissionStatus.FAILED)
+    except Exception as exc:
+        raise CieloQuickPreTransmissionError(
+            "Falha interna antes do envio à Cielo."
+        ) from exc
 
     submitted_at = timezone.now()
     try:

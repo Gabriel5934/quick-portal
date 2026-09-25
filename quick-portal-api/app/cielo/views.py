@@ -28,6 +28,7 @@ from cielo.services.brasil_api import CieloBrasilApiError
 from cielo.services.cielo_api import (
     CieloQuickConfigurationError,
     CieloQuickCredentialsError,
+    CieloQuickPreTransmissionError,
     submit_cielo_seller,
 )
 from quickportal.models import Business
@@ -135,6 +136,9 @@ class CieloBusinessView(APIView):
         except CieloQuickCredentialsError as exc:
             seller.delete()
             return _credentials_error_response(exc)
+        except CieloQuickPreTransmissionError:
+            seller.delete()
+            raise
         except Exception:
             CieloBusiness.objects.filter(pk=seller.pk).update(
                 status=CieloSubmissionStatus.INTERVENTION_REQUIRED,

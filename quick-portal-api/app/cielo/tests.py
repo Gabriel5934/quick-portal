@@ -16,6 +16,7 @@ from cielo.models import CieloBusiness, CieloSubmissionStatus
 from cielo.services.cielo_api import (
     CieloQuickConfigurationError,
     CieloQuickCredentialsError,
+    CieloQuickPreTransmissionError,
     CieloSubmissionOutcome,
     get_cielo_configuration,
     submit_cielo_seller,
@@ -163,6 +164,14 @@ class CieloSubmissionBusinessRuleTests(APITestCase):
                 response = self.client.post(self.url, cielo_payload(), format="json")
                 self.assertGreaterEqual(response.status_code, 400)
                 self.assertFalse(CieloBusiness.objects.exists())
+
+        with patch(
+            "cielo.views.submit_cielo_seller",
+            side_effect=CieloQuickPreTransmissionError("before transmission"),
+        ):
+            with self.assertRaises(CieloQuickPreTransmissionError):
+                self.client.post(self.url, cielo_payload(), format="json")
+        self.assertFalse(CieloBusiness.objects.exists())
 
         with patch(
             "cielo.views.submit_cielo_seller", side_effect=RuntimeError("backend")
@@ -408,6 +417,14 @@ class CieloTransmissionClassificationTests(APITestCase):
             outcome = submit_cielo_seller(self.seller)
         self.assertEqual(outcome.status, CieloSubmissionStatus.FAILED)
         self.assertIsNone(outcome.submitted_at)
+
+    def test_unexpected_pre_transmission_failure_is_classified(self):
+        with patch(
+            "cielo.services.cielo_api.build_cielo_payload",
+            side_effect=RuntimeError("payload construction failed"),
+        ):
+            with self.assertRaises(CieloQuickPreTransmissionError):
+                submit_cielo_seller(self.seller)
 
     def test_pre_transmission_connection_failures_do_not_mark_submission(self):
         for error in (
