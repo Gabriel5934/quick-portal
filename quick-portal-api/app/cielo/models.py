@@ -300,16 +300,6 @@ class CieloBusiness(models.Model):
             errors["business"] = "This field is required."
         else:
             business = self.business
-            seller_validator = (
-                validate_cpf
-                if business.document_type == CieloDocumentType.CPF
-                else validate_cnpj
-            )
-            try:
-                seller_validator(business.document)
-            except ValidationError as exc:
-                errors["business"] = exc.messages
-
             if business.document_type == CieloDocumentType.CPF:
                 if self.birthday_date is None:
                     errors["birthday_date"] = (
