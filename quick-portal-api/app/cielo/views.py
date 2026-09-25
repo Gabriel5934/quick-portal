@@ -136,7 +136,11 @@ class CieloBusinessView(APIView):
             seller.delete()
             return _credentials_error_response(exc)
         except Exception:
-            seller.delete()
+            CieloBusiness.objects.filter(pk=seller.pk).update(
+                status=CieloSubmissionStatus.INTERVENTION_REQUIRED,
+                merchant_id=None,
+                updated_at=timezone.now(),
+            )
             raise
 
         try:

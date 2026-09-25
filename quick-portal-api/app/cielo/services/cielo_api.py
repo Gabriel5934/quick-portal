@@ -43,7 +43,7 @@ class CieloSubmissionOutcome:
 
 def _valid_base_url(value: str) -> bool:
     parsed = urlparse(value)
-    if not parsed.netloc:
+    if not parsed.netloc or not parsed.hostname:
         return False
     if parsed.scheme == "https":
         return True

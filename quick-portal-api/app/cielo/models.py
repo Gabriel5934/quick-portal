@@ -286,57 +286,76 @@ class CieloBusiness(models.Model):
     def clean(self):
         super().clean()
         errors = {}
-        seller_validator = (
-            validate_cpf
-            if self.business.document_type == CieloDocumentType.CPF
-            else validate_cnpj
-        )
         bank_validator = (
             validate_cpf
             if self.bank_document_type == CieloDocumentType.CPF
             else validate_cnpj
         )
         try:
-            seller_validator(self.business.document)
-        except ValidationError as exc:
-            errors["business"] = exc.messages
-        try:
             bank_validator(self.bank_document_number)
         except ValidationError as exc:
             errors["bank_document_number"] = exc.messages
 
-        if self.business.document_type == CieloDocumentType.CPF:
-            if self.birthday_date is None:
-                errors["birthday_date"] = "This field is required for CPF sellers."
-            if not self.business_activity_id:
-                errors["business_activity_id"] = (
-                    "This field is required for CPF sellers."
-                )
-            if self.contact_name:
-                errors["contact_name"] = "This field must be blank for CPF sellers."
-            if self.corporate_name or self.fancy_name:
-                errors["corporate_name"] = (
-                    "Managed names must be blank for CPF sellers."
-                )
-            if len(self.business.name) > 50:
-                errors["business"] = (
-                    "The business CPF name must contain at most 50 characters."
-                )
+        if self.business_id is None:
+            errors["business"] = "This field is required."
         else:
-            if not self.contact_name:
-                errors["contact_name"] = "This field is required for CNPJ sellers."
-            if not self.corporate_name:
-                errors["corporate_name"] = "This field is required for CNPJ sellers."
-            if self.birthday_date is not None:
-                errors["birthday_date"] = "This field must be null for CNPJ sellers."
-            if self.business_activity_id:
-                errors["business_activity_id"] = (
-                    "This field must be blank for CNPJ sellers."
+            business = self.business
+            seller_validator = (
+                validate_cpf
+                if business.document_type == CieloDocumentType.CPF
+                else validate_cnpj
+            )
+            try:
+                seller_validator(business.document)
+            except ValidationError as exc:
+                errors["business"] = exc.messages
+
+            if business.document_type == CieloDocumentType.CPF:
+                if self.birthday_date is None:
+                    errors["birthday_date"] = (
+                        "This field is required for CPF sellers."
+                    )
+                if not self.business_activity_id:
+                    errors["business_activity_id"] = (
+                        "This field is required for CPF sellers."
+                    )
+                if self.contact_name:
+                    errors["contact_name"] = (
+                        "This field must be blank for CPF sellers."
+                    )
+                if self.corporate_name or self.fancy_name:
+                    errors["corporate_name"] = (
+                        "Managed names must be blank for CPF sellers."
+                    )
+                if len(business.name) > 50:
+                    errors["business"] = (
+                        "The business CPF name must contain at most 50 characters."
+                    )
+            else:
+                if not self.contact_name:
+                    errors["contact_name"] = (
+                        "This field is required for CNPJ sellers."
+                    )
+                if not self.corporate_name:
+                    errors["corporate_name"] = (
+                        "This field is required for CNPJ sellers."
+                    )
+                if self.birthday_date is not None:
+                    errors["birthday_date"] = (
+                        "This field must be null for CNPJ sellers."
+                    )
+                if self.business_activity_id:
+                    errors["business_activity_id"] = (
+                        "This field must be blank for CNPJ sellers."
+                    )
+            if not business.phone.isdigit() or len(business.phone) != 11:
+                errors["business"] = (
+                    "The business mobile phone must contain exactly 11 digits."
                 )
-        if not self.business.phone.isdigit() or len(self.business.phone) != 11:
-            errors["business"] = "The business mobile phone must contain exactly 11 digits."
-        if len(self.business.email) > 50:
-            errors["business"] = "The business email must contain at most 50 characters."
+            if len(business.email) > 50:
+                errors["business"] = (
+                    "The business email must contain at most 50 characters."
+                )
         if not self.bank_agency_number or set(self.bank_agency_number) == {"0"}:
             errors["bank_agency_number"] = "Agency number cannot contain only zeroes."
         if self.bank_agency_digit and not self.bank_agency_digit.isdigit():

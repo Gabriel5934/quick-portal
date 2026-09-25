@@ -114,6 +114,7 @@ class CieloSubmissionBusinessRuleTests(APITestCase):
             username="cielo-test", email="cielo@example.com", password="test"
         )
         self.user.is_superuser = True
+        self.user.full_clean()
         self.user.save(update_fields=["is_superuser"])
         self.client.force_authenticate(self.user)
         self.business = create_business()
@@ -137,10 +138,11 @@ class CieloSubmissionBusinessRuleTests(APITestCase):
         self.addCleanup(self.address_patch.stop)
 
     def test_quick_failures_create_no_record(self):
-        self.business.document_type = DocumentType.CPF
-        self.business.document = "52998224726"
-        self.business.name = "CPF Seller"
-        self.business.save(update_fields=["document_type", "document", "name"])
+        Business.objects.filter(pk=self.business.pk).update(
+            document_type=DocumentType.CPF,
+            document="52998224726",
+            name="CPF Seller",
+        )
         invalid = cielo_payload(document_type="CPF")
         response = self.client.post(self.url, invalid, format="json")
         self.assertEqual(response.status_code, 400)
@@ -148,6 +150,7 @@ class CieloSubmissionBusinessRuleTests(APITestCase):
 
         self.business.document_type = DocumentType.CNPJ
         self.business.document = "11222333000181"
+        self.business.full_clean()
         self.business.save(update_fields=["document_type", "document"])
 
         for error in (
@@ -166,7 +169,10 @@ class CieloSubmissionBusinessRuleTests(APITestCase):
         ):
             with self.assertRaises(RuntimeError):
                 self.client.post(self.url, cielo_payload(), format="json")
-        self.assertFalse(CieloBusiness.objects.exists())
+        self.assertEqual(
+            CieloBusiness.objects.get().status,
+            CieloSubmissionStatus.INTERVENTION_REQUIRED,
+        )
 
     def test_cielo_failure_creates_failed_record(self):
         with patch(
@@ -214,6 +220,7 @@ class CieloSubmissionBusinessRuleTests(APITestCase):
 
     def test_invalid_cnpj_does_not_call_brasil_api(self):
         self.business.document = "12ABC34501DE36"
+        self.business.full_clean()
         self.business.save(update_fields=["document"])
         with patch("cielo.serializers.fetch_cnpj_names") as fetch_cnpj:
             response = self.client.post(
@@ -307,6 +314,7 @@ class CieloRetryCooldownTests(APITestCase):
         self.assertEqual(seller.last_submitted_at, transmitted_at)
 
         seller.last_submitted_at = None
+        seller.full_clean()
         seller.save(update_fields=["last_submitted_at"])
         with patch(
             "cielo.views.submit_cielo_seller",
