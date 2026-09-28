@@ -365,8 +365,8 @@ validation failure and prevents the Cielo request.
   and cases where no onboarding HTTP response is received.
 - Save the Cielo response's `MerchantId` after receiving a valid successful
   response. No other Cielo response data needs to be retained.
-- Set the local status to `PENDING` for a valid Cielo `2xx` response that
-  contains a valid `MerchantId`.
+- Set the local status to `SENT` (`Enviado`) for a valid Cielo `2xx` response
+  that contains a valid `MerchantId`.
 - Set the local status to `FAILED` for any Cielo-side or Cielo-communication
   failure, including `4xx`, `5xx`, timeouts, connection failures, service
   errors, and a missing onboarding response.
@@ -374,14 +374,16 @@ validation failure and prevents the Cielo request.
   `2xx` response. This includes malformed response data and a missing or invalid
   `MerchantId`. Save the seller without a Cielo merchant ID, prevent user
   retry, and indicate that intervention by Quick is required.
-- Cielo's asynchronous onboarding notifications and final approval status are
-  out of scope. A successfully submitted record remains `PENDING`.
+- A successfully submitted record remains `SENT`. Cielo's asynchronous
+  onboarding notifications track the final KYC, bank-account, and onboarding
+  outcome in separate fields and never change the submission status; see
+  [Onboarding Status](./onboarding-status.md).
 
 The MVP does not provide general-purpose update or delete operations. It
 provides a simple retry operation only for `FAILED`: the endpoint accepts no
 edited seller data and resends the form already stored on the Cielo seller.
-`PENDING` and `INTERVENTION_REQUIRED` remain distinct, non-retryable statuses:
-`PENDING` represents a valid accepted response, while
+`SENT` and `INTERVENTION_REQUIRED` remain distinct, non-retryable statuses:
+`SENT` represents a valid accepted response, while
 `INTERVENTION_REQUIRED` represents an unusable successful response that Quick
 must investigate.
 
@@ -420,7 +422,7 @@ concurrent requests cannot both reach Cielo.
 
 After an accepted retry:
 
-- A valid Cielo `2xx` response sets `PENDING` and saves `MerchantId`.
+- A valid Cielo `2xx` response sets `SENT` and saves `MerchantId`.
 - An unusable `2xx` response sets `INTERVENTION_REQUIRED` and disables retry.
 - A Cielo-side or communication failure keeps `FAILED` and restarts the
   cooldown from `last_submitted_at` if the request was transmitted. A failure
@@ -438,35 +440,35 @@ Store these Cielo-specific fields directly on the model. Rebuild the complete
 request without the frontend by combining them with the related generic
 `Business`:
 
-| Model field                   | Requirement                                                                             |
-| ----------------------------- | --------------------------------------------------------------------------------------- |
-| `business`                    | Required one-to-one reference to `Business`.                                            |
-| `status`                      | Required `CieloSubmissionStatus`: `FAILED`, `PENDING`, or `INTERVENTION_REQUIRED`.      |
-| `merchant_id`                 | Nullable/blank, maximum 36 characters. Populated only from a valid onboarding `2xx`.    |
-| `last_submitted_at`           | Nullable timezone-aware datetime governed by the transmission and cooldown rules above. |
-| `contact_name`                | Required for CNPJ and blank for CPF, maximum 100 characters.                            |
-| `website`                     | Optional/blank, maximum 200 characters.                                                 |
-| `corporate_name`              | Required for CNPJ and blank for CPF, maximum 100 characters; managed by the backend.    |
-| `fancy_name`                  | CNPJ-only managed value, maximum 50 characters and allowed to be blank.                 |
-| `birthday_date`               | Nullable; required only for CPF sellers.                                                |
-| `business_activity_id`        | Nullable/blank business-activity choice; required only for CPF sellers.                 |
-| `bank`                        | Required bank-code choice stored as a string.                                           |
-| `bank_account_type`           | Required account-type choice.                                                           |
-| `bank_account_number`         | Required digits, maximum 10 characters.                                                 |
-| `bank_account_verifier_digit` | Required digit, exactly one character.                                                  |
-| `bank_agency_number`          | Required digits, maximum four characters and not all zeros.                             |
-| `bank_agency_digit`           | Optional/blank; exactly one numeric character when provided.                            |
-| `bank_document_type`          | Required Cielo document-type choice.                                                    |
-| `bank_document_number`        | Required canonical CPF/CNPJ, maximum 14 characters.                                     |
-| `address_number`              | Required digits, maximum 15 characters.                                                 |
-| `address_complement`          | Optional/blank, maximum 80 characters.                                                  |
-| `address_zip_code`            | Required digits, maximum nine characters.                                               |
-| `address_street`              | Required, maximum 100 characters.                                                       |
-| `address_neighborhood`        | Required, maximum 50 characters.                                                        |
-| `address_city`                | Required, maximum 50 characters.                                                        |
-| `address_state`               | Required two-character state code.                                                      |
-| `created_at`                  | Automatically set at creation.                                                          |
-| `updated_at`                  | Automatically updated.                                                                  |
+| Model field                   | Requirement                                                                               |
+| ----------------------------- | ----------------------------------------------------------------------------------------- |
+| `business`                    | Required one-to-one reference to `Business`.                                              |
+| `status`                      | Required `CieloSubmissionStatus`: `FAILED`, `SENT`, or `INTERVENTION_REQUIRED`.           |
+| `merchant_id`                 | Nullable and unique, maximum 36 characters. Populated only from a valid onboarding `2xx`. |
+| `last_submitted_at`           | Nullable timezone-aware datetime governed by the transmission and cooldown rules above.   |
+| `contact_name`                | Required for CNPJ and blank for CPF, maximum 100 characters.                              |
+| `website`                     | Optional/blank, maximum 200 characters.                                                   |
+| `corporate_name`              | Required for CNPJ and blank for CPF, maximum 100 characters; managed by the backend.      |
+| `fancy_name`                  | CNPJ-only managed value, maximum 50 characters and allowed to be blank.                   |
+| `birthday_date`               | Nullable; required only for CPF sellers.                                                  |
+| `business_activity_id`        | Nullable/blank business-activity choice; required only for CPF sellers.                   |
+| `bank`                        | Required bank-code choice stored as a string.                                             |
+| `bank_account_type`           | Required account-type choice.                                                             |
+| `bank_account_number`         | Required digits, maximum 10 characters.                                                   |
+| `bank_account_verifier_digit` | Required digit, exactly one character.                                                    |
+| `bank_agency_number`          | Required digits, maximum four characters and not all zeros.                               |
+| `bank_agency_digit`           | Optional/blank; exactly one numeric character when provided.                              |
+| `bank_document_type`          | Required Cielo document-type choice.                                                      |
+| `bank_document_number`        | Required canonical CPF/CNPJ, maximum 14 characters.                                       |
+| `address_number`              | Required digits, maximum 15 characters.                                                   |
+| `address_complement`          | Optional/blank, maximum 80 characters.                                                    |
+| `address_zip_code`            | Required digits, maximum nine characters.                                                 |
+| `address_street`              | Required, maximum 100 characters.                                                         |
+| `address_neighborhood`        | Required, maximum 50 characters.                                                          |
+| `address_city`                | Required, maximum 50 characters.                                                          |
+| `address_state`               | Required two-character state code.                                                        |
+| `created_at`                  | Automatically set at creation.                                                            |
+| `updated_at`                  | Automatically updated.                                                                    |
 
 Do not duplicate seller document type, document number, CPF name, email, or
 mobile phone on `CieloBusiness`. Extract them from the related `Business` for
@@ -544,15 +546,22 @@ Create, detail, and retry return this summary shape:
 {
   "id": 1,
   "business": 42,
-  "status": "PENDING",
+  "status": "SENT",
   "merchant_id": "f88cc14d-c796-4939-957e-de4dddcb2257",
   "last_submitted_at": "2026-09-24T15:00:00Z",
   "retry_available_at": null,
-  "can_retry": false
+  "can_retry": false,
+  "kyc_status": { "value": 2, "label": "Aprovado" },
+  "kyc_status_updated_at": "2026-09-25T10:00:00Z",
+  "bank_account_status": { "value": 2, "label": "Em processamento" },
+  "bank_account_status_updated_at": "2026-09-25T09:00:00Z",
+  "onboarding_status": null,
+  "onboarding_status_updated_at": null
 }
 ```
 
-`merchant_id` and both retry timestamps may be null. `can_retry` is true only
+`merchant_id` and both retry timestamps may be null. The notification status
+fields are described in [Onboarding Status](./onboarding-status.md). `can_retry` is true only
 for `FAILED` after the cooldown has elapsed or when `last_submitted_at` is null.
 
 - Create returns `201` for every persisted outcome, including `FAILED`.
@@ -630,10 +639,13 @@ a Cielo seller.
 Replace the existing Cielo-unavailable tab on business details:
 
 - With no seller, show a `Credenciar` action to open the onboarding route.
-- With a seller, show `status`, `merchant_id`, and `last_submitted_at` when
-  available.
-- Show retry only for `FAILED` when `can_retry` is true.
-- During cooldown, show `retry_available_at` and keep retry disabled.
+- With a seller, show `merchant_id` and `last_submitted_at` in the tab. The
+  submission and notification statuses, and the retry action, are shown in the
+  Cielo status card above the tabs; see
+  [Onboarding Status](./onboarding-status.md).
+- Show retry only for `FAILED`, enabled when `can_retry` is true.
+- During cooldown, keep retry disabled and show `retry_available_at` in its
+  tooltip.
 - Retry calls the empty-body endpoint directly, without reopening the form,
   and refreshes the seller summary in place.
 - Quick-side retry errors and cooldown errors remain on the details page and
@@ -654,4 +666,4 @@ follows:
 | Quick validation, configuration, credentials, or backend failure before transmission | No Cielo seller record  | Remain on the review step and display an error message. |
 | Cielo `4xx`/`5xx`, service outage, timeout, connection failure, or missing response  | `FAILED`                | Redirect to the underlying business details page.       |
 | Malformed or locally unpersistable Cielo outcome                                     | `INTERVENTION_REQUIRED` | Redirect to the underlying business details page.       |
-| Valid Cielo `2xx`                                                                    | `PENDING`               | Redirect to the underlying business details page.       |
+| Valid Cielo `2xx`                                                                    | `SENT`                  | Redirect to the underlying business details page.       |

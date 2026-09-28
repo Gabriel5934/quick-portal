@@ -9,11 +9,11 @@ Every notification payload includes the type of change, the master merchant ID,
 and a data object containing the seller's merchant ID. The table below describes
 the possible types of change:
 
-| Change Type | Description  |
-| ----------- | ------------ |
-| 20          | KYC          |
-| 21          | Bank Account |
-| 23          | Onboarding   |
+| Change Type | Description  | Quick Portal label |
+| ----------- | ------------ | ------------------ |
+| 20          | KYC          | KYC                |
+| 21          | Bank Account | Conta bancária     |
+| 23          | Onboarding   | Credenciamento     |
 
 ## When each notification is sent
 
@@ -27,6 +27,71 @@ the possible types of change:
 
 Every custom header sent when the notification URL was configured is sent back
 with each notification request.
+
+## Quick Portal endpoint
+
+Quick Portal receives notifications at `POST /cielo/notifications/`.
+Registering this URL with Cielo is done outside Quick Portal.
+
+### Authentication
+
+Register the notification URL with the custom header
+`X-Cielo-Webhook-Token: <token>`. Quick Portal reads the expected token from
+`CIELO_WEBHOOK_TOKEN` and compares it in constant time. The endpoint does not
+use JWT authentication or the `Authorization` header.
+
+| Condition                                                 | Response | Stored |
+| --------------------------------------------------------- | -------- | ------ |
+| `CIELO_WEBHOOK_TOKEN` is missing or blank in Quick Portal | `500`    | No     |
+| Missing or invalid `X-Cielo-Webhook-Token`                | `401`    | No     |
+| `MasterMerchantId` differs from `CIELO_MERCHANT_ID`       | `403`    | No     |
+| Malformed payload                                         | `400`    | No     |
+| Unknown seller merchant ID or unknown `ChangeType`        | `200`    | Yes    |
+| Valid notification for a known seller                     | `200`    | Yes    |
+
+A malformed payload is not a JSON object, lacks `ChangeType`, `Data`, or the
+seller merchant ID, or contains a status that is not an integer. The token is
+never logged.
+
+### Processing
+
+Every accepted notification is stored as an immutable `CieloNotification`
+record. Quick Portal then looks up the seller by `merchant_id` and updates its
+statuses, using the notification's reception time as the update timestamp:
+
+| Change Type | Seller fields updated                                        |
+| ----------- | ------------------------------------------------------------ |
+| 20          | `kyc_status`                                                 |
+| 21          | `bank_account_status`                                        |
+| 23          | `onboarding_status`, `kyc_status`, and `bank_account_status` |
+
+Each status has its own `*_updated_at` timestamp. Notifications never change the
+seller's submission status or retry rules. A notification for an unknown
+merchant ID, including a bank-account notification for the master merchant, and
+a notification with an unknown `ChangeType` are stored without a seller, logged,
+and answered with `200` so Cielo stops retrying. Duplicate deliveries create
+duplicate records and leave the seller in the same final state.
+
+### Stored fields
+
+| Field                 | Source                                                                             |
+| --------------------- | ---------------------------------------------------------------------------------- |
+| `cielo_business`      | The seller matching the merchant ID, or null.                                      |
+| `change_type`         | `ChangeType`.                                                                      |
+| `merchant_id`         | `Data.SubordinateMerchantId` for change types 20 and 23; `Data.MerchantId` for 21. |
+| `kyc_status`          | `Data.Status` for 20; `Data.KycAnalysisInfo.Status` for 23.                        |
+| `bank_account_status` | `Data.Status` for 21; `Data.BankAccountValidation.Status` for 23.                  |
+| `onboarding_status`   | `Data.OnboardingStatus` for 23.                                                    |
+| `received_at`         | Set when the notification is stored.                                               |
+
+The raw payload and bank-account data (account, agency, document, and bank
+code) are not stored. Records cannot be updated or deleted, and the Django
+admin shows them read-only.
+
+A status value missing from the tables below is stored unchanged. The seller
+summary API returns each status as `{ "value": <n>, "label": "<label>" }`, or
+`null` before its first notification, and labels an unlisted value
+`Desconhecido (<n>)`. The notification history is not exposed through the API.
 
 ## KYC
 
@@ -45,12 +110,12 @@ with each notification request.
 
 **Status**
 
-| Status | Name                    |
-| ------ | ----------------------- |
-| 1      | UnderAnalysis           |
-| 2      | Approved                |
-| 3      | ApprovedWithRestriction |
-| 4      | Rejected                |
+| Status | Name                    | Quick Portal label     |
+| ------ | ----------------------- | ---------------------- |
+| 1      | UnderAnalysis           | Em análise             |
+| 2      | Approved                | Aprovado               |
+| 3      | ApprovedWithRestriction | Aprovado com restrição |
+| 4      | Rejected                | Rejeitado              |
 
 ## Bank Account
 
@@ -78,13 +143,13 @@ with each notification request.
 
 **Status**
 
-| Status | Name          |
-| ------ | ------------- |
-| 0      | InternalError |
-| 1      | Created       |
-| 2      | Processing    |
-| 3      | Success       |
-| 4      | Error         |
+| Status | Name          | Quick Portal label |
+| ------ | ------------- | ------------------ |
+| 0      | InternalError | Erro interno       |
+| 1      | Created       | Criado             |
+| 2      | Processing    | Em processamento   |
+| 3      | Success       | Sucesso            |
+| 4      | Error         | Erro               |
 
 ## Onboarding
 
@@ -109,13 +174,13 @@ with each notification request.
 
 **Status**
 
-| Status | Name                   |
-| ------ | ---------------------- |
-| 1      | UnderAnalysis          |
-| 2      | Approved               |
-| 3      | AwaitingMerchantAction |
-| 4      | Unknown                |
-| 5      | Banned                 |
+| Status | Name                   | Quick Portal label         |
+| ------ | ---------------------- | -------------------------- |
+| 1      | UnderAnalysis          | Em análise                 |
+| 2      | Approved               | Aprovado                   |
+| 3      | AwaitingMerchantAction | Aguardando ação do lojista |
+| 4      | Unknown                | Desconhecido               |
+| 5      | Banned                 | Banido                     |
 
 `KycAnalysisInfo.Status` and `BankAccountValidation.Status` use the KYC and
 Bank Account status tables above.
