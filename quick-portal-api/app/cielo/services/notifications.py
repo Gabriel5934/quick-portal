@@ -44,11 +44,17 @@ def _merchant_id(data: Mapping, key: str) -> str:
     return value
 
 
-def _nested_status(data: Mapping, key: str) -> int:
+def _optional_status(value: object, name: str) -> int | None:
+    return None if value is None else _status_value(value, name)
+
+
+def _optional_nested_status(data: Mapping, key: str) -> int | None:
     nested = data.get(key)
+    if nested is None:
+        return None
     if not isinstance(nested, Mapping):
         raise CieloNotificationPayloadError(f"Data.{key} must be an object.")
-    return _status_value(nested.get("Status"), f"Data.{key}.Status")
+    return _optional_status(nested.get("Status"), f"Data.{key}.Status")
 
 
 def parse_cielo_notification(payload: object) -> ParsedCieloNotification:
@@ -72,12 +78,16 @@ def parse_cielo_notification(payload: object) -> ParsedCieloNotification:
             bank_account_status=_status_value(data.get("Status"), "Data.Status"),
         )
     if change_type == CieloChangeType.ONBOARDING:
+        # Each status is optional: an omitted or null status leaves the
+        # seller's current value untouched instead of rejecting the payload.
         return ParsedCieloNotification(
             change_type=change_type,
             merchant_id=_merchant_id(data, "SubordinateMerchantId"),
-            kyc_status=_nested_status(data, "KycAnalysisInfo"),
-            bank_account_status=_nested_status(data, "BankAccountValidation"),
-            onboarding_status=_status_value(
+            kyc_status=_optional_nested_status(data, "KycAnalysisInfo"),
+            bank_account_status=_optional_nested_status(
+                data, "BankAccountValidation"
+            ),
+            onboarding_status=_optional_status(
                 data.get("OnboardingStatus"), "Data.OnboardingStatus"
             ),
         )
@@ -125,21 +135,15 @@ def record_cielo_notification(parsed: ParsedCieloNotification) -> CieloNotificat
             )
             return notification
 
+        # Only statuses present in the notification are updated, each with its
+        # own timestamp.
         updated_fields = ["updated_at"]
-        if parsed.change_type in (CieloChangeType.KYC, CieloChangeType.ONBOARDING):
-            seller.kyc_status = parsed.kyc_status
-            seller.kyc_status_updated_at = notification.received_at
-            updated_fields += ["kyc_status", "kyc_status_updated_at"]
-        if parsed.change_type in (
-            CieloChangeType.BANK_ACCOUNT,
-            CieloChangeType.ONBOARDING,
-        ):
-            seller.bank_account_status = parsed.bank_account_status
-            seller.bank_account_status_updated_at = notification.received_at
-            updated_fields += ["bank_account_status", "bank_account_status_updated_at"]
-        if parsed.change_type == CieloChangeType.ONBOARDING:
-            seller.onboarding_status = parsed.onboarding_status
-            seller.onboarding_status_updated_at = notification.received_at
-            updated_fields += ["onboarding_status", "onboarding_status_updated_at"]
+        for field in ("kyc_status", "bank_account_status", "onboarding_status"):
+            value = getattr(parsed, field)
+            if value is None:
+                continue
+            setattr(seller, field, value)
+            setattr(seller, f"{field}_updated_at", notification.received_at)
+            updated_fields += [field, f"{field}_updated_at"]
         seller.save(update_fields=updated_fields)
     return notification

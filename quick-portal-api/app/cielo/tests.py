@@ -651,6 +651,27 @@ class CieloNotificationEndpointTests(APITestCase):
         )
         self.assertEqual(self.seller.status, CieloSubmissionStatus.SENT)
 
+    def test_onboarding_notification_updates_only_provided_statuses(self):
+        previous_update = timezone.now() - timedelta(days=1)
+        CieloBusiness.objects.filter(pk=self.seller.pk).update(
+            bank_account_status=2,
+            bank_account_status_updated_at=previous_update,
+        )
+        payload = onboarding_notification(onboarding=1, kyc=2)
+        del payload["Data"]["BankAccountValidation"]
+
+        response = self.notify(payload)
+
+        self.assertEqual(response.status_code, 200)
+        notification = CieloNotification.objects.get()
+        self.assertIsNone(notification.bank_account_status)
+        self.seller.refresh_from_db()
+        self.assertEqual(self.seller.onboarding_status, 1)
+        self.assertEqual(self.seller.kyc_status, 2)
+        self.assertEqual(self.seller.kyc_status_updated_at, notification.received_at)
+        self.assertEqual(self.seller.bank_account_status, 2)
+        self.assertEqual(self.seller.bank_account_status_updated_at, previous_update)
+
     def test_unknown_merchant_is_stored_without_seller(self):
         unknown_merchant_id = "11111111-2222-4333-8444-555555555555"
         response = self.notify(kyc_notification(merchant_id=unknown_merchant_id))
