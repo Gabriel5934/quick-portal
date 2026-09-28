@@ -40,18 +40,9 @@ Register the notification URL with the custom header
 `CIELO_WEBHOOK_TOKEN` and compares it in constant time. The endpoint does not
 use JWT authentication or the `Authorization` header.
 
-| Condition                                                 | Response | Stored |
-| --------------------------------------------------------- | -------- | ------ |
-| `CIELO_WEBHOOK_TOKEN` is missing or blank in Quick Portal | `500`    | No     |
-| Missing or invalid `X-Cielo-Webhook-Token`                | `401`    | No     |
-| `MasterMerchantId` differs from `CIELO_MERCHANT_ID`       | `403`    | No     |
-| Malformed payload                                         | `400`    | No     |
-| Unknown seller merchant ID or unknown `ChangeType`        | `200`    | Yes    |
-| Valid notification for a known seller                     | `200`    | Yes    |
-
-A malformed payload is not a JSON object, lacks `ChangeType`, `Data`, or the
-seller merchant ID, lacks `Data.Status` in a KYC or bank-account notification,
-or contains a status that is not an integer. The token is never logged.
+For the status the endpoint returns in each case, see
+[Notifications](./notifications.md). Only accepted notifications (`200`) are
+stored.
 
 ### Processing
 
