@@ -420,15 +420,10 @@ class CieloNotification(models.Model):
     )
     change_type = models.PositiveSmallIntegerField(choices=CieloChangeType.choices)
     merchant_id = models.CharField(max_length=36)
-    kyc_status = models.PositiveSmallIntegerField(
-        choices=CieloKycStatus.choices, null=True, blank=True
-    )
-    bank_account_status = models.PositiveSmallIntegerField(
-        choices=CieloBankAccountStatus.choices, null=True, blank=True
-    )
-    onboarding_status = models.PositiveSmallIntegerField(
-        choices=CieloOnboardingStatus.choices, null=True, blank=True
-    )
+    # Raw statuses exactly as Cielo sent them, including unlisted values.
+    kyc_status = models.PositiveSmallIntegerField(null=True, blank=True)
+    bank_account_status = models.PositiveSmallIntegerField(null=True, blank=True)
+    onboarding_status = models.PositiveSmallIntegerField(null=True, blank=True)
     received_at = models.DateTimeField(auto_now_add=True)
 
     objects = CieloNotificationQuerySet.as_manager()

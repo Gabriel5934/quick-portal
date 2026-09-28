@@ -237,9 +237,11 @@ class CieloBusinessRetryView(APIView):
                     response["Retry-After"] = str(retry_after_seconds)
                     return response
 
+                # Validate before contacting Cielo so an invalid row cannot send
+                # a request that is then rolled back without starting the cooldown.
+                seller.full_clean()
                 outcome = submit_cielo_seller(seller)
                 _apply_outcome(seller, outcome)
-                seller.full_clean()
                 seller.save(
                     update_fields=[
                         "status",

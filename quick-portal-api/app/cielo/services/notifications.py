@@ -4,7 +4,14 @@ from dataclasses import dataclass
 
 from django.db import transaction
 
-from cielo.models import CieloBusiness, CieloChangeType, CieloNotification
+from cielo.models import (
+    CieloBankAccountStatus,
+    CieloBusiness,
+    CieloChangeType,
+    CieloKycStatus,
+    CieloNotification,
+    CieloOnboardingStatus,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -12,6 +19,12 @@ logger = logging.getLogger(__name__)
 # Notification statuses are stored in PositiveSmallIntegerField columns.
 MAX_STATUS_VALUE = 32767
 MERCHANT_ID_MAX_LENGTH = 36
+
+SELLER_STATUS_CHOICES = {
+    "kyc_status": CieloKycStatus,
+    "bank_account_status": CieloBankAccountStatus,
+    "onboarding_status": CieloOnboardingStatus,
+}
 
 
 class CieloNotificationPayloadError(Exception):
@@ -135,12 +148,23 @@ def record_cielo_notification(parsed: ParsedCieloNotification) -> CieloNotificat
             )
             return notification
 
-        # Only statuses present in the notification are updated, each with its
-        # own timestamp.
+        # Only known statuses present in the notification are updated, each
+        # with its own timestamp. Unlisted values are kept on the notification
+        # only, so the seller always passes model validation.
         updated_fields = ["updated_at"]
-        for field in ("kyc_status", "bank_account_status", "onboarding_status"):
+        for field, choices in SELLER_STATUS_CHOICES.items():
             value = getattr(parsed, field)
             if value is None:
+                continue
+            if value not in choices.values:
+                logger.warning(
+                    "Cielo notification %s has unlisted %s %s; seller %s keeps %s.",
+                    notification.pk,
+                    field,
+                    value,
+                    seller.pk,
+                    getattr(seller, field),
+                )
                 continue
             setattr(seller, field, value)
             setattr(seller, f"{field}_updated_at", notification.received_at)

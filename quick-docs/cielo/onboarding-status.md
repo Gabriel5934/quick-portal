@@ -79,6 +79,18 @@ Rejecting such a payload would lose the statuses it does carry, because Cielo
 stops retrying after two more attempts. Overwriting the seller with `null`
 would instead erase a status Quick Portal already received.
 
+### Unlisted status values
+
+A status that is a valid integer but not one of the documented values is
+accepted and stored as-is on the `CieloNotification` record. It is not copied
+to the seller: that seller field and its `*_updated_at` timestamp keep their
+previous values, and a warning is logged. Other statuses in the same
+notification are still applied.
+
+**Why:** The seller's status fields only accept documented values. Saving an
+unlisted value would make the seller fail model validation, which would block
+retries after a failed submission.
+
 ### Stored fields
 
 | Field                 | Source                                                                             |

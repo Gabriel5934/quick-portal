@@ -315,6 +315,15 @@ class CieloRetryCooldownTests(APITestCase):
                 self.assertEqual(response.status_code, 200)
                 submit.assert_called_once()
 
+    def test_invalid_seller_is_rejected_before_calling_cielo(self):
+        seller = create_cielo_business(self.business)
+        CieloBusiness.objects.filter(pk=seller.pk).update(kyc_status=9)
+        with patch("cielo.views.submit_cielo_seller") as submit:
+            response = self.client.post(self.url, {}, format="json")
+
+        self.assertEqual(response.status_code, 400)
+        submit.assert_not_called()
+
     def test_retry_persists_timestamp_only_when_transmitted(self):
         original_time = timezone.now() - timedelta(hours=1)
         seller = create_cielo_business(
@@ -706,10 +715,23 @@ class CieloNotificationEndpointTests(APITestCase):
             first_state,
         )
 
-    def test_unlisted_status_is_stored_unchanged(self):
-        response = self.notify(bank_account_notification(status=9))
+    def test_unlisted_status_is_stored_only_on_notification(self):
+        previous_update = timezone.now() - timedelta(days=1)
+        CieloBusiness.objects.filter(pk=self.seller.pk).update(
+            bank_account_status=2,
+            bank_account_status_updated_at=previous_update,
+        )
+        with self.assertLogs("cielo.services.notifications", "WARNING"):
+            response = self.notify(
+                onboarding_notification(onboarding=1, kyc=2, bank_account=9)
+            )
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(CieloNotification.objects.get().bank_account_status, 9)
+        notification = CieloNotification.objects.get()
+        self.assertEqual(notification.bank_account_status, 9)
         self.seller.refresh_from_db()
-        self.assertEqual(self.seller.bank_account_status, 9)
+        self.assertEqual(self.seller.bank_account_status, 2)
+        self.assertEqual(self.seller.bank_account_status_updated_at, previous_update)
+        self.assertEqual(self.seller.kyc_status, 2)
+        self.assertEqual(self.seller.onboarding_status, 1)
+        self.seller.full_clean()
