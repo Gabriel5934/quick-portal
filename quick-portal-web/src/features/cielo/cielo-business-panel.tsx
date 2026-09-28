@@ -1,25 +1,18 @@
 import AddBusinessOutlined from "@mui/icons-material/AddBusinessOutlined";
-import RefreshOutlined from "@mui/icons-material/RefreshOutlined";
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import CircularProgress from "@mui/material/CircularProgress";
-import Stack from "@mui/material/Stack";
+import Table from "@mui/material/Table";
+import TableBody from "@mui/material/TableBody";
+import TableCell from "@mui/material/TableCell";
+import TableContainer from "@mui/material/TableContainer";
+import TableRow from "@mui/material/TableRow";
 import Typography from "@mui/material/Typography";
 import { createLink } from "@tanstack/react-router";
-import {
-  useCieloBusiness,
-  useRetryCieloBusiness,
-} from "#hooks/quickApi/useCielo";
-import type { CieloSubmissionStatus } from "./types";
+import { useCieloBusiness } from "#hooks/quickApi/useCielo";
 
 const RouterButton = createLink(Button);
-
-function statusLabel(status: CieloSubmissionStatus): string {
-  if (status === "PENDING") return "Pendente";
-  if (status === "FAILED") return "Falha no envio";
-  return "Intervenção necessária";
-}
 
 function formatDate(value: string): string {
   const date = new Date(value);
@@ -28,7 +21,6 @@ function formatDate(value: string): string {
 
 export function CieloBusinessPanel({ businessId }: { businessId: number }) {
   const { data: seller, isLoading, error } = useCieloBusiness(businessId);
-  const retry = useRetryCieloBusiness();
 
   if (error) {
     return (
@@ -74,47 +66,34 @@ export function CieloBusinessPanel({ businessId }: { businessId: number }) {
     );
   }
 
+  const rows = [
+    { label: "Merchant ID", value: seller.merchant_id },
+    {
+      label: "Último envio",
+      value: seller.last_submitted_at
+        ? formatDate(seller.last_submitted_at)
+        : null,
+    },
+  ];
+
   return (
-    <Stack spacing={2}>
-      {retry.error ? (
-        <Alert severity="error">
-          {retry.error instanceof Error
-            ? retry.error.message
-            : "Erro ao reenviar o credenciamento à Cielo."}
-        </Alert>
-      ) : null}
-      <Typography>
-        <strong>Status:</strong> {statusLabel(seller.status)}
-      </Typography>
-      {seller.merchant_id ? (
-        <Typography>
-          <strong>Merchant ID:</strong> {seller.merchant_id}
-        </Typography>
-      ) : null}
-      {seller.last_submitted_at ? (
-        <Typography>
-          <strong>Último envio:</strong> {formatDate(seller.last_submitted_at)}
-        </Typography>
-      ) : null}
-      {seller.status === "FAILED" &&
-      seller.retry_available_at &&
-      !seller.can_retry ? (
-        <Alert severity="info">
-          Nova tentativa disponível em {formatDate(seller.retry_available_at)}.
-        </Alert>
-      ) : null}
-      {seller.status === "FAILED" ? (
-        <Button
-          variant="contained"
-          startIcon={<RefreshOutlined />}
-          disabled={!seller.can_retry || retry.isPending}
-          loading={retry.isPending}
-          onClick={() => retry.mutate({ businessId })}
-          sx={{ alignSelf: "flex-start" }}
-        >
-          Tentar novamente
-        </Button>
-      ) : null}
-    </Stack>
+    <TableContainer>
+      <Table aria-label="Dados Cielo do estabelecimento">
+        <TableBody>
+          {rows.map((row) => (
+            <TableRow key={row.label}>
+              <TableCell
+                component="th"
+                scope="row"
+                sx={{ width: { xs: "45%", sm: 260 }, fontWeight: "bold" }}
+              >
+                {row.label}
+              </TableCell>
+              <TableCell>{row.value ?? "-"}</TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </TableContainer>
   );
 }
