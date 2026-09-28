@@ -8,10 +8,13 @@ from rest_framework import serializers
 
 from cielo.models import (
     CieloBank,
+    CieloBankAccountStatus,
     CieloBankAccountType,
     CieloBusiness,
     CieloBusinessActivity,
     CieloDocumentType,
+    CieloKycStatus,
+    CieloOnboardingStatus,
     CieloSubmissionStatus,
 )
 from cielo.validators import validate_cnpj, validate_cpf
@@ -194,9 +197,28 @@ class CieloBusinessCreateSerializer(RejectUnknownFieldsSerializer):
         return data
 
 
+class CieloNotificationStatusField(serializers.Field):
+    """Serializes a Cielo status as ``{value, label}``, keeping unlisted values."""
+
+    def __init__(self, choices_class, **kwargs):
+        self.choices_class = choices_class
+        kwargs["read_only"] = True
+        super().__init__(**kwargs)
+
+    def to_representation(self, value):
+        try:
+            label = self.choices_class(value).label
+        except ValueError:
+            label = f"Desconhecido ({value})"
+        return {"value": value, "label": label}
+
+
 class CieloBusinessSummarySerializer(serializers.ModelSerializer):
     retry_available_at = serializers.SerializerMethodField()
     can_retry = serializers.SerializerMethodField()
+    kyc_status = CieloNotificationStatusField(CieloKycStatus)
+    bank_account_status = CieloNotificationStatusField(CieloBankAccountStatus)
+    onboarding_status = CieloNotificationStatusField(CieloOnboardingStatus)
 
     class Meta:
         model = CieloBusiness
@@ -208,6 +230,12 @@ class CieloBusinessSummarySerializer(serializers.ModelSerializer):
             "last_submitted_at",
             "retry_available_at",
             "can_retry",
+            "kyc_status",
+            "kyc_status_updated_at",
+            "bank_account_status",
+            "bank_account_status_updated_at",
+            "onboarding_status",
+            "onboarding_status_updated_at",
         ]
 
     def get_retry_available_at(self, seller):

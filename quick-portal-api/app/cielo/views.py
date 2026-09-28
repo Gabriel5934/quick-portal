@@ -1,4 +1,6 @@
 import hashlib
+import hmac
+import logging
 import math
 from datetime import timedelta
 
@@ -8,7 +10,8 @@ from django.db import IntegrityError, connection, transaction
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework import status
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.parsers import JSONParser
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -30,10 +33,19 @@ from cielo.services.cielo_api import (
     CieloQuickPreTransmissionError,
     submit_cielo_seller,
 )
+from cielo.services.notifications import (
+    CieloNotificationPayloadError,
+    parse_cielo_notification,
+    record_cielo_notification,
+)
 from quickportal.models import Business
 from quickportal.services.brasil_api import BrasilApiError
 from quickportal.services.business_access import get_accessible_business_or_404
 
+
+logger = logging.getLogger(__name__)
+
+CIELO_WEBHOOK_TOKEN_HEADER = "X-Cielo-Webhook-Token"
 
 def _configuration_error_response(exc):
     return Response({"detail": str(exc)}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
@@ -244,6 +256,60 @@ class CieloBusinessRetryView(APIView):
             return Response(_django_validation_detail(exc), status=status.HTTP_400_BAD_REQUEST)
 
         return Response(CieloBusinessSummarySerializer(seller).data)
+
+
+class CieloNotificationView(APIView):
+    authentication_classes = []
+    permission_classes = [AllowAny]
+    parser_classes = [JSONParser]
+
+    def post(self, request):
+        expected_token = settings.CIELO_WEBHOOK_TOKEN
+        master_merchant_id = settings.CIELO_MERCHANT_ID
+        if (
+            not isinstance(expected_token, str)
+            or not expected_token.strip()
+            or not isinstance(master_merchant_id, str)
+            or not master_merchant_id.strip()
+        ):
+            logger.error(
+                "Cielo notification rejected: CIELO_WEBHOOK_TOKEN or "
+                "CIELO_MERCHANT_ID is not configured."
+            )
+            return Response(
+                {"detail": "Cielo notifications are not configured."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        received_token = request.headers.get(CIELO_WEBHOOK_TOKEN_HEADER, "")
+        if not hmac.compare_digest(
+            received_token.encode(), expected_token.encode()
+        ):
+            logger.warning("Cielo notification rejected: missing or invalid token.")
+            return Response(
+                {"detail": "Invalid notification token."},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        payload = request.data
+        if (
+            isinstance(payload, dict)
+            and payload.get("MasterMerchantId") != master_merchant_id
+        ):
+            logger.warning("Cielo notification rejected: MasterMerchantId mismatch.")
+            return Response(
+                {"detail": "Unknown master merchant."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        try:
+            parsed = parse_cielo_notification(payload)
+        except CieloNotificationPayloadError as exc:
+            logger.warning("Cielo notification rejected: %s", exc)
+            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+        record_cielo_notification(parsed)
+        return Response({})
 
 
 class CieloChoicesView(APIView):
