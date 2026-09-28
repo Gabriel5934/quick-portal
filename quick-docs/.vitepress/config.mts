@@ -16,8 +16,8 @@ export default defineConfig({
         text: "Cielo",
         link: "/cielo/",
         items: [
-          { text: "Onboarding and Auth", link: "/cielo" },
-          { text: "Prompt", link: "/cielo/todo" },
+          { text: "Seller Onboarding", link: "/cielo/seller-onboarding" },
+          { text: "Onboarding Status", link: "/cielo/onboarding-status" },
         ],
       },
       {
