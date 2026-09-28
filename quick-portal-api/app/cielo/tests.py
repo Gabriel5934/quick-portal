@@ -216,11 +216,11 @@ class CieloSubmissionBusinessRuleTests(APITestCase):
             response.data["status"], CieloSubmissionStatus.INTERVENTION_REQUIRED
         )
 
-    def test_valid_success_creates_pending_record(self):
+    def test_valid_success_creates_sent_record(self):
         with patch(
             "cielo.views.submit_cielo_seller",
             return_value=CieloSubmissionOutcome(
-                status=CieloSubmissionStatus.PENDING,
+                status=CieloSubmissionStatus.SENT,
                 merchant_id=VALID_MERCHANT_ID,
                 submitted_at=timezone.now(),
             ),
@@ -228,7 +228,7 @@ class CieloSubmissionBusinessRuleTests(APITestCase):
             response = self.client.post(self.url, cielo_payload(), format="json")
 
         self.assertEqual(response.status_code, 201)
-        self.assertEqual(response.data["status"], CieloSubmissionStatus.PENDING)
+        self.assertEqual(response.data["status"], CieloSubmissionStatus.SENT)
         self.assertEqual(response.data["merchant_id"], VALID_MERCHANT_ID)
 
     def test_invalid_cnpj_does_not_call_brasil_api(self):
@@ -258,7 +258,7 @@ class CieloRetryCooldownTests(APITestCase):
 
     def test_failed_status_is_required_for_retry(self):
         for seller_status in (
-            CieloSubmissionStatus.PENDING,
+            CieloSubmissionStatus.SENT,
             CieloSubmissionStatus.INTERVENTION_REQUIRED,
         ):
             with self.subTest(status=seller_status):
@@ -300,7 +300,7 @@ class CieloRetryCooldownTests(APITestCase):
                 with patch(
                     "cielo.views.submit_cielo_seller",
                     return_value=CieloSubmissionOutcome(
-                        status=CieloSubmissionStatus.PENDING,
+                        status=CieloSubmissionStatus.SENT,
                         merchant_id=VALID_MERCHANT_ID,
                         submitted_at=timezone.now(),
                     ),

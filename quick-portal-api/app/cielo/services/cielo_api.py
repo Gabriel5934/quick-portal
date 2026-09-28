@@ -279,7 +279,7 @@ def submit_cielo_seller(seller) -> CieloSubmissionOutcome:
             submitted_at=submitted_at,
         )
     return CieloSubmissionOutcome(
-        status=CieloSubmissionStatus.PENDING,
+        status=CieloSubmissionStatus.SENT,
         merchant_id=merchant_id,
         submitted_at=submitted_at,
     )
