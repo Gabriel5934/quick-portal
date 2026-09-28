@@ -50,8 +50,8 @@ use JWT authentication or the `Authorization` header.
 | Valid notification for a known seller                     | `200`    | Yes    |
 
 A malformed payload is not a JSON object, lacks `ChangeType`, `Data`, or the
-seller merchant ID, or contains a status that is not an integer. The token is
-never logged.
+seller merchant ID, lacks `Data.Status` in a KYC or bank-account notification,
+or contains a status that is not an integer. The token is never logged.
 
 ### Processing
 
@@ -59,11 +59,11 @@ Every accepted notification is stored as an immutable `CieloNotification`
 record. Quick Portal then looks up the seller by `merchant_id` and updates its
 statuses, using the notification's reception time as the update timestamp:
 
-| Change Type | Seller fields updated                                        |
-| ----------- | ------------------------------------------------------------ |
-| 20          | `kyc_status`                                                 |
-| 21          | `bank_account_status`                                        |
-| 23          | `onboarding_status`, `kyc_status`, and `bank_account_status` |
+| Change Type | Seller fields updated                                                                 |
+| ----------- | ------------------------------------------------------------------------------------- |
+| 20          | `kyc_status`                                                                          |
+| 21          | `bank_account_status`                                                                 |
+| 23          | Whichever of `onboarding_status`, `kyc_status`, and `bank_account_status` it provides |
 
 Each status has its own `*_updated_at` timestamp. Notifications never change the
 seller's submission status or retry rules. A notification for an unknown
@@ -71,6 +71,22 @@ merchant ID, including a bank-account notification for the master merchant, and
 a notification with an unknown `ChangeType` are stored without a seller, logged,
 and answered with `200` so Cielo stops retrying. Duplicate deliveries create
 duplicate records and leave the seller in the same final state.
+
+### Partial onboarding notifications
+
+Every status in an onboarding notification (23) is optional. An omitted or
+`null` `OnboardingStatus`, `KycAnalysisInfo`, `KycAnalysisInfo.Status`,
+`BankAccountValidation`, or `BankAccountValidation.Status` counts as not
+provided: the notification is accepted, stores `null` for that status, and
+leaves the seller's current value and its `*_updated_at` timestamp unchanged.
+A status that is present but not an integer is still malformed and returns
+`400`.
+
+**Why:** Cielo sends an onboarding notification after either the KYC or the
+bank-account notification, so one of the sub-statuses may not exist yet.
+Rejecting such a payload would lose the statuses it does carry, because Cielo
+stops retrying after two more attempts. Overwriting the seller with `null`
+would instead erase a status Quick Portal already received.
 
 ### Stored fields
 

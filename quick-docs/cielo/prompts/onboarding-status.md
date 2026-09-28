@@ -100,9 +100,10 @@ Create an immutable event model with database table `cielo_notifications`:
 - `merchant_id` comes from `Data.SubordinateMerchantId` for change types 20
   and 23, and from `Data.MerchantId` for change type 21.
 - A KYC notification fills only `kyc_status`; a bank-account notification fills
-  only `bank_account_status`; an onboarding notification fills all three from
-  `OnboardingStatus`, `KycAnalysisInfo.Status`, and
-  `BankAccountValidation.Status`.
+  only `bank_account_status`; an onboarding notification fills whichever it
+  provides of `OnboardingStatus`, `KycAnalysisInfo.Status`, and
+  `BankAccountValidation.Status`; an omitted or `null` status is stored as
+  `null`.
 - Do not store the raw payload or any bank-account data (account, agency,
   document, or bank code).
 - Enforce immutability: updating an existing row or deleting a row raises an
@@ -145,7 +146,10 @@ Add `POST /cielo/notifications/`.
    - KYC (20): `kyc_status` and `kyc_status_updated_at`.
    - Bank account (21): `bank_account_status` and
      `bank_account_status_updated_at`.
-   - Onboarding (23): all three statuses and all three timestamps.
+   - Onboarding (23): only the statuses it provides, each with its
+     timestamp. An omitted or `null` status leaves the seller's value and
+     timestamp unchanged (see "Partial onboarding notifications" in
+     `quick-docs/cielo/onboarding-status.md`).
 6. Return `200` with an empty JSON object.
 
 Notifications never change the submission status, and the retry flow is
