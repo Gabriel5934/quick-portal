@@ -12,7 +12,11 @@ from django.test import TransactionTestCase, override_settings
 from django.utils import timezone
 from rest_framework.test import APIClient, APITestCase
 
-from cielo.models import CieloBusiness, CieloSubmissionStatus
+from cielo.models import (
+    CieloBusiness,
+    CieloNotification,
+    CieloSubmissionStatus,
+)
 from cielo.services.cielo_api import (
     CieloQuickConfigurationError,
     CieloQuickCredentialsError,
@@ -26,6 +30,8 @@ from quickportal.models import Business, BusinessType, DocumentType
 
 
 VALID_MERCHANT_ID = "f88cc14d-c796-4939-957e-de4dddcb2257"
+SELLER_MERCHANT_ID = "4d76b525-e66d-402e-a318-5fd3ce1af7aa"
+WEBHOOK_TOKEN = "test-webhook-token"
 
 
 def cielo_payload(document_type="CNPJ"):
@@ -501,3 +507,188 @@ class CieloAtomicRetryTests(TransactionTestCase):
 
         self.assertEqual(statuses, [200, 429])
         self.assertEqual(mocked.call_count, 1)
+
+
+def kyc_notification(status=2, merchant_id=SELLER_MERCHANT_ID):
+    return {
+        "ChangeType": 20,
+        "MasterMerchantId": VALID_MERCHANT_ID,
+        "Data": {"SubordinateMerchantId": merchant_id, "Status": status},
+    }
+
+
+def bank_account_notification(status=3, merchant_id=SELLER_MERCHANT_ID):
+    return {
+        "ChangeType": 21,
+        "MasterMerchantId": VALID_MERCHANT_ID,
+        "Data": {
+            "MerchantId": merchant_id,
+            "MerchantType": "Subordinate",
+            "Status": status,
+            "AccountNumber": "123",
+            "AccountDigit": "1",
+            "AgencyNumber": "3581",
+            "AgencyDigit": "x",
+            "CompeCode": "260",
+            "BankAccountType": 1,
+            "DocumentNumber": "45224563215",
+            "DocumentType": 2,
+        },
+    }
+
+
+def onboarding_notification(onboarding=2, kyc=2, bank_account=3):
+    return {
+        "ChangeType": 23,
+        "MasterMerchantId": VALID_MERCHANT_ID,
+        "Data": {
+            "SubordinateMerchantId": SELLER_MERCHANT_ID,
+            "OnboardingStatus": onboarding,
+            "KycAnalysisInfo": {"Status": kyc},
+            "BankAccountValidation": {"Status": bank_account},
+        },
+    }
+
+
+@override_settings(CIELO_WEBHOOK_TOKEN=WEBHOOK_TOKEN, CIELO_MERCHANT_ID=VALID_MERCHANT_ID)
+class CieloNotificationEndpointTests(APITestCase):
+    url = "/cielo/notifications/"
+
+    def setUp(self):
+        self.seller = create_cielo_business(
+            create_business(),
+            status=CieloSubmissionStatus.SENT,
+            merchant_id=SELLER_MERCHANT_ID,
+            last_submitted_at=timezone.now(),
+        )
+
+    def notify(self, payload, token=WEBHOOK_TOKEN):
+        headers = {} if token is None else {"HTTP_X_CIELO_WEBHOOK_TOKEN": token}
+        return self.client.post(self.url, payload, format="json", **headers)
+
+    def assert_nothing_stored(self):
+        self.assertFalse(CieloNotification.objects.exists())
+        self.seller.refresh_from_db()
+        self.assertIsNone(self.seller.kyc_status)
+        self.assertIsNone(self.seller.kyc_status_updated_at)
+
+    def test_token_is_required(self):
+        for token in (None, "", "wrong-token"):
+            with self.subTest(token=token):
+                response = self.notify(kyc_notification(), token=token)
+                self.assertEqual(response.status_code, 401)
+                self.assert_nothing_stored()
+
+        response = self.notify(kyc_notification())
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {})
+        self.assertEqual(CieloNotification.objects.count(), 1)
+
+    def test_mismatched_master_merchant_is_forbidden(self):
+        payload = kyc_notification()
+        payload["MasterMerchantId"] = SELLER_MERCHANT_ID
+        response = self.notify(payload)
+
+        self.assertEqual(response.status_code, 403)
+        self.assert_nothing_stored()
+
+    def test_each_change_type_updates_only_its_own_status(self):
+        cases = (
+            (kyc_notification(status=1), "kyc_status", 1),
+            (bank_account_notification(status=2), "bank_account_status", 2),
+        )
+        status_fields = ("kyc_status", "bank_account_status", "onboarding_status")
+        for payload, field, value in cases:
+            with self.subTest(field=field):
+                CieloBusiness.objects.filter(pk=self.seller.pk).update(
+                    **{name: None for name in status_fields},
+                    **{f"{name}_updated_at": None for name in status_fields},
+                )
+                response = self.notify(payload)
+                self.assertEqual(response.status_code, 200)
+
+                notification = CieloNotification.objects.latest("pk")
+                self.seller.refresh_from_db()
+                self.assertEqual(notification.cielo_business, self.seller)
+                self.assertEqual(notification.merchant_id, SELLER_MERCHANT_ID)
+                for name in status_fields:
+                    expected = value if name == field else None
+                    self.assertEqual(getattr(notification, name), expected)
+                    self.assertEqual(getattr(self.seller, name), expected)
+                    self.assertEqual(
+                        getattr(self.seller, f"{name}_updated_at"),
+                        notification.received_at if name == field else None,
+                    )
+
+    def test_onboarding_notification_updates_all_statuses(self):
+        response = self.notify(
+            onboarding_notification(onboarding=3, kyc=2, bank_account=4)
+        )
+
+        self.assertEqual(response.status_code, 200)
+        notification = CieloNotification.objects.get()
+        self.seller.refresh_from_db()
+        self.assertEqual(
+            (
+                self.seller.onboarding_status,
+                self.seller.kyc_status,
+                self.seller.bank_account_status,
+            ),
+            (3, 2, 4),
+        )
+        self.assertEqual(
+            (
+                notification.onboarding_status,
+                notification.kyc_status,
+                notification.bank_account_status,
+            ),
+            (3, 2, 4),
+        )
+        self.assertEqual(self.seller.onboarding_status_updated_at, notification.received_at)
+        self.assertEqual(self.seller.kyc_status_updated_at, notification.received_at)
+        self.assertEqual(
+            self.seller.bank_account_status_updated_at, notification.received_at
+        )
+        self.assertEqual(self.seller.status, CieloSubmissionStatus.SENT)
+
+    def test_unknown_merchant_is_stored_without_seller(self):
+        unknown_merchant_id = "11111111-2222-4333-8444-555555555555"
+        response = self.notify(kyc_notification(merchant_id=unknown_merchant_id))
+
+        self.assertEqual(response.status_code, 200)
+        notification = CieloNotification.objects.get()
+        self.assertIsNone(notification.cielo_business)
+        self.assertEqual(notification.merchant_id, unknown_merchant_id)
+        self.seller.refresh_from_db()
+        self.assertIsNone(self.seller.kyc_status)
+
+    def test_duplicate_delivery_stores_two_events_and_same_state(self):
+        payload = onboarding_notification()
+        self.assertEqual(self.notify(payload).status_code, 200)
+        self.seller.refresh_from_db()
+        first_state = (
+            self.seller.onboarding_status,
+            self.seller.kyc_status,
+            self.seller.bank_account_status,
+        )
+
+        self.assertEqual(self.notify(payload).status_code, 200)
+
+        self.assertEqual(CieloNotification.objects.count(), 2)
+        self.seller.refresh_from_db()
+        self.assertEqual(
+            (
+                self.seller.onboarding_status,
+                self.seller.kyc_status,
+                self.seller.bank_account_status,
+            ),
+            first_state,
+        )
+
+    def test_unlisted_status_is_stored_unchanged(self):
+        response = self.notify(bank_account_notification(status=9))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(CieloNotification.objects.get().bank_account_status, 9)
+        self.seller.refresh_from_db()
+        self.assertEqual(self.seller.bank_account_status, 9)
