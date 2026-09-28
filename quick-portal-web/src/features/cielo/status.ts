@@ -34,8 +34,14 @@ const onboardingTones: Record<number, StatusTone> = {
   5: "error",
 };
 
-export function submissionBadge(status: CieloSubmissionStatus) {
-  return submissionBadges[status];
+export function submissionBadge(status: CieloSubmissionStatus): {
+  label: string;
+  tone: StatusTone;
+} {
+  // Development rows may still hold the retired PENDING value.
+  const badge: { label: string; tone: StatusTone } | undefined =
+    submissionBadges[status];
+  return badge ?? { label: status, tone: "neutral" };
 }
 
 function notificationBadge(
