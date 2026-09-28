@@ -202,3 +202,6 @@ CIELO_CLIENT_SECRET = os.environ.get("CIELO_CLIENT_SECRET", "")
 CIELO_RETRY_COOLDOWN_SECONDS = int(
     os.environ.get("CIELO_RETRY_COOLDOWN_SECONDS", "300")
 )
+# Shared secret Cielo returns in the X-Cielo-Webhook-Token header of every
+# onboarding notification. Blank is a configuration error for that endpoint.
+CIELO_WEBHOOK_TOKEN = os.environ.get("CIELO_WEBHOOK_TOKEN", "")
