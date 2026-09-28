@@ -20,6 +20,7 @@ from cielo.models import (
     CieloBankAccountType,
     CieloBusiness,
     CieloBusinessActivity,
+    CieloChangeType,
     CieloDocumentType,
     CieloSubmissionStatus,
 )
@@ -38,6 +39,7 @@ from cielo.services.notifications import (
     parse_cielo_notification,
     record_cielo_notification,
 )
+from cielo.services.reconciliation import reconcile_unmatched_merchant
 from quickportal.models import Business
 from quickportal.services.brasil_api import BrasilApiError
 from quickportal.services.business_access import get_accessible_business_or_404
@@ -310,7 +312,12 @@ class CieloNotificationView(APIView):
             logger.warning("Cielo notification rejected: %s", exc)
             return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
-        record_cielo_notification(parsed)
+        notification = record_cielo_notification(parsed)
+        if (
+            notification.cielo_business_id is None
+            and notification.change_type in CieloChangeType.values
+        ):
+            reconcile_unmatched_merchant(notification.merchant_id)
         return Response({})
 
 

@@ -149,6 +149,28 @@ def get_cielo_token(configuration: CieloConfiguration) -> str:
     return access_token
 
 
+def get_cielo_merchant(
+    configuration: CieloConfiguration, merchant_id: str
+) -> Mapping:
+    token = get_cielo_token(configuration)
+    try:
+        response = requests.get(
+            f"{configuration.onboarding_base_url}/api/merchants/{merchant_id}",
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Accept": "application/json",
+            },
+            timeout=10,
+        )
+    except requests.RequestException as exc:
+        raise CieloRemoteError("A consulta de seller da Cielo está indisponível.") from exc
+
+    data = _response_json(response)
+    if response.status_code != 200 or data is None:
+        raise CieloRemoteError("A consulta de seller da Cielo falhou.")
+    return data
+
+
 def build_cielo_payload(seller, merchant_id: str) -> dict:
     business = seller.business
     contact_name = (

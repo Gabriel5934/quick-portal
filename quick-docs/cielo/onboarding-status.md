@@ -56,11 +56,14 @@ statuses, using the notification's reception time as the update timestamp:
 | 21          | `bank_account_status`                                                                 |
 | 23          | Whichever of `onboarding_status`, `kyc_status`, and `bank_account_status` it provides |
 
-Each status has its own `*_updated_at` timestamp. Notifications never change the
-seller's submission status or retry rules. A notification for an unknown
-merchant ID, including a bank-account notification for the master merchant, and
-a notification with an unknown `ChangeType` are stored without a seller, logged,
-and answered with `200` so Cielo stops retrying. Duplicate deliveries create
+Each status has its own `*_updated_at` timestamp. Notifications for a matched
+seller never change its submission status or retry rules. A notification for an
+unknown merchant ID, including a bank-account notification for the master
+merchant, and a notification with an unknown `ChangeType` are stored without a
+seller, logged, and answered with `200` so Cielo stops retrying. An unknown
+merchant ID first goes through
+[merchant ID reconciliation](#merchant-id-reconciliation), which can link a
+seller that lost its merchant ID and set it to `SENT`. Duplicate deliveries create
 duplicate records and leave the seller in the same final state.
 
 ### Partial onboarding notifications
@@ -78,6 +81,39 @@ bank-account notification, so one of the sub-statuses may not exist yet.
 Rejecting such a payload would lose the statuses it does carry, because Cielo
 stops retrying after two more attempts. Overwriting the seller with `null`
 would instead erase a status Quick Portal already received.
+
+### Merchant ID reconciliation
+
+Notifications identify the seller only by its Cielo merchant ID. If Cielo
+registers a seller but Quick Portal never reads the response, for example after
+a read timeout, the seller stays `FAILED` or `INTERVENTION_REQUIRED` without a
+merchant ID and its notifications match no seller.
+
+After storing a notification with a known `ChangeType` and no matching seller,
+Quick Portal calls Cielo's
+[Consultar seller](https://docs.cielo.com.br/split/reference/consultar-seller-api)
+endpoint, `GET /api/merchants/{merchant-id}`, and links the merchant when:
+
+- the merchant ID is not the master merchant's own ID;
+- the response's `masterMerchantId` is the configured `CIELO_MERCHANT_ID`; and
+- its `documentNumber` equals the document of a seller that has no merchant ID.
+
+Linking sets the seller's `merchant_id`, sets its status to `SENT`, and replays
+every stored notification for that merchant ID in the order received, following
+the same rules as a matched notification. Later notifications match the seller
+directly. The stored notification records stay without a seller because
+notifications are immutable; find them by merchant ID.
+
+The lookup runs outside the notification's transaction with a 10-second
+timeout. Any failure, including missing configuration, an unavailable Cielo, or
+a response that does not match a seller, is logged and leaves the seller
+unchanged. The webhook still returns `200`, and the next notification for that
+merchant tries again. The link waits for an in-flight retry of the same seller
+and is skipped if that retry obtained a merchant ID.
+
+**Why:** Without reconciliation the seller would keep `FAILED`, so the user
+could retry and register the same seller at Cielo again, while its onboarding
+progress never appeared in Quick Portal.
 
 ### Unlisted status values
 
