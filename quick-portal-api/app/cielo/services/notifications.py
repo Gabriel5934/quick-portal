@@ -2,6 +2,7 @@ import logging
 from collections.abc import Mapping
 from dataclasses import dataclass
 
+from django.core.exceptions import ValidationError
 from django.db import transaction
 
 from cielo.models import (
@@ -169,5 +170,17 @@ def record_cielo_notification(parsed: ParsedCieloNotification) -> CieloNotificat
             setattr(seller, field, value)
             setattr(seller, f"{field}_updated_at", notification.received_at)
             updated_fields += [field, f"{field}_updated_at"]
+        # The notification is kept even if the seller fails validation, so it
+        # is never lost to a Cielo retry that would fail the same way.
+        try:
+            seller.full_clean(validate_unique=False)
+        except ValidationError:
+            logger.error(
+                "Cielo notification %s not applied: seller %s failed validation.",
+                notification.pk,
+                seller.pk,
+                exc_info=True,
+            )
+            return notification
         seller.save(update_fields=updated_fields)
     return notification

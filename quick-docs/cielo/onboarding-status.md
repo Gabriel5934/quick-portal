@@ -63,7 +63,9 @@ a notification with an unknown `ChangeType` are stored without a seller, logged,
 and answered with `200` so Cielo stops retrying. Duplicate deliveries create
 duplicate records and are applied again in arrival order, so a delayed duplicate
 can replace a newer status. See
-[Notification ordering](./notifications.md#notification-ordering).
+[Notification ordering](./notifications.md#notification-ordering). If the
+matched seller fails model validation, the notification is still stored and
+answered with `200`, but its statuses are not applied and an error is logged.
 
 ### Sellers without a merchant ID
 

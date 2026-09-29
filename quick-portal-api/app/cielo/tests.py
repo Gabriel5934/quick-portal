@@ -715,6 +715,17 @@ class CieloNotificationEndpointTests(APITestCase):
             first_state,
         )
 
+    def test_invalid_seller_keeps_notification_without_applying_it(self):
+        CieloBusiness.objects.filter(pk=self.seller.pk).update(kyc_status=9)
+        with self.assertLogs("cielo.services.notifications", "ERROR"):
+            response = self.notify(bank_account_notification(status=3))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(CieloNotification.objects.get().bank_account_status, 3)
+        self.seller.refresh_from_db()
+        self.assertIsNone(self.seller.bank_account_status)
+        self.assertIsNone(self.seller.bank_account_status_updated_at)
+
     def test_unlisted_status_is_stored_only_on_notification(self):
         previous_update = timezone.now() - timedelta(days=1)
         CieloBusiness.objects.filter(pk=self.seller.pk).update(
