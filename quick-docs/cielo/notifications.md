@@ -101,7 +101,8 @@ Returned when the notification passes every check. It is stored as a
 - `ChangeType` is not 20, 21, or 23. The seller is not looked up.
 - A status value is not in Quick Portal's status tables.
 - The same notification was already received. Duplicates create another record
-  and leave the seller in the same state.
+  and are applied again in arrival order, so a delayed duplicate can replace a
+  newer status. See [Notification ordering](#notification-ordering).
 
 Notifications without a matching seller or with an unknown `ChangeType` are
 stored without a seller and logged. They return `200` because retrying would

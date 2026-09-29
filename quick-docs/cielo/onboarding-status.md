@@ -61,7 +61,9 @@ seller's submission status or retry rules. A notification for an unknown
 merchant ID, including a bank-account notification for the master merchant, and
 a notification with an unknown `ChangeType` are stored without a seller, logged,
 and answered with `200` so Cielo stops retrying. Duplicate deliveries create
-duplicate records and leave the seller in the same final state.
+duplicate records and are applied again in arrival order, so a delayed duplicate
+can replace a newer status. See
+[Notification ordering](./notifications.md#notification-ordering).
 
 ### Sellers without a merchant ID
 
