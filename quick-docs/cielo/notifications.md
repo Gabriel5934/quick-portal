@@ -105,10 +105,7 @@ Returned when the notification passes every check. It is stored as a
 
 Notifications without a matching seller or with an unknown `ChangeType` are
 stored without a seller and logged. They return `200` because retrying would
-not change the result. A notification with a known `ChangeType` and no matching
-seller first triggers
-[merchant ID reconciliation](./onboarding-status.md#merchant-id-reconciliation),
-which may link the seller before the response is sent.
+not change the result.
 
 ```json
 {}

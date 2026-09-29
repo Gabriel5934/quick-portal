@@ -18,11 +18,9 @@ from cielo.models import (
     CieloSubmissionStatus,
 )
 from cielo.services.cielo_api import (
-    CieloConfiguration,
     CieloQuickConfigurationError,
     CieloQuickCredentialsError,
     CieloQuickPreTransmissionError,
-    CieloRemoteError,
     CieloSubmissionOutcome,
     get_cielo_configuration,
     submit_cielo_seller,
@@ -566,12 +564,6 @@ class CieloNotificationEndpointTests(APITestCase):
     url = "/cielo/notifications/"
 
     def setUp(self):
-        lookup = patch(
-            "cielo.services.reconciliation.get_cielo_merchant",
-            side_effect=CieloRemoteError,
-        )
-        lookup.start()
-        self.addCleanup(lookup.stop)
         self.seller = create_cielo_business(
             create_business(),
             status=CieloSubmissionStatus.SENT,
@@ -743,134 +735,3 @@ class CieloNotificationEndpointTests(APITestCase):
         self.assertEqual(self.seller.kyc_status, 2)
         self.assertEqual(self.seller.onboarding_status, 1)
         self.seller.full_clean()
-
-
-TEST_CIELO_CONFIGURATION = CieloConfiguration(
-    auth_base_url="https://auth.example.com",
-    onboarding_base_url="https://onboarding.example.com",
-    merchant_id=VALID_MERCHANT_ID,
-    client_secret="secret",
-)
-
-
-def cielo_merchant(document="11222333000181", master_merchant_id=VALID_MERCHANT_ID):
-    return {
-        "id": SELLER_MERCHANT_ID,
-        "type": "Subordinate",
-        "masterMerchantId": master_merchant_id,
-        "documentType": 1,
-        "documentNumber": document,
-    }
-
-
-@override_settings(CIELO_WEBHOOK_TOKEN=WEBHOOK_TOKEN, CIELO_MERCHANT_ID=VALID_MERCHANT_ID)
-class CieloMerchantReconciliationTests(APITestCase):
-    url = "/cielo/notifications/"
-
-    def setUp(self):
-        configuration = patch(
-            "cielo.services.reconciliation.get_cielo_configuration",
-            return_value=TEST_CIELO_CONFIGURATION,
-        )
-        configuration.start()
-        self.addCleanup(configuration.stop)
-        self.lookup = patch(
-            "cielo.services.reconciliation.get_cielo_merchant",
-            return_value=cielo_merchant(),
-        ).start()
-        self.addCleanup(patch.stopall)
-        self.seller = create_cielo_business(
-            create_business(), last_submitted_at=timezone.now()
-        )
-
-    def notify(self, payload):
-        return self.client.post(
-            self.url, payload, format="json", HTTP_X_CIELO_WEBHOOK_TOKEN=WEBHOOK_TOKEN
-        )
-
-    def assert_seller_unchanged(self):
-        self.seller.refresh_from_db()
-        self.assertEqual(self.seller.status, CieloSubmissionStatus.FAILED)
-        self.assertIsNone(self.seller.merchant_id)
-        self.assertIsNone(self.seller.kyc_status)
-
-    def test_unmatched_merchant_is_linked_by_document_and_replays_notifications(self):
-        self.lookup.side_effect = CieloRemoteError
-        with self.assertLogs("cielo.services.reconciliation", "WARNING"):
-            self.assertEqual(self.notify(kyc_notification(status=1)).status_code, 200)
-        self.assert_seller_unchanged()
-
-        self.lookup.side_effect = None
-        response = self.notify(bank_account_notification(status=3))
-
-        self.assertEqual(response.status_code, 200)
-        self.lookup.assert_called_with(TEST_CIELO_CONFIGURATION, SELLER_MERCHANT_ID)
-        first, second = CieloNotification.objects.order_by("pk")
-        self.seller.refresh_from_db()
-        self.assertEqual(self.seller.merchant_id, SELLER_MERCHANT_ID)
-        self.assertEqual(self.seller.status, CieloSubmissionStatus.SENT)
-        self.assertEqual(self.seller.kyc_status, 1)
-        self.assertEqual(self.seller.kyc_status_updated_at, first.received_at)
-        self.assertEqual(self.seller.bank_account_status, 3)
-        self.assertEqual(self.seller.bank_account_status_updated_at, second.received_at)
-        self.assertIsNone(self.seller.onboarding_status)
-
-        self.notify(onboarding_notification(onboarding=2))
-        self.seller.refresh_from_db()
-        self.assertEqual(self.seller.onboarding_status, 2)
-        self.assertEqual(self.lookup.call_count, 2)
-
-    def test_lookup_result_that_does_not_match_leaves_seller_unchanged(self):
-        cases = {
-            "other master": cielo_merchant(
-                master_merchant_id="11111111-2222-4333-8444-555555555555"
-            ),
-            "other document": cielo_merchant(document="52998224725"),
-            "missing document": cielo_merchant(document=None),
-        }
-        for name, merchant in cases.items():
-            with self.subTest(name):
-                self.lookup.return_value = merchant
-                with self.assertLogs("cielo.services.reconciliation", "WARNING"):
-                    response = self.notify(kyc_notification())
-                self.assertEqual(response.status_code, 200)
-                self.assert_seller_unchanged()
-
-    def test_seller_with_merchant_id_is_not_relinked(self):
-        other_merchant_id = "11111111-2222-4333-8444-555555555555"
-        CieloBusiness.objects.filter(pk=self.seller.pk).update(
-            status=CieloSubmissionStatus.SENT, merchant_id=other_merchant_id
-        )
-        with self.assertLogs("cielo.services.reconciliation", "WARNING"):
-            self.notify(kyc_notification())
-
-        self.seller.refresh_from_db()
-        self.assertEqual(self.seller.merchant_id, other_merchant_id)
-        self.assertIsNone(self.seller.kyc_status)
-
-    def test_lookup_is_skipped_when_not_needed(self):
-        linked = create_cielo_business(
-            Business.objects.create(
-                type=BusinessType.STORE,
-                document_type=DocumentType.CPF,
-                document="52998224725",
-                name="Linked Seller",
-                email="linked@example.com",
-                phone="11987654321",
-                landline="",
-            ),
-            status=CieloSubmissionStatus.SENT,
-            merchant_id="11111111-2222-4333-8444-555555555555",
-        )
-        unknown_change_type = kyc_notification()
-        unknown_change_type["ChangeType"] = 99
-        payloads = {
-            "matched seller": kyc_notification(merchant_id=linked.merchant_id),
-            "master merchant": bank_account_notification(merchant_id=VALID_MERCHANT_ID),
-            "unknown change type": unknown_change_type,
-        }
-        for name, payload in payloads.items():
-            with self.subTest(name):
-                self.assertEqual(self.notify(payload).status_code, 200)
-        self.lookup.assert_not_called()
-        self.assert_seller_unchanged()

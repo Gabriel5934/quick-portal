@@ -83,10 +83,8 @@ Track the local submission status with these three text choices:
 The submission status only records Quick's submission to Cielo. Cielo's
 onboarding notifications and the KYC, bank-account, and onboarding statuses
 they carry are covered by the onboarding status feature in
-`quick-docs/cielo/prompts/onboarding-status.md`. They do not change the
-submission status of a matched seller; only merchant ID reconciliation, described
-in `quick-docs/cielo/onboarding-status.md`, can mark a seller that lost its
-`MerchantId` as `SENT`.
+`quick-docs/cielo/prompts/onboarding-status.md`. They never change the
+submission status.
 
 ## Retry cooldown
 

@@ -114,36 +114,6 @@ def parse_cielo_notification(payload: object) -> ParsedCieloNotification:
     )
 
 
-def apply_notification_statuses(
-    seller: CieloBusiness, notification: CieloNotification
-) -> list[str]:
-    """Copy the notification's known statuses to the seller without saving.
-
-    Only statuses present in the notification are updated, each with its own
-    timestamp. Unlisted values are kept on the notification only, so the seller
-    always passes model validation. Returns the changed field names.
-    """
-    updated_fields = []
-    for field, choices in SELLER_STATUS_CHOICES.items():
-        value = getattr(notification, field)
-        if value is None:
-            continue
-        if value not in choices.values:
-            logger.warning(
-                "Cielo notification %s has unlisted %s %s; seller %s keeps %s.",
-                notification.pk,
-                field,
-                value,
-                seller.pk,
-                getattr(seller, field),
-            )
-            continue
-        setattr(seller, field, value)
-        setattr(seller, f"{field}_updated_at", notification.received_at)
-        updated_fields += [field, f"{field}_updated_at"]
-    return updated_fields
-
-
 def record_cielo_notification(parsed: ParsedCieloNotification) -> CieloNotification:
     known_change_type = parsed.change_type in CieloChangeType.values
     with transaction.atomic():
@@ -178,6 +148,26 @@ def record_cielo_notification(parsed: ParsedCieloNotification) -> CieloNotificat
             )
             return notification
 
-        updated_fields = apply_notification_statuses(seller, notification)
-        seller.save(update_fields=["updated_at", *updated_fields])
+        # Only known statuses present in the notification are updated, each
+        # with its own timestamp. Unlisted values are kept on the notification
+        # only, so the seller always passes model validation.
+        updated_fields = ["updated_at"]
+        for field, choices in SELLER_STATUS_CHOICES.items():
+            value = getattr(parsed, field)
+            if value is None:
+                continue
+            if value not in choices.values:
+                logger.warning(
+                    "Cielo notification %s has unlisted %s %s; seller %s keeps %s.",
+                    notification.pk,
+                    field,
+                    value,
+                    seller.pk,
+                    getattr(seller, field),
+                )
+                continue
+            setattr(seller, field, value)
+            setattr(seller, f"{field}_updated_at", notification.received_at)
+            updated_fields += [field, f"{field}_updated_at"]
+        seller.save(update_fields=updated_fields)
     return notification
