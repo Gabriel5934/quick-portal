@@ -74,15 +74,17 @@ Track the local submission status with these three text choices:
   of a Cielo-side or Cielo-communication failure. This includes Cielo `4xx` and
   `5xx` responses, service errors, timeouts, connection failures, and a missing
   onboarding response. This status is eligible for the simple retry flow.
-- `PENDING`: the seller submission received a valid `2xx` response from Cielo
+- `SENT`: the seller submission received a valid `2xx` response from Cielo
   containing a valid `MerchantId`.
 - `INTERVENTION_REQUIRED`: Cielo returned an unusable `2xx` response, including
   malformed response data or a missing or invalid `MerchantId`. This state
   requires intervention by Quick and is not eligible for user retry.
 
-Cielo onboarding notifications and final KYC/bank-account approval states are
-explicitly out of scope. A successfully submitted seller remains `PENDING` in
-this feature.
+The submission status only records Quick's submission to Cielo. Cielo's
+onboarding notifications and the KYC, bank-account, and onboarding statuses
+they carry are covered by the onboarding status feature in
+`quick-docs/cielo/prompts/onboarding-status.md`. They never change the
+submission status.
 
 ## Retry cooldown
 
@@ -101,7 +103,7 @@ this feature.
   Cielo may still have received and processed the submission.
 - Read the cooldown from `CIELO_RETRY_COOLDOWN_SECONDS`. Use 300 seconds (five
   minutes) as the default value.
-- Only a seller in `FAILED` may be retried. `PENDING` and
+- Only a seller in `FAILED` may be retried. `SENT` and
   `INTERVENTION_REQUIRED` are not retryable.
 - A `FAILED` seller with no `last_submitted_at` may be retried immediately
   because no previous onboarding submission is known to have reached Cielo.
@@ -113,7 +115,7 @@ this feature.
 - The retry endpoint resends the persisted Cielo-specific values together with
   the shared identity and contact values from the underlying `Business`. It
   does not accept edits or rerun the frontend form steps.
-- A valid `2xx` retry response changes the seller to `PENDING` and saves the
+- A valid `2xx` retry response changes the seller to `SENT` and saves the
   returned `MerchantId`.
 - An unusable `2xx` retry response changes the seller to
   `INTERVENTION_REQUIRED` and prevents further retries.
@@ -193,7 +195,7 @@ If `nome_fantasia` is empty, `FancyName` must remain an empty string.
   `Business` relation. Do not create address or bank-account child models for
   this MVP.
 - Name the status choices `CieloSubmissionStatus` with values `FAILED`,
-  `PENDING`, and `INTERVENTION_REQUIRED`.
+  `SENT`, and `INTERVENTION_REQUIRED`.
 - Add the `cielo` app to `INSTALLED_APPS` and include its URLs at `/cielo/`.
 - Generate migrations from the model with Django `makemigrations`; never hand
   write or edit the migration.
@@ -243,7 +245,7 @@ fetch those lists at request time.
 The seller summary response contains `id`, `business`, `status`, `merchant_id`,
 `last_submitted_at`, `retry_available_at`, and `can_retry`. Return it with:
 
-- `201 Created` whenever create persists `FAILED`, `PENDING`, or
+- `201 Created` whenever create persists `FAILED`, `SENT`, or
   `INTERVENTION_REQUIRED`.
 - `200 OK` whenever an accepted retry completes and persists its resulting
   status.
@@ -269,7 +271,7 @@ redirect and render the saved status.
 - An unusable onboarding `2xx` creates `INTERVENTION_REQUIRED`.
 - A Cielo outcome that cannot be persisted leaves the provisional
   `INTERVENTION_REQUIRED` record in place.
-- A valid onboarding `2xx` with a 36-character `MerchantId` creates `PENDING`.
+- A valid onboarding `2xx` with a 36-character `MerchantId` creates `SENT`.
 
 For retries, a Quick fault leaves the existing record unchanged. A Cielo fault
 keeps it in `FAILED`; `last_submitted_at` changes only under the transmission
@@ -332,7 +334,7 @@ document when it differs from the business document.
 | Quick validation, configuration, credentials, or backend failure before transmission | Do not create a Cielo seller record.        | Remain on the review step and display an error message. |
 | Cielo `4xx`/`5xx`, service outage, timeout, connection failure, or missing response  | Create the Cielo seller with `FAILED`.      | Redirect to the underlying business details page.       |
 | Malformed or locally unpersistable Cielo outcome                                     | Keep the seller as `INTERVENTION_REQUIRED`. | Redirect to the underlying business details page.       |
-| Valid Cielo `2xx`                                                                    | Create the Cielo seller with `PENDING`.     | Redirect to the underlying business details page.       |
+| Valid Cielo `2xx`                                                                    | Create the Cielo seller with `SENT`.        | Redirect to the underlying business details page.       |
 
 ## Implementation sequence
 
@@ -380,7 +382,7 @@ Create backend and frontend tests for every row in the submission result table:
   details.
 - A malformed or locally unpersistable Cielo outcome creates or retains an
   `INTERVENTION_REQUIRED` record; the frontend redirects to business details.
-- A valid Cielo `2xx` response creates a `PENDING` record; the frontend
+- A valid Cielo `2xx` response creates a `SENT` record; the frontend
   redirects to business details.
 
 ### Document validation

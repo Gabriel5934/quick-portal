@@ -7,6 +7,7 @@ from cielo.views import (
     CieloBusinessRetryView,
     CieloBusinessView,
     CieloDocumentTypeChoicesView,
+    CieloNotificationView,
 )
 
 
@@ -16,6 +17,11 @@ urlpatterns = [
         "businesses/<int:business_id>/retry/",
         CieloBusinessRetryView.as_view(),
         name="cielo_business_retry",
+    ),
+    path(
+        "notifications/",
+        CieloNotificationView.as_view(),
+        name="cielo_notifications",
     ),
     path(
         "options/document-types/",

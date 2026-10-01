@@ -99,10 +99,16 @@ function persisted(
     business: 73,
     status,
     merchant_id:
-      status === "PENDING" ? "f88cc14d-c796-4939-957e-de4dddcb2257" : null,
+      status === "SENT" ? "f88cc14d-c796-4939-957e-de4dddcb2257" : null,
     last_submitted_at: "2026-09-24T15:00:00Z",
     retry_available_at: status === "FAILED" ? "2026-09-24T15:05:00Z" : null,
     can_retry: false,
+    kyc_status: null,
+    kyc_status_updated_at: null,
+    bank_account_status: null,
+    bank_account_status_updated_at: null,
+    onboarding_status: null,
+    onboarding_status_updated_at: null,
   };
 }
 
@@ -145,7 +151,7 @@ describe("Cielo submission result UX", () => {
     expect(navigate).not.toHaveBeenCalled();
   });
 
-  it.each(["FAILED", "INTERVENTION_REQUIRED", "PENDING"] as const)(
+  it.each(["FAILED", "INTERVENTION_REQUIRED", "SENT"] as const)(
     "redirects persisted %s outcomes to the Cielo details tab",
     async (status) => {
       mutateAsync.mockResolvedValue(persisted(status));

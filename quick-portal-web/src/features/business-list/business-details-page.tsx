@@ -18,7 +18,6 @@ import {
 import {
   AddBusinessOutlined,
   ArrowBackOutlined,
-  Circle,
   StorefrontOutlined,
 } from "@mui/icons-material";
 import { createLink, Link as RouterLink } from "@tanstack/react-router";
@@ -33,7 +32,12 @@ import {
   type OwnBusinessDetails,
   type OwnRegistrationStatus,
 } from "#hooks/quickApi/useOwnBusinesses";
-import { CieloBusinessPanel } from "#features/cielo";
+import { CieloBusinessPanel, CieloStatusCard } from "#features/cielo";
+import {
+  StatusBadge,
+  StatusCard,
+  type StatusTone,
+} from "../../components/status-card";
 
 interface BusinessDetailsProps {
   businessId: number | undefined;
@@ -123,6 +127,16 @@ function ownStatusLabel(status: OwnRegistrationStatus): string {
   return "Status desconhecido";
 }
 
+const ownRegistrationBadges: Record<
+  OwnRegistrationStatus,
+  { label: string; tone: StatusTone }
+> = {
+  REGISTERED: { label: "Credenciado", tone: "success" },
+  PENDING: { label: "Pendente", tone: "pending" },
+  UNKNOWN: { label: "Verificação necessária", tone: "action" },
+  API_REQUEST_FAILED: { label: "Erro no cadastro", tone: "error" },
+};
+
 function OwnStatusCard({
   businessId,
   ownBusiness,
@@ -131,57 +145,24 @@ function OwnStatusCard({
   ownBusiness: OwnBusinessDetails | null;
 }) {
   const status = ownBusiness?.registration_status;
-  const label =
-    status === "API_REQUEST_FAILED"
-      ? "ERRO NO CADASTRO"
-      : status === "REGISTERED"
-        ? "CREDENCIADO"
-        : status === "PENDING"
-          ? "PENDENTE"
-          : status === "UNKNOWN"
-            ? "VERIFICAÇÃO NECESSÁRIA"
-            : "NÃO CREDENCIADO";
-  const color =
-    status === "API_REQUEST_FAILED"
-      ? "error.main"
-      : status === "REGISTERED"
-        ? "success.main"
-        : status === "PENDING" || status === "UNKNOWN"
-          ? "warning.main"
-          : "text.disabled";
+  const badge = status
+    ? ownRegistrationBadges[status]
+    : { label: "Não credenciado", tone: "neutral" as const };
 
   return (
-    <Paper
-      variant="outlined"
-      sx={{
-        p: 2,
-        mb: 2,
-        display: "flex",
-        alignItems: { xs: "flex-start", sm: "center" },
-        flexDirection: { xs: "column", sm: "row" },
-        justifyContent: "space-between",
-        gap: 1,
-      }}
-    >
-      <Typography variant="body2">OWN</Typography>
-      <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-        <Circle aria-hidden sx={{ fontSize: 16, color }} />
-        <Typography variant="body2" role="status">
-          {label}
-        </Typography>
-        {status === "API_REQUEST_FAILED" && (
-          <RouterButton
-            to="/business-list/$id/credenciamento-own"
-            params={{ id: String(businessId) }}
-            variant="contained"
-            size="small"
-            sx={{ ml: 1 }}
-          >
-            Revisar
-          </RouterButton>
-        )}
-      </Box>
-    </Paper>
+    <StatusCard title="OWN">
+      {status === "API_REQUEST_FAILED" && (
+        <RouterButton
+          to="/business-list/$id/credenciamento-own"
+          params={{ id: String(businessId) }}
+          variant="contained"
+          size="small"
+        >
+          Revisar
+        </RouterButton>
+      )}
+      <StatusBadge caption="Credenciamento" {...badge} />
+    </StatusCard>
   );
 }
 
@@ -397,6 +378,7 @@ export function BusinessDetails({
           ) : (
             <OwnStatusCard businessId={business.id} ownBusiness={ownBusiness} />
           )}
+          <CieloStatusCard businessId={business.id} />
           <Paper variant="outlined">
             <Tabs
               value={activeTab}

@@ -7,7 +7,13 @@ import { useBusiness } from "#hooks/quickApi/useBusinesses";
 import {
   useOwnBusinessForBusiness,
   type OwnBusinessDetails,
+  type OwnRegistrationStatus,
 } from "#hooks/quickApi/useOwnBusinesses";
+import {
+  useCieloBusiness,
+  useRetryCieloBusiness,
+} from "#hooks/quickApi/useCielo";
+import type { CieloBusinessSummary } from "#features/cielo";
 import { BusinessDetails } from "./business-details-page";
 
 vi.mock("@tanstack/react-router", () => {
@@ -43,10 +49,11 @@ vi.mock("#hooks/quickApi/useOwnBusinesses", () => ({
   useOwnBusinessForBusiness: vi.fn(),
 }));
 
-vi.mock("#features/cielo", () => ({
-  CieloBusinessPanel: ({ businessId }: { businessId: number }) => (
-    <div>Cielo seller {businessId}</div>
-  ),
+vi.mock("#hooks/quickApi/useCielo", () => ({
+  useCieloBusiness: vi.fn(),
+  useRetryCieloBusiness: vi.fn(),
+  useCreateCieloBusiness: vi.fn(),
+  useCieloOptions: vi.fn(),
 }));
 
 const business: Business = {
@@ -94,8 +101,72 @@ const ownBusiness: OwnBusinessDetails = {
   updated_at: "2026-09-15T10:05:00-03:00",
 };
 
+const seller: CieloBusinessSummary = {
+  id: 1,
+  business: 73,
+  status: "SENT",
+  merchant_id: "f88cc14d-c796-4939-957e-de4dddcb2257",
+  last_submitted_at: "2026-09-24T15:00:00Z",
+  retry_available_at: null,
+  can_retry: false,
+  kyc_status: { value: 2, label: "Aprovado" },
+  kyc_status_updated_at: "2026-09-25T10:00:00Z",
+  bank_account_status: { value: 2, label: "Em processamento" },
+  bank_account_status_updated_at: "2026-09-25T09:00:00Z",
+  onboarding_status: { value: 1, label: "Em análise" },
+  onboarding_status_updated_at: "2026-09-25T10:00:00Z",
+};
+
+const toneIcons = {
+  success: ["CheckCircleOutlineOutlinedIcon", "MuiSvgIcon-colorSuccess"],
+  warning: ["CheckCircleOutlineOutlinedIcon", "MuiSvgIcon-colorWarning"],
+  pending: ["HourglassEmptyOutlinedIcon", "MuiSvgIcon-colorInfo"],
+  action: ["ErrorOutlineOutlinedIcon", "MuiSvgIcon-colorWarning"],
+  error: ["HighlightOffOutlinedIcon", "MuiSvgIcon-colorError"],
+  neutral: ["HelpOutlineOutlinedIcon", "MuiSvgIcon-colorAction"],
+} as const;
+
+type Tone = keyof typeof toneIcons;
+
+function mockSeller(data: CieloBusinessSummary | null) {
+  vi.mocked(useCieloBusiness).mockReturnValue({
+    data,
+    isLoading: false,
+    error: null,
+  } as unknown as ReturnType<typeof useCieloBusiness>);
+}
+
+function mockOwnBusiness(data: OwnBusinessDetails | null) {
+  vi.mocked(useOwnBusinessForBusiness).mockReturnValue({
+    data,
+    isLoading: false,
+    error: null,
+  } as unknown as ReturnType<typeof useOwnBusinessForBusiness>);
+}
+
+function card(name: "OWN" | "Cielo") {
+  return screen.getByRole("region", { name });
+}
+
+function badge(container: HTMLElement, caption: string) {
+  return within(container).getByRole("status", {
+    name: new RegExp(`^${caption}: `),
+  });
+}
+
+function expectTone(element: HTMLElement, tone: Tone) {
+  const [testId, colorClass] = toneIcons[tone];
+  expect(within(element).getByTestId(testId)).toHaveClass(colorClass);
+}
+
 describe("BusinessDetails", () => {
   beforeEach(() => {
+    mockSeller(null);
+    vi.mocked(useRetryCieloBusiness).mockReturnValue({
+      mutate: vi.fn(),
+      isPending: false,
+      error: null,
+    } as unknown as ReturnType<typeof useRetryCieloBusiness>);
     vi.mocked(useBusiness).mockReturnValue({
       data: business,
       isLoading: false,
@@ -113,7 +184,9 @@ describe("BusinessDetails", () => {
 
     expect(useBusiness).toHaveBeenCalledWith(73);
     expect(useOwnBusinessForBusiness).toHaveBeenCalledWith(73);
-    expect(screen.getByRole("status")).toHaveTextContent("NÃO CREDENCIADO");
+    expect(within(card("OWN")).getByRole("status")).toHaveTextContent(
+      "Não credenciado",
+    );
     const table = screen.getByRole("table", {
       name: "Dados Quick do estabelecimento",
     });
@@ -136,7 +209,9 @@ describe("BusinessDetails", () => {
     await user.click(screen.getByRole("tab", { name: "OWN" }));
 
     expect(useOwnBusinessForBusiness).toHaveBeenLastCalledWith(73);
-    expect(screen.getByRole("status")).toHaveTextContent("CREDENCIADO");
+    expect(within(card("OWN")).getByRole("status")).toHaveTextContent(
+      "Credenciado",
+    );
     const table = screen.getByRole("table", {
       name: "Dados OWN do estabelecimento",
     });
@@ -173,11 +248,12 @@ describe("BusinessDetails", () => {
 
     render(<BusinessDetails businessId={73} />);
 
-    expect(screen.getByRole("status")).toHaveTextContent("ERRO NO CADASTRO");
-    expect(screen.getByRole("link", { name: "Revisar" })).toHaveAttribute(
-      "href",
-      "/business-list/73/credenciamento-own",
+    expect(within(card("OWN")).getByRole("status")).toHaveTextContent(
+      "Erro no cadastro",
     );
+    expect(
+      within(card("OWN")).getByRole("link", { name: "Revisar" }),
+    ).toHaveAttribute("href", "/business-list/73/credenciamento-own");
   });
 
   it.each(["PENDING", "UNKNOWN", "REGISTERED"] as const)(
@@ -191,17 +267,292 @@ describe("BusinessDetails", () => {
 
       render(<BusinessDetails businessId={73} />);
 
-      expect(screen.queryByRole("link", { name: "Revisar" })).toBeNull();
+      expect(
+        within(card("OWN")).queryByRole("link", { name: "Revisar" }),
+      ).toBeNull();
     },
   );
 
-  it("shows the Cielo seller panel in the Cielo tab", async () => {
+  it.each<[OwnRegistrationStatus | null, string, Tone]>([
+    ["REGISTERED", "Credenciado", "success"],
+    ["PENDING", "Pendente", "pending"],
+    ["UNKNOWN", "Verificação necessária", "action"],
+    ["API_REQUEST_FAILED", "Erro no cadastro", "error"],
+    [null, "Não credenciado", "neutral"],
+  ])(
+    "renders the OWN %s status as one Credenciamento badge",
+    (registrationStatus, label, tone) => {
+      mockOwnBusiness(
+        registrationStatus
+          ? { ...ownBusiness, registration_status: registrationStatus }
+          : null,
+      );
+
+      render(<BusinessDetails businessId={73} />);
+
+      const ownCard = card("OWN");
+      const [statusBadge] = within(ownCard).getAllByRole("status");
+      expect(within(ownCard).getAllByRole("status")).toHaveLength(1);
+      expect(statusBadge).toHaveAccessibleName(`Credenciamento: ${label}`);
+      expectTone(statusBadge, tone);
+      const review = within(ownCard).queryByRole("link", { name: "Revisar" });
+      if (registrationStatus === "API_REQUEST_FAILED") {
+        expect(review).toBeInTheDocument();
+      } else {
+        expect(review).toBeNull();
+      }
+    },
+  );
+
+  it("shows only the neutral Cielo badge and the signup action without a seller", async () => {
+    const user = userEvent.setup();
+    render(<BusinessDetails businessId={73} />);
+
+    const cieloCard = card("Cielo");
+    const statuses = within(cieloCard).getAllByRole("status");
+    expect(statuses).toHaveLength(1);
+    expect(statuses[0]).toHaveAccessibleName("Credenciamento: Não credenciado");
+    expectTone(statuses[0], "neutral");
+    expect(within(cieloCard).queryByText(/Última atualização/)).toBeNull();
+
+    await user.click(screen.getByRole("tab", { name: "Cielo" }));
+
+    expect(screen.getByRole("link", { name: "Credenciar" })).toHaveAttribute(
+      "href",
+      "/business-list/73/credenciamento-cielo",
+    );
+  });
+
+  it("renders the Cielo card below the OWN card with the API labels", () => {
+    mockSeller(seller);
+    render(<BusinessDetails businessId={73} />);
+
+    const cieloCard = card("Cielo");
+    expect(
+      card("OWN").compareDocumentPosition(cieloCard) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      within(cieloCard)
+        .getAllByRole("status")
+        .map((element) => element.getAttribute("aria-label")),
+    ).toEqual([
+      "Quick: Enviado",
+      "Credenciamento: Em análise",
+      "Bancário: Em processamento",
+      "KYC: Aprovado",
+    ]);
+  });
+
+  it("shows Aguardando with the pending tone for statuses not received yet", () => {
+    mockSeller({
+      ...seller,
+      kyc_status: null,
+      kyc_status_updated_at: null,
+    });
+    render(<BusinessDetails businessId={73} />);
+
+    const kyc = badge(card("Cielo"), "KYC");
+    expect(kyc).toHaveAccessibleName("KYC: Aguardando");
+    expectTone(kyc, "pending");
+  });
+
+  it.each<[string, Partial<CieloBusinessSummary>, Tone]>([
+    ["Quick", { status: "SENT" }, "success"],
+    ["KYC", { kyc_status: { value: 2, label: "Aprovado" } }, "success"],
+    [
+      "Bancário",
+      { bank_account_status: { value: 3, label: "Sucesso" } },
+      "success",
+    ],
+    [
+      "Credenciamento",
+      { onboarding_status: { value: 2, label: "Aprovado" } },
+      "success",
+    ],
+    [
+      "KYC",
+      { kyc_status: { value: 3, label: "Aprovado com restrição" } },
+      "warning",
+    ],
+    ["KYC", { kyc_status: { value: 1, label: "Em análise" } }, "pending"],
+    [
+      "Bancário",
+      { bank_account_status: { value: 1, label: "Criado" } },
+      "pending",
+    ],
+    [
+      "Bancário",
+      { bank_account_status: { value: 2, label: "Em processamento" } },
+      "pending",
+    ],
+    [
+      "Credenciamento",
+      { onboarding_status: { value: 1, label: "Em análise" } },
+      "pending",
+    ],
+    ["Quick", { status: "INTERVENTION_REQUIRED" }, "action"],
+    [
+      "Credenciamento",
+      { onboarding_status: { value: 3, label: "Aguardando ação do lojista" } },
+      "action",
+    ],
+    ["Quick", { status: "FAILED", can_retry: true }, "error"],
+    ["KYC", { kyc_status: { value: 4, label: "Rejeitado" } }, "error"],
+    [
+      "Bancário",
+      { bank_account_status: { value: 0, label: "Erro interno" } },
+      "error",
+    ],
+    ["Bancário", { bank_account_status: { value: 4, label: "Erro" } }, "error"],
+    [
+      "Credenciamento",
+      { onboarding_status: { value: 5, label: "Banido" } },
+      "error",
+    ],
+    [
+      "Credenciamento",
+      { onboarding_status: { value: 4, label: "Desconhecido" } },
+      "neutral",
+    ],
+  ])(
+    "renders the %s badge for %o with the %s tone",
+    (caption, changes, tone) => {
+      mockSeller({ ...seller, ...changes });
+      render(<BusinessDetails businessId={73} />);
+
+      expectTone(badge(card("Cielo"), caption), tone);
+    },
+  );
+
+  it("shows the API label for an unlisted status with the neutral tone", () => {
+    mockSeller({
+      ...seller,
+      bank_account_status: { value: 9, label: "Desconhecido (9)" },
+    });
+    render(<BusinessDetails businessId={73} />);
+
+    const bank = badge(card("Cielo"), "Bancário");
+    expect(bank).toHaveAccessibleName("Bancário: Desconhecido (9)");
+    expectTone(bank, "neutral");
+  });
+
+  it("shows the most recent Cielo timestamp as the last update", () => {
+    mockSeller({
+      ...seller,
+      last_submitted_at: "2026-09-24T15:00:00Z",
+      kyc_status_updated_at: "2026-09-25T10:00:00Z",
+      bank_account_status_updated_at: "2026-09-26T08:30:00Z",
+      onboarding_status_updated_at: "2026-09-25T11:00:00Z",
+    });
+    const { unmount } = render(<BusinessDetails businessId={73} />);
+
+    expect(
+      within(card("Cielo")).getByText(
+        `Última atualização: ${new Date("2026-09-26T08:30:00Z").toLocaleString("pt-BR")}`,
+      ),
+    ).toBeInTheDocument();
+    unmount();
+
+    mockSeller({
+      ...seller,
+      last_submitted_at: null,
+      kyc_status: null,
+      kyc_status_updated_at: null,
+      bank_account_status: null,
+      bank_account_status_updated_at: null,
+      onboarding_status: null,
+      onboarding_status_updated_at: null,
+    });
+    render(<BusinessDetails businessId={73} />);
+
+    expect(within(card("Cielo")).queryByText(/Última atualização/)).toBeNull();
+  });
+
+  it.each(["SENT", "INTERVENTION_REQUIRED"] as const)(
+    "does not offer a Cielo retry for %s",
+    (status) => {
+      mockSeller({ ...seller, status });
+      render(<BusinessDetails businessId={73} />);
+
+      expect(
+        within(card("Cielo")).queryByRole("button", {
+          name: "Tentar novamente",
+        }),
+      ).toBeNull();
+    },
+  );
+
+  it("offers a Cielo retry before the Quick badge for a failed seller", async () => {
+    const mutate = vi.fn();
+    vi.mocked(useRetryCieloBusiness).mockReturnValue({
+      mutate,
+      isPending: false,
+      error: null,
+    } as unknown as ReturnType<typeof useRetryCieloBusiness>);
+    mockSeller({ ...seller, status: "FAILED", can_retry: true });
+    const user = userEvent.setup();
+    render(<BusinessDetails businessId={73} />);
+
+    const cieloCard = card("Cielo");
+    const retry = within(cieloCard).getByRole("button", {
+      name: "Tentar novamente",
+    });
+    expect(
+      retry.compareDocumentPosition(badge(cieloCard, "Quick")) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    await user.click(retry);
+    expect(mutate).toHaveBeenCalledWith({ businessId: 73 });
+  });
+
+  it("disables the Cielo retry during the cooldown and explains when it returns", async () => {
+    const retryAvailableAt = "2026-09-24T15:05:00Z";
+    mockSeller({
+      ...seller,
+      status: "FAILED",
+      can_retry: false,
+      retry_available_at: retryAvailableAt,
+    });
+    const user = userEvent.setup();
+    render(<BusinessDetails businessId={73} />);
+
+    const retry = within(card("Cielo")).getByRole("button", {
+      name: "Tentar novamente",
+    });
+    expect(retry).toBeDisabled();
+    await user.hover(retry.parentElement!);
+
+    expect(await screen.findByRole("tooltip")).toHaveTextContent(
+      `Nova tentativa disponível em ${new Date(retryAvailableAt).toLocaleString("pt-BR")}`,
+    );
+  });
+
+  it("shows the Cielo seller details in the Cielo tab", async () => {
+    mockSeller(seller);
     const user = userEvent.setup();
     render(<BusinessDetails businessId={73} />);
 
     await user.click(screen.getByRole("tab", { name: "Cielo" }));
 
-    expect(screen.getByText("Cielo seller 73")).toBeInTheDocument();
+    const table = screen.getByRole("table", {
+      name: "Dados Cielo do estabelecimento",
+    });
+    expect(
+      within(table).getByRole("rowheader", { name: "Merchant ID" }),
+    ).toBeInTheDocument();
+    expect(
+      within(table).getByText("f88cc14d-c796-4939-957e-de4dddcb2257"),
+    ).toBeInTheDocument();
+    expect(
+      within(table).getByRole("rowheader", { name: "Último envio" }),
+    ).toBeInTheDocument();
+    expect(
+      within(table).getByText(
+        new Date("2026-09-24T15:00:00Z").toLocaleString("pt-BR"),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Credenciar" })).toBeNull();
   });
 
   it("shows an error for an invalid business id", () => {

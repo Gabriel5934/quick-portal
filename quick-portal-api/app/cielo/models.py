@@ -10,8 +10,37 @@ digits_only = RegexValidator(r"^\d+$", "This field must contain only digits.")
 
 class CieloSubmissionStatus(models.TextChoices):
     FAILED = "FAILED", "Falhou"
-    PENDING = "PENDING", "Pendente"
+    SENT = "SENT", "Enviado"
     INTERVENTION_REQUIRED = "INTERVENTION_REQUIRED", "Intervenção necessária"
+
+
+class CieloChangeType(models.IntegerChoices):
+    KYC = 20, "KYC"
+    BANK_ACCOUNT = 21, "Conta bancária"
+    ONBOARDING = 23, "Credenciamento"
+
+
+class CieloKycStatus(models.IntegerChoices):
+    UNDER_ANALYSIS = 1, "Em análise"
+    APPROVED = 2, "Aprovado"
+    APPROVED_WITH_RESTRICTION = 3, "Aprovado com restrição"
+    REJECTED = 4, "Rejeitado"
+
+
+class CieloBankAccountStatus(models.IntegerChoices):
+    INTERNAL_ERROR = 0, "Erro interno"
+    CREATED = 1, "Criado"
+    PROCESSING = 2, "Em processamento"
+    SUCCESS = 3, "Sucesso"
+    ERROR = 4, "Erro"
+
+
+class CieloOnboardingStatus(models.IntegerChoices):
+    UNDER_ANALYSIS = 1, "Em análise"
+    APPROVED = 2, "Aprovado"
+    AWAITING_MERCHANT_ACTION = 3, "Aguardando ação do lojista"
+    UNKNOWN = 4, "Desconhecido"
+    BANNED = 5, "Banido"
 
 
 class CieloDocumentType(models.TextChoices):
@@ -241,8 +270,20 @@ class CieloBusiness(models.Model):
         related_name="cielo_business",
     )
     status = models.CharField(max_length=30, choices=CieloSubmissionStatus.choices)
-    merchant_id = models.CharField(max_length=36, null=True, blank=True)
+    merchant_id = models.CharField(max_length=36, null=True, blank=True, unique=True)
     last_submitted_at = models.DateTimeField(null=True, blank=True)
+    kyc_status = models.PositiveSmallIntegerField(
+        choices=CieloKycStatus.choices, null=True, blank=True
+    )
+    kyc_status_updated_at = models.DateTimeField(null=True, blank=True)
+    bank_account_status = models.PositiveSmallIntegerField(
+        choices=CieloBankAccountStatus.choices, null=True, blank=True
+    )
+    bank_account_status_updated_at = models.DateTimeField(null=True, blank=True)
+    onboarding_status = models.PositiveSmallIntegerField(
+        choices=CieloOnboardingStatus.choices, null=True, blank=True
+    )
+    onboarding_status_updated_at = models.DateTimeField(null=True, blank=True)
     contact_name = models.CharField(max_length=100, blank=True)
     website = models.URLField(max_length=200, blank=True)
     corporate_name = models.CharField(max_length=100, blank=True)
@@ -355,3 +396,48 @@ class CieloBusiness(models.Model):
 
     def __str__(self):
         return f"{self.business_id} / {self.business.document} / {self.status}"
+
+
+class CieloNotificationImmutableError(Exception):
+    pass
+
+
+class CieloNotificationQuerySet(models.QuerySet):
+    def update(self, **kwargs):
+        raise CieloNotificationImmutableError("Cielo notifications cannot be updated.")
+
+    def delete(self):
+        raise CieloNotificationImmutableError("Cielo notifications cannot be deleted.")
+
+
+class CieloNotification(models.Model):
+    cielo_business = models.ForeignKey(
+        CieloBusiness,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="notifications",
+    )
+    change_type = models.PositiveSmallIntegerField(choices=CieloChangeType.choices)
+    merchant_id = models.CharField(max_length=36)
+    # Raw statuses exactly as Cielo sent them, including unlisted values.
+    kyc_status = models.PositiveSmallIntegerField(null=True, blank=True)
+    bank_account_status = models.PositiveSmallIntegerField(null=True, blank=True)
+    onboarding_status = models.PositiveSmallIntegerField(null=True, blank=True)
+    received_at = models.DateTimeField(auto_now_add=True)
+
+    objects = CieloNotificationQuerySet.as_manager()
+
+    class Meta:
+        db_table = "cielo_notifications"
+
+    def save(self, *args, **kwargs):
+        if not self._state.adding:
+            raise CieloNotificationImmutableError("Cielo notifications cannot be updated.")
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise CieloNotificationImmutableError("Cielo notifications cannot be deleted.")
+
+    def __str__(self):
+        return f"{self.merchant_id} / {self.change_type} / {self.received_at}"

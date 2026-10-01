@@ -1,13 +1,15 @@
 import type { CieloBusinessFormValues } from "./schemas";
 
 export type CieloDocumentType = "CPF" | "CNPJ";
-export type CieloSubmissionStatus =
-  | "FAILED"
-  | "PENDING"
-  | "INTERVENTION_REQUIRED";
+export type CieloSubmissionStatus = "FAILED" | "SENT" | "INTERVENTION_REQUIRED";
 
 export interface CieloOption {
   value: string;
+  label: string;
+}
+
+export interface CieloNotificationStatus {
+  value: number;
   label: string;
 }
 
@@ -19,6 +21,12 @@ export interface CieloBusinessSummary {
   last_submitted_at: string | null;
   retry_available_at: string | null;
   can_retry: boolean;
+  kyc_status: CieloNotificationStatus | null;
+  kyc_status_updated_at: string | null;
+  bank_account_status: CieloNotificationStatus | null;
+  bank_account_status_updated_at: string | null;
+  onboarding_status: CieloNotificationStatus | null;
+  onboarding_status_updated_at: string | null;
 }
 
 export interface CieloCreateRequest {

@@ -33,7 +33,7 @@ services:
     environment:
       DEBUG: 1
       DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-dev-secret-key-change-in-prod}
-      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost 127.0.0.1}
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost 127.0.0.1 web}
       POSTGRES_DB: ${POSTGRES_DB:-app}
       POSTGRES_USER: ${POSTGRES_USER:-app}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-app}
@@ -44,6 +44,7 @@ services:
       CIELO_MERCHANT_ID: ${CIELO_MERCHANT_ID:-}
       CIELO_CLIENT_SECRET: ${CIELO_CLIENT_SECRET:-}
       CIELO_RETRY_COOLDOWN_SECONDS: ${CIELO_RETRY_COOLDOWN_SECONDS:-300}
+      CIELO_WEBHOOK_TOKEN: ${CIELO_WEBHOOK_TOKEN:-}
     depends_on:
       db:
         condition: service_healthy
