@@ -18,7 +18,6 @@ export default defineConfig({
         items: [
           { text: "Seller Onboarding", link: "/cielo/seller-onboarding" },
           { text: "Onboarding Status", link: "/cielo/onboarding-status" },
-          { text: "Notifications", link: "/cielo/notifications" },
         ],
       },
       {

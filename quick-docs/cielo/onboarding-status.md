@@ -33,6 +33,10 @@ with each notification request.
 Quick Portal receives notifications at `POST /cielo/notifications/`.
 Registering this URL with Cielo is done outside Quick Portal.
 
+Because Cielo retries any response other than `200`, the endpoint returns an
+error only when retrying could help or the request must not be accepted. Only
+accepted notifications (`200`) are stored.
+
 ### Authentication
 
 Register the notification URL with the custom header
@@ -40,9 +44,115 @@ Register the notification URL with the custom header
 `CIELO_WEBHOOK_TOKEN` and compares it in constant time. The endpoint does not
 use JWT authentication or the `Authorization` header.
 
-For the status the endpoint returns in each case, see
-[Notifications](./notifications.md). Only accepted notifications (`200`) are
-stored.
+### Checks and order
+
+The endpoint runs the checks below in order and returns the first one that
+fails:
+
+| Order | Check                                                         | Failure status |
+| ----- | ------------------------------------------------------------- | -------------- |
+| 1     | `CIELO_WEBHOOK_TOKEN` and `CIELO_MERCHANT_ID` are configured  | `500`          |
+| 2     | `X-Cielo-Webhook-Token` matches `CIELO_WEBHOOK_TOKEN`         | `401`          |
+| 3     | The body is valid JSON                                        | `400`          |
+| 4     | `MasterMerchantId` matches `CIELO_MERCHANT_ID`                | `403`          |
+| 5     | The payload has the fields required by its `ChangeType`       | `400`          |
+
+A request that passes every check is stored and answered with `200`.
+
+Error responses use the body `{ "detail": "<message>" }`. The success response
+body is `{}`.
+
+### Responses
+
+#### 500 Internal Server Error
+
+Returned when Quick Portal is not configured to receive notifications:
+`CIELO_WEBHOOK_TOKEN` or `CIELO_MERCHANT_ID` is missing or blank. No other check
+runs.
+
+```json
+{ "detail": "Cielo notifications are not configured." }
+```
+
+The error is logged. Cielo's retries can succeed once the environment variables
+are set.
+
+#### 401 Unauthorized
+
+Returned when the `X-Cielo-Webhook-Token` header is missing or does not match
+`CIELO_WEBHOOK_TOKEN`. The token is never logged.
+
+```json
+{ "detail": "Invalid notification token." }
+```
+
+The body is not parsed before this check, so a request with an invalid token
+returns `401` even when its body is malformed.
+
+#### 403 Forbidden
+
+Returned when the payload is a JSON object whose `MasterMerchantId` is missing
+or differs from `CIELO_MERCHANT_ID`. The notification belongs to another master
+merchant and is not stored.
+
+```json
+{ "detail": "Unknown master merchant." }
+```
+
+A body that is valid JSON but not an object skips this check and returns `400`.
+
+#### 400 Bad Request
+
+Returned when the body cannot be read as a notification. The `detail` message
+names the invalid field. This happens when:
+
+- The body is not valid JSON.
+- The payload is not a JSON object.
+- `ChangeType` is missing or is not a non-negative integer.
+- `Data` is missing or is not an object.
+- The seller merchant ID is missing, empty, not a string, or longer than 36
+  characters. See `merchant_id` in [Stored fields](#stored-fields) for where it
+  is read from.
+- `Data.Status` is missing in a KYC (20) or bank-account (21) notification.
+- In an onboarding notification (23), `Data.KycAnalysisInfo` or
+  `Data.BankAccountValidation` is present but not an object.
+- A status that is present is not an integer between 0 and 32767. Booleans are
+  rejected.
+
+```json
+{ "detail": "Data.Status must be a non-negative integer." }
+```
+
+In an onboarding notification, an omitted or `null` status is not an error; see
+[Partial onboarding notifications](#partial-onboarding-notifications).
+
+#### 200 OK
+
+Returned when the notification passes every check. It is stored as a
+`CieloNotification` record, including when:
+
+- No seller matches the merchant ID. This includes a bank-account notification
+  for the master merchant itself.
+- `ChangeType` is not 20, 21, or 23. The seller is not looked up.
+- A status value is not in Quick Portal's status tables. See
+  [Unlisted status values](#unlisted-status-values).
+- The same notification was already received. See
+  [Notification ordering](#notification-ordering).
+
+Notifications without a matching seller or with an unknown `ChangeType` are
+stored without a seller and logged. They return `200` because retrying would
+not change the result.
+
+```json
+{}
+```
+
+#### Other statuses
+
+Django REST Framework can also return two other statuses. It returns
+`405 Method Not Allowed` for a method other than `POST`, before any check runs.
+It returns `415 Unsupported Media Type` for a body that is not
+`application/json`, at step 3 after the token check.
 
 ### Processing
 
@@ -57,15 +167,9 @@ statuses, using the notification's reception time as the update timestamp:
 | 23          | Whichever of `onboarding_status`, `kyc_status`, and `bank_account_status` it provides |
 
 Each status has its own `*_updated_at` timestamp. Notifications never change the
-seller's submission status or retry rules. A notification for an unknown
-merchant ID, including a bank-account notification for the master merchant, and
-a notification with an unknown `ChangeType` are stored without a seller, logged,
-and answered with `200` so Cielo stops retrying. Duplicate deliveries create
-duplicate records and are applied again in arrival order, so a delayed duplicate
-can replace a newer status. See
-[Notification ordering](./notifications.md#notification-ordering). If the
-matched seller fails model validation, the notification is still stored and
-answered with `200`, but its statuses are not applied and an error is logged.
+seller's submission status or retry rules. If the matched seller fails model
+validation, the notification is still stored and answered with `200`, but its
+statuses are not applied and an error is logged.
 
 ### Sellers without a merchant ID
 
@@ -108,26 +212,51 @@ notification are still applied.
 unlisted value would make the seller fail model validation, which would block
 retries after a failed submission.
 
+### Notification ordering
+
+::: warning Stale retries are not rejected
+Notifications carry no timestamp or sequence number, so Quick Portal cannot
+tell whether a notification is older than the status it already stored. Each
+notification overwrites the statuses it provides, and each `*_updated_at`
+records when Quick Portal received that status, not when Cielo changed it.
+Duplicate deliveries create duplicate records and are applied again in arrival
+order.
+
+A retried notification could therefore overwrite a newer status if Cielo
+delivers it after a later notification for the same seller. This is unlikely:
+
+- Cielo retries only when it does not receive `200`. A `400`, `401`, `403`,
+  `405`, or `415` fails again on every retry. A retry can succeed only after a
+  transient problem on Quick Portal's side, such as an outage or the missing
+  configuration behind a `500`, during which a newer notification would
+  usually fail as well.
+- Status changes for the same seller are minutes to days apart, while Cielo
+  gives up after two more attempts.
+
+If a seller shows an unexpected status, compare it with the seller's
+`CieloNotification` history in the Django admin: every notification is stored
+immutably in the order it was received.
+:::
+
 ### Stored fields
 
-| Field                 | Source                                                                             |
-| --------------------- | ---------------------------------------------------------------------------------- |
-| `cielo_business`      | The seller matching the merchant ID, or null.                                      |
-| `change_type`         | `ChangeType`.                                                                      |
-| `merchant_id`         | `Data.SubordinateMerchantId` for change types 20 and 23; `Data.MerchantId` for 21. |
-| `kyc_status`          | `Data.Status` for 20; `Data.KycAnalysisInfo.Status` for 23.                        |
-| `bank_account_status` | `Data.Status` for 21; `Data.BankAccountValidation.Status` for 23.                  |
-| `onboarding_status`   | `Data.OnboardingStatus` for 23.                                                    |
-| `received_at`         | Set when the notification is stored.                                               |
+| Field                 | Source                                                                                                                                                               |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `cielo_business`      | The seller matching the merchant ID, or null.                                                                                                                        |
+| `change_type`         | `ChangeType`.                                                                                                                                                        |
+| `merchant_id`         | `Data.SubordinateMerchantId` for change types 20 and 23; `Data.MerchantId` for 21. For other types, `Data.SubordinateMerchantId` if present, else `Data.MerchantId`. |
+| `kyc_status`          | `Data.Status` for 20; `Data.KycAnalysisInfo.Status` for 23.                                                                                                          |
+| `bank_account_status` | `Data.Status` for 21; `Data.BankAccountValidation.Status` for 23.                                                                                                    |
+| `onboarding_status`   | `Data.OnboardingStatus` for 23.                                                                                                                                      |
+| `received_at`         | Set when the notification is stored.                                                                                                                                 |
 
 The raw payload and bank-account data (account, agency, document, and bank
 code) are not stored. Records cannot be updated or deleted, and the Django
 admin shows them read-only.
 
-A status value missing from the tables below is stored unchanged. The seller
-summary API returns each status as `{ "value": <n>, "label": "<label>" }`, or
-`null` before its first notification, and labels an unlisted value
-`Desconhecido (<n>)`. The notification history is not exposed through the API.
+The seller summary API returns each status as
+`{ "value": <n>, "label": "<label>" }`, or `null` before its first
+notification. The notification history is not exposed through the API.
 
 ## KYC
 
