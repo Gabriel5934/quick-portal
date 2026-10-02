@@ -8,6 +8,10 @@ from cielo.views import (
     CieloBusinessView,
     CieloDocumentTypeChoicesView,
     CieloNotificationView,
+    CieloPlanArchiveView,
+    CieloPlanDetailView,
+    CieloPlanListCreateView,
+    CieloPlanUnarchiveView,
 )
 
 
@@ -17,6 +21,18 @@ urlpatterns = [
         "businesses/<int:business_id>/retry/",
         CieloBusinessRetryView.as_view(),
         name="cielo_business_retry",
+    ),
+    path("plans/", CieloPlanListCreateView.as_view(), name="cielo_plans"),
+    path("plans/<int:pk>/", CieloPlanDetailView.as_view(), name="cielo_plan_detail"),
+    path(
+        "plans/<int:pk>/archive/",
+        CieloPlanArchiveView.as_view(),
+        name="cielo_plan_archive",
+    ),
+    path(
+        "plans/<int:pk>/unarchive/",
+        CieloPlanUnarchiveView.as_view(),
+        name="cielo_plan_unarchive",
     ),
     path(
         "notifications/",
