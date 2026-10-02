@@ -5,7 +5,7 @@ import { getRefreshToken } from "#hooks/storage";
 import { useToken } from "#hooks/auth/useToken";
 
 export const Route = createFileRoute("/_authRoutes")({
-  beforeLoad: async ({ location }) => {
+  beforeLoad: ({ location }) => {
     if (!getRefreshToken()) {
       throw redirect({
         to: "/",
