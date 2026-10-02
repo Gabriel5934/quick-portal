@@ -3,10 +3,12 @@ from datetime import timedelta
 
 from django.conf import settings
 from django.core.exceptions import ValidationError as DjangoValidationError
+from django.db import transaction
 from django.utils import timezone
 from rest_framework import serializers
 
 from cielo.models import (
+    CIELO_PLAN_MAX_INSTALLMENTS,
     CieloBank,
     CieloBankAccountStatus,
     CieloBankAccountType,
@@ -15,7 +17,11 @@ from cielo.models import (
     CieloDocumentType,
     CieloKycStatus,
     CieloOnboardingStatus,
+    CieloPaymentMethod,
+    CieloPlan,
+    CieloPlanRate,
     CieloSubmissionStatus,
+    cielo_plan_rate_keys,
 )
 from cielo.validators import validate_cnpj, validate_cpf
 from quickportal.services.brasil_api import (
@@ -73,7 +79,111 @@ class CieloAddressInputSerializer(RejectUnknownFieldsSerializer):
     zip_code = serializers.RegexField(r"^\d+$", max_length=9)
 
 
+DUPLICATE_PLAN_NAME_MESSAGE = "A plan with this name already exists for this business."
+ARCHIVED_PLAN_MESSAGE = "An archived plan cannot be assigned to a new seller."
+
+
+class CieloPlanRateSerializer(RejectUnknownFieldsSerializer, serializers.ModelSerializer):
+    class Meta:
+        model = CieloPlanRate
+        fields = ["card_brand", "method", "installments", "mdr", "fixed_fee"]
+
+    def validate(self, attrs):
+        installments = attrs.get("installments")
+        if attrs["method"] == CieloPaymentMethod.DEBIT and installments is not None:
+            raise serializers.ValidationError(
+                {"installments": ["A debit rate cannot have installments."]}
+            )
+        if attrs["method"] == CieloPaymentMethod.CREDIT and (
+            installments is None
+            or not 1 <= installments <= CIELO_PLAN_MAX_INSTALLMENTS
+        ):
+            raise serializers.ValidationError(
+                {
+                    "installments": [
+                        "A credit rate must have between 1 and "
+                        f"{CIELO_PLAN_MAX_INSTALLMENTS} installments."
+                    ]
+                }
+            )
+        return attrs
+
+
+class CieloPlanSummarySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CieloPlan
+        fields = [
+            "id",
+            "owner_business",
+            "name",
+            "description",
+            "created_by",
+            "created_at",
+            "archived_at",
+            "archived_by",
+        ]
+        read_only_fields = fields
+
+
+class CieloPlanSerializer(RejectUnknownFieldsSerializer, serializers.ModelSerializer):
+    """Creates a plan with all its rates; plans are never updated."""
+
+    rates = CieloPlanRateSerializer(many=True)
+
+    class Meta:
+        model = CieloPlan
+        fields = [*CieloPlanSummarySerializer.Meta.fields, "rates"]
+        read_only_fields = [
+            "id",
+            "owner_business",
+            "created_by",
+            "created_at",
+            "archived_at",
+            "archived_by",
+        ]
+
+    def validate_rates(self, rates):
+        keys = [
+            (rate["card_brand"], rate["method"], rate.get("installments"))
+            for rate in rates
+        ]
+        if len(keys) != len(set(keys)):
+            raise serializers.ValidationError("Each rate may only appear once per plan.")
+        expected_keys = cielo_plan_rate_keys()
+        if set(keys) != set(expected_keys):
+            raise serializers.ValidationError(
+                f"A plan must include all {len(expected_keys)} rates."
+            )
+        return rates
+
+    def validate(self, attrs):
+        if CieloPlan.objects.filter(
+            owner_business=self.context["owner_business"], name=attrs["name"]
+        ).exists():
+            raise serializers.ValidationError({"name": [DUPLICATE_PLAN_NAME_MESSAGE]})
+        return attrs
+
+    @transaction.atomic
+    def create(self, validated_data):
+        rates = validated_data.pop("rates")
+        plan = CieloPlan(**validated_data)
+        plan.save()
+        # Store rates in their canonical order so reads list them consistently.
+        order = {key: index for index, key in enumerate(cielo_plan_rate_keys())}
+        plan_rates = sorted(
+            (CieloPlanRate(plan=plan, **rate) for rate in rates),
+            key=lambda rate: order[
+                (rate.card_brand, rate.method, rate.installments)
+            ],
+        )
+        for rate in plan_rates:
+            rate.full_clean(validate_unique=False, validate_constraints=False)
+        CieloPlanRate.objects.bulk_create(plan_rates)
+        return plan
+
+
 class CieloBusinessCreateSerializer(RejectUnknownFieldsSerializer):
+    plan = serializers.PrimaryKeyRelatedField(queryset=CieloPlan.objects.none())
     contact_name = serializers.CharField(
         max_length=100, allow_blank=True, required=False, default=""
     )
@@ -87,6 +197,19 @@ class CieloBusinessCreateSerializer(RejectUnknownFieldsSerializer):
     )
     bank_account = CieloBankAccountInputSerializer()
     address = CieloAddressInputSerializer()
+
+    def get_fields(self):
+        fields = super().get_fields()
+        # Plans of other businesses are reported as nonexistent.
+        fields["plan"].queryset = CieloPlan.objects.filter(
+            owner_business=self.context["plan_owner"]
+        )
+        return fields
+
+    def validate_plan(self, plan):
+        if plan.archived_at is not None:
+            raise serializers.ValidationError(ARCHIVED_PLAN_MESSAGE)
+        return plan
 
     def validate(self, attrs):
         business = self.context["business"]

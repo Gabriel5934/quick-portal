@@ -10,6 +10,8 @@ from django.db import IntegrityError, connection, transaction
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework import status
+from rest_framework.exceptions import ValidationError
+from rest_framework.generics import ListCreateAPIView, RetrieveAPIView
 from rest_framework.parsers import JSONParser
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
@@ -21,11 +23,15 @@ from cielo.models import (
     CieloBusiness,
     CieloBusinessActivity,
     CieloDocumentType,
+    CieloPlan,
     CieloSubmissionStatus,
 )
 from cielo.serializers import (
+    DUPLICATE_PLAN_NAME_MESSAGE,
     CieloBusinessCreateSerializer,
     CieloBusinessSummarySerializer,
+    CieloPlanSerializer,
+    CieloPlanSummarySerializer,
 )
 from cielo.services.cielo_api import (
     CieloQuickConfigurationError,
@@ -38,7 +44,7 @@ from cielo.services.notifications import (
     parse_cielo_notification,
     record_cielo_notification,
 )
-from quickportal.models import Business
+from quickportal.models import Business, BusinessType
 from quickportal.services.brasil_api import BrasilApiError
 from quickportal.services.business_access import get_accessible_business_or_404
 
@@ -98,6 +104,103 @@ def _apply_outcome(seller, outcome) -> None:
         seller.last_submitted_at = outcome.submitted_at
 
 
+def _scope_business(request):
+    """Return the business selected in the drawer, from the ``business`` query
+    parameter. Any role on the business is enough."""
+    business_id = request.query_params.get("business")
+    if not business_id:
+        raise ValidationError({"business": ["This query parameter is required."]})
+    return get_accessible_business_or_404(request.user, business_id)
+
+
+def _scope_plans(request):
+    """Return the plans owned by the scope business; other plans are not found."""
+    return CieloPlan.objects.filter(owner_business=_scope_business(request))
+
+
+class CieloPlanListCreateView(ListCreateAPIView):
+    permission_classes = [IsAuthenticated]
+
+    def get_serializer_class(self):
+        if self.request.method == "POST":
+            return CieloPlanSerializer
+        return CieloPlanSummarySerializer
+
+    def get_queryset(self):
+        archived = self.request.query_params.get("archived", "false")
+        if archived not in {"true", "false"}:
+            raise ValidationError({"archived": ['Must be "true" or "false".']})
+        plans = _scope_plans(self.request)
+        if archived == "true":
+            return plans.filter(archived_at__isnull=False).order_by("-archived_at", "-id")
+        return plans.filter(archived_at__isnull=True).order_by("-created_at", "-id")
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        if self.request.method == "POST":
+            # OPTIONS builds a POST serializer before create() sets the owner.
+            context["owner_business"] = getattr(self, "_owner_business", None)
+        return context
+
+    def create(self, request, *args, **kwargs):
+        self._owner_business = _scope_business(request)
+        if self._owner_business.type == BusinessType.STORE:
+            raise ValidationError({"business": ["A store cannot own plans."]})
+        try:
+            return super().create(request, *args, **kwargs)
+        except DjangoValidationError as exc:
+            return Response(_django_validation_detail(exc), status=status.HTTP_400_BAD_REQUEST)
+        except IntegrityError:
+            # A concurrent request created a plan with the same name.
+            if CieloPlan.objects.filter(
+                owner_business=self._owner_business, name=request.data.get("name")
+            ).exists():
+                return Response(
+                    {"name": [DUPLICATE_PLAN_NAME_MESSAGE]},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            raise
+
+    def perform_create(self, serializer):
+        serializer.save(
+            owner_business=self._owner_business,
+            created_by=self.request.user,
+        )
+
+
+class CieloPlanDetailView(RetrieveAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = CieloPlanSerializer
+
+    def get_queryset(self):
+        return _scope_plans(self.request).prefetch_related("rates")
+
+
+class CieloPlanArchiveView(APIView):
+    permission_classes = [IsAuthenticated]
+    archive = True
+
+    def post(self, request, pk):
+        plans = _scope_plans(request)
+        with transaction.atomic():
+            plan = get_object_or_404(plans.select_for_update(), pk=pk)
+            if (plan.archived_at is not None) == self.archive:
+                detail = (
+                    "This plan is already archived."
+                    if self.archive
+                    else "This plan is not archived."
+                )
+                return Response({"detail": detail}, status=status.HTTP_409_CONFLICT)
+            plan.archived_at = timezone.now() if self.archive else None
+            plan.archived_by = request.user if self.archive else None
+            plan.save(update_fields=["archived_at", "archived_by"])
+        return Response(CieloPlanSerializer(plan).data)
+
+
+class CieloPlanUnarchiveView(CieloPlanArchiveView):
+    archive = False
+
+
 class CieloBusinessView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -109,7 +212,8 @@ class CieloBusinessView(APIView):
     def post(self, request, business_id):
         business = get_accessible_business_or_404(request.user, business_id)
         serializer = CieloBusinessCreateSerializer(
-            data=request.data, context={"business": business}
+            data=request.data,
+            context={"business": business, "plan_owner": _scope_business(request)},
         )
         try:
             serializer.is_valid(raise_exception=True)
@@ -120,6 +224,11 @@ class CieloBusinessView(APIView):
         try:
             with transaction.atomic():
                 locked_business = Business.objects.select_for_update().get(pk=business.pk)
+                # Lock the plan so it cannot be archived while the seller is
+                # saved; full_clean() rejects a plan that is already archived.
+                values["plan"] = CieloPlan.objects.select_for_update().get(
+                    pk=values["plan"].pk
+                )
                 _lock_document_number(locked_business.document)
                 if CieloBusiness.objects.filter(business=locked_business).exists():
                     return Response(

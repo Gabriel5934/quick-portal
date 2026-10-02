@@ -10,16 +10,20 @@ import {
   type FieldPath,
 } from "react-hook-form";
 import { useMemo, useState } from "react";
+import type { CieloPlanSummary } from "#features/cielo-plans/types";
 import { CepValidationError, useCep } from "#hooks/brasilApi/useCep";
 import { useCreateCieloBusiness } from "#hooks/quickApi/useCielo";
+import { useCieloPlans } from "#hooks/quickApi/useCieloPlans";
 import { useBusiness, type Business } from "#hooks/quickApi/useBusinesses";
 import {
   MultiStepFormShell,
   WizardActions,
 } from "../../components/multi-step-form";
+import { useBusinessScope } from "../../layout/business-context";
 import { CieloAddressStep } from "./address-step";
 import { CieloBankAccountStep } from "./bank-account-step";
 import { CieloIdentificationStep } from "./identification-step";
+import { CieloPlanRequiredAlert } from "./plan-required-alert";
 import { CieloReviewStep } from "./review-step";
 import {
   addressSchema,
@@ -37,6 +41,8 @@ const steps = [
 ] as const;
 export function CieloBusinessPage({ businessId }: { businessId: number }) {
   const businessQuery = useBusiness(businessId);
+  const { business: scopeBusiness } = useBusinessScope();
+  const plansQuery = useCieloPlans(scopeBusiness?.id);
 
   if (businessQuery.isPending) {
     return <CircularProgress aria-label="Carregando estabelecimento" />;
@@ -44,11 +50,34 @@ export function CieloBusinessPage({ businessId }: { businessId: number }) {
   if (businessQuery.isError || !businessQuery.data) {
     return <Alert severity="error">Erro ao carregar o estabelecimento.</Alert>;
   }
+  if (plansQuery.isError) {
+    return <Alert severity="error">{plansQuery.error.message}</Alert>;
+  }
+  if (!scopeBusiness || plansQuery.isPending) {
+    return <CircularProgress aria-label="Carregando planos Cielo" />;
+  }
+  if (plansQuery.data.length === 0) {
+    return <CieloPlanRequiredAlert scopeBusiness={scopeBusiness} />;
+  }
 
-  return <CieloBusinessForm business={businessQuery.data} />;
+  return (
+    <CieloBusinessForm
+      business={businessQuery.data}
+      plans={plansQuery.data}
+      scopeBusinessId={scopeBusiness.id}
+    />
+  );
 }
 
-function CieloBusinessForm({ business }: { business: Business }) {
+function CieloBusinessForm({
+  business,
+  plans,
+  scopeBusinessId,
+}: {
+  business: Business;
+  plans: CieloPlanSummary[];
+  scopeBusinessId: number;
+}) {
   const [currentStep, setCurrentStep] = useState(0);
   const navigate = useNavigate();
   const createSeller = useCreateCieloBusiness();
@@ -68,6 +97,7 @@ function CieloBusinessForm({ business }: { business: Business }) {
   const methods = useForm<CieloBusinessFormValues>({
     resolver: zodResolver(cieloBusinessSchema),
     defaultValues: {
+      plan: "",
       contactName: "",
       website: "",
       birthdayDate: "",
@@ -127,7 +157,7 @@ function CieloBusinessForm({ business }: { business: Business }) {
 
   async function submit(values: CieloBusinessFormValues) {
     try {
-      await createSeller.mutateAsync({ businessId, values });
+      await createSeller.mutateAsync({ businessId, scopeBusinessId, values });
     } catch {
       methods.setError("root", {
         message: "Tente novamente mais tarde",
@@ -165,7 +195,7 @@ function CieloBusinessForm({ business }: { business: Business }) {
           }}
         >
           {currentStep === 0 ? (
-            <CieloIdentificationStep business={business} />
+            <CieloIdentificationStep business={business} plans={plans} />
           ) : null}
           {currentStep === 1 ? (
             <CieloAddressStep
@@ -178,7 +208,11 @@ function CieloBusinessForm({ business }: { business: Business }) {
             <CieloBankAccountStep business={business} />
           ) : null}
           {currentStep === 3 ? (
-            <CieloReviewStep values={methods.getValues()} business={business} />
+            <CieloReviewStep
+              values={methods.getValues()}
+              business={business}
+              plans={plans}
+            />
           ) : null}
           {methods.formState.errors.root ? (
             <Alert severity="error">

@@ -19,6 +19,7 @@ import StoreIcon from "@mui/icons-material/Store";
 import RequestQuoteIcon from "@mui/icons-material/RequestQuote";
 import AutorenewIcon from "@mui/icons-material/Autorenew";
 import PointOfSaleIcon from "@mui/icons-material/PointOfSale";
+import CreditCardIcon from "@mui/icons-material/CreditCard";
 import {
   useAllBusinesses,
   useBusinessColor,
@@ -86,6 +87,13 @@ const navigation = [
     activePaths: ["/planos-e-taxas", "/novo-plano"],
     label: "Planos e Taxas",
     icon: <RequestQuoteIcon />,
+    nonStoreOnly: true,
+  },
+  {
+    to: "/planos-cielo",
+    activePaths: ["/planos-cielo"],
+    label: "Planos Cielo",
+    icon: <CreditCardIcon />,
     nonStoreOnly: true,
   },
 ] as const;

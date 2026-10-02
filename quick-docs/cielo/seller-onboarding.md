@@ -443,6 +443,7 @@ request without the frontend by combining them with the related generic
 | Model field                   | Requirement                                                                               |
 | ----------------------------- | ----------------------------------------------------------------------------------------- |
 | `business`                    | Required one-to-one reference to `Business`.                                              |
+| `plan`                        | Required reference to a `CieloPlan`, `PROTECT`; see [Plans](./plans.md).                  |
 | `status`                      | Required `CieloSubmissionStatus`: `FAILED`, `SENT`, or `INTERVENTION_REQUIRED`.           |
 | `merchant_id`                 | Nullable and unique, maximum 36 characters. Populated only from a valid onboarding `2xx`. |
 | `last_submitted_at`           | Nullable timezone-aware datetime governed by the transmission and cooldown rules above.   |
@@ -504,10 +505,13 @@ flow.
 ### Create request
 
 The business comes from the path and must not also be accepted in the body.
+The business selected in the drawer is the `business` query parameter, and
+`plan` must be one of its active plans; see [Plans](./plans.md#seller-create-request).
 Use this snake_case JSON contract:
 
 ```json
 {
+  "plan": 7,
   "contact_name": "Seller Contact",
   "website": "https://example.com",
   "birthday_date": null,

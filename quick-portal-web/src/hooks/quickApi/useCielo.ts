@@ -46,6 +46,7 @@ export function cieloRequestData(
 ): CieloCreateRequest {
   const bankDocumentType = values.bankDocumentType;
   return {
+    plan: Number(values.plan),
     ...(values.contactName.trim()
       ? { contact_name: values.contactName.trim() }
       : {}),
@@ -136,13 +137,16 @@ export function useCreateCieloBusiness() {
   return useMutation({
     mutationFn: async ({
       businessId,
+      scopeBusinessId,
       values,
     }: {
       businessId: number;
+      /** The business selected in the drawer, which owns the plan. */
+      scopeBusinessId: number;
       values: CieloBusinessFormValues;
     }) => {
       const response = await fetch(
-        `${import.meta.env.VITE_API_BASE_URL}/cielo/businesses/${businessId}/`,
+        `${import.meta.env.VITE_API_BASE_URL}/cielo/businesses/${businessId}/?business=${scopeBusinessId}`,
         {
           method: "POST",
           headers: authHeaders(token!),

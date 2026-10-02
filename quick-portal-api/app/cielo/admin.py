@@ -1,6 +1,43 @@
 from django.contrib import admin
 
-from cielo.models import CieloBusiness, CieloNotification
+from cielo.models import CieloBusiness, CieloNotification, CieloPlan, CieloPlanRate
+
+
+class CieloPlanRateInline(admin.TabularInline):
+    model = CieloPlanRate
+    fields = ("card_brand", "method", "installments", "mdr", "fixed_fee")
+    readonly_fields = fields
+    extra = 0
+    can_delete = False
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(CieloPlan)
+class CieloPlanAdmin(admin.ModelAdmin):
+    """Read-only: plans are created through the API and never edited."""
+
+    list_display = (
+        "id",
+        "name",
+        "owner_business",
+        "created_by",
+        "created_at",
+        "archived_at",
+    )
+    search_fields = ("name", "owner_business__name", "owner_business__document")
+    list_filter = (("archived_at", admin.EmptyFieldListFilter),)
+    inlines = (CieloPlanRateInline,)
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
 
 
 @admin.register(CieloBusiness)
@@ -8,12 +45,18 @@ class CieloBusinessAdmin(admin.ModelAdmin):
     list_display = (
         "id",
         "business",
+        "plan",
         "status",
         "merchant_id",
         "last_submitted_at",
     )
     search_fields = ("business__document", "merchant_id", "business__name")
     list_filter = ("status", "business__document_type")
+
+    def get_readonly_fields(self, request, obj=None):
+        # A seller's plan is fixed after signup.
+        readonly_fields = super().get_readonly_fields(request, obj)
+        return (*readonly_fields, "plan") if obj else readonly_fields
 
 
 @admin.register(CieloNotification)

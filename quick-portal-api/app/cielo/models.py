@@ -1,11 +1,16 @@
+from django.conf import settings
 from django.core.exceptions import ValidationError
-from django.core.validators import RegexValidator
+from django.core.validators import MaxValueValidator, MinValueValidator, RegexValidator
 from django.db import models
+from django.db.models import Q
 
 from cielo.validators import validate_cnpj, validate_cpf
+from quickportal.models import BusinessType
 
 
 digits_only = RegexValidator(r"^\d+$", "This field must contain only digits.")
+
+CIELO_PLAN_MAX_INSTALLMENTS = 12
 
 
 class CieloSubmissionStatus(models.TextChoices):
@@ -263,11 +268,188 @@ class CieloBank(models.TextChoices):
     BANK_757 = "757", "BCO KEB HANA DO BRASIL S.A."
 
 
+class CieloCardBrand(models.TextChoices):
+    VISA = "Visa", "Visa"
+    ELO = "Elo", "Elo"
+    MASTERCARD = "MasterCard", "MasterCard"
+
+
+class CieloPaymentMethod(models.TextChoices):
+    CREDIT = "Credit", "Crédito"
+    DEBIT = "Debit", "Débito"
+
+
+def cielo_plan_rate_keys():
+    """Return the ``(card_brand, method, installments)`` key of every plan rate."""
+    return [
+        (brand, method, installments)
+        for brand in CieloCardBrand.values
+        for method, installments in [
+            (CieloPaymentMethod.DEBIT.value, None),
+            *(
+                (CieloPaymentMethod.CREDIT.value, count)
+                for count in range(1, CIELO_PLAN_MAX_INSTALLMENTS + 1)
+            ),
+        ]
+    ]
+
+
+class CieloPlan(models.Model):
+    owner_business = models.ForeignKey(
+        "quickportal.Business",
+        on_delete=models.PROTECT,
+        related_name="cielo_plans",
+    )
+    name = models.CharField(max_length=200)
+    description = models.TextField(blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="created_cielo_plans",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    archived_at = models.DateTimeField(null=True, blank=True)
+    archived_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="archived_cielo_plans",
+        null=True,
+        blank=True,
+    )
+
+    IMMUTABLE_FIELDS = ("owner_business_id", "name", "description", "created_by_id")
+
+    class Meta:
+        db_table = "cielo_plans"
+        ordering = ["-created_at", "-id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["owner_business", "name"],
+                name="unique_cielo_plan_name_per_owner",
+            ),
+            models.CheckConstraint(
+                condition=Q(archived_at__isnull=True, archived_by__isnull=True)
+                | Q(archived_at__isnull=False, archived_by__isnull=False),
+                name="cielo_plan_archived_at_and_by_together",
+            ),
+        ]
+
+    def clean(self):
+        super().clean()
+        if (
+            self.owner_business_id is not None
+            and self.owner_business.type == BusinessType.STORE
+        ):
+            raise ValidationError({"owner_business": "A store cannot own plans."})
+        if not self._state.adding:
+            original = (
+                CieloPlan.objects.filter(pk=self.pk)
+                .values(*self.IMMUTABLE_FIELDS)
+                .first()
+            )
+            if original is not None and any(
+                getattr(self, field) != value for field, value in original.items()
+            ):
+                raise ValidationError("A Cielo plan cannot change after creation.")
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        return super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.name
+
+
+class CieloPlanRate(models.Model):
+    plan = models.ForeignKey(
+        CieloPlan,
+        on_delete=models.CASCADE,
+        related_name="rates",
+    )
+    card_brand = models.CharField(max_length=20, choices=CieloCardBrand.choices)
+    method = models.CharField(max_length=10, choices=CieloPaymentMethod.choices)
+    installments = models.PositiveSmallIntegerField(null=True, blank=True)
+    mdr = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        validators=[MinValueValidator(0), MaxValueValidator(100)],
+    )
+    fixed_fee = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        validators=[MinValueValidator(0)],
+    )
+
+    class Meta:
+        db_table = "cielo_plan_rates"
+        ordering = ["id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["plan", "card_brand", "method", "installments"],
+                nulls_distinct=False,
+                name="unique_cielo_plan_rate",
+            ),
+            models.CheckConstraint(
+                condition=Q(
+                    method=CieloPaymentMethod.DEBIT, installments__isnull=True
+                )
+                | Q(
+                    method=CieloPaymentMethod.CREDIT,
+                    installments__gte=1,
+                    installments__lte=CIELO_PLAN_MAX_INSTALLMENTS,
+                ),
+                name="cielo_plan_rate_installments_match_method",
+            ),
+            models.CheckConstraint(
+                condition=Q(mdr__gte=0, mdr__lte=100),
+                name="cielo_plan_rate_mdr_range",
+            ),
+            models.CheckConstraint(
+                condition=Q(fixed_fee__gte=0),
+                name="cielo_plan_rate_fixed_fee_not_negative",
+            ),
+        ]
+
+    def clean(self):
+        super().clean()
+        if self.method == CieloPaymentMethod.DEBIT and self.installments is not None:
+            raise ValidationError(
+                {"installments": "A debit rate cannot have installments."}
+            )
+        if self.method == CieloPaymentMethod.CREDIT and (
+            self.installments is None
+            or not 1 <= self.installments <= CIELO_PLAN_MAX_INSTALLMENTS
+        ):
+            raise ValidationError(
+                {
+                    "installments": (
+                        "A credit rate must have between 1 and "
+                        f"{CIELO_PLAN_MAX_INSTALLMENTS} installments."
+                    )
+                }
+            )
+
+    def save(self, *args, **kwargs):
+        if not self._state.adding:
+            raise ValidationError("A Cielo plan rate cannot change after creation.")
+        self.full_clean()
+        return super().save(*args, **kwargs)
+
+    def __str__(self):
+        installments = f" {self.installments}x" if self.installments else ""
+        return f"{self.plan_id} / {self.card_brand} {self.method}{installments}"
+
+
 class CieloBusiness(models.Model):
     business = models.OneToOneField(
         "quickportal.Business",
         on_delete=models.PROTECT,
         related_name="cielo_business",
+    )
+    plan = models.ForeignKey(
+        CieloPlan,
+        on_delete=models.PROTECT,
+        related_name="sellers",
     )
     status = models.CharField(max_length=30, choices=CieloSubmissionStatus.choices)
     merchant_id = models.CharField(max_length=36, null=True, blank=True, unique=True)
@@ -336,6 +518,14 @@ class CieloBusiness(models.Model):
             bank_validator(self.bank_document_number)
         except ValidationError as exc:
             errors["bank_document_number"] = exc.messages
+
+        # Existing sellers keep their plan after it is archived.
+        if (
+            self._state.adding
+            and self.plan_id is not None
+            and self.plan.archived_at is not None
+        ):
+            errors["plan"] = "An archived plan cannot be assigned to a new seller."
 
         if self.business_id is None:
             errors["business"] = "This field is required."

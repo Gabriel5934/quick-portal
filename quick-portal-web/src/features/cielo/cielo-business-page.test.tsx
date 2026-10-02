@@ -1,10 +1,12 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { ReactNode } from "react";
+import type { AnchorHTMLAttributes, ElementType, ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { CieloBusinessPage } from "./cielo-business-page";
 import type { CieloBusinessSummary } from "./types";
+import type { CieloPlanSummary } from "#features/cielo-plans/types";
 import type { Business } from "#hooks/quickApi/useBusinesses";
+import { useCieloPlans } from "#hooks/quickApi/useCieloPlans";
 
 const { navigate, mutateAsync } = vi.hoisted(() => ({
   navigate: vi.fn(),
@@ -13,7 +15,55 @@ const { navigate, mutateAsync } = vi.hoisted(() => ({
 
 vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => navigate,
+  createLink:
+    (Component: ElementType) =>
+    ({
+      children,
+      to,
+      ...props
+    }: AnchorHTMLAttributes<HTMLAnchorElement> & {
+      children: ReactNode;
+      to: string;
+    }) => (
+      <Component {...props} href={to}>
+        {children}
+      </Component>
+    ),
 }));
+
+vi.mock("#hooks/quickApi/useCieloPlans", () => ({ useCieloPlans: vi.fn() }));
+
+const reseller = {
+  id: 42,
+  type: "RESELLER",
+  name: "Revenda Ltda",
+  trade_name: "Revenda",
+} as Business;
+vi.mock("../../layout/business-context", () => ({
+  useBusinessScope: () => ({ business: reseller }),
+}));
+
+const activePlans: CieloPlanSummary[] = [
+  {
+    id: 9,
+    owner_business: 42,
+    name: "Básico",
+    description: "",
+    created_by: 1,
+    created_at: "2026-09-01T10:00:00Z",
+    archived_at: null,
+    archived_by: null,
+  },
+];
+
+function mockPlans(data: CieloPlanSummary[]) {
+  vi.mocked(useCieloPlans).mockReturnValue({
+    data,
+    isPending: false,
+    isError: false,
+    error: null,
+  } as unknown as ReturnType<typeof useCieloPlans>);
+}
 
 vi.mock("#hooks/quickApi/useCielo", () => ({
   useCreateCieloBusiness: () => ({ mutateAsync, isPending: false }),
@@ -58,7 +108,11 @@ vi.mock("./schemas", async () => {
 });
 
 vi.mock("./identification-step", () => ({
-  CieloIdentificationStep: () => <div>Identificação</div>,
+  CieloIdentificationStep: ({ plans }: { plans: CieloPlanSummary[] }) => (
+    <div>
+      Identificação: {plans.map((plan) => plan.name).join(", ")}
+    </div>
+  ),
 }));
 vi.mock("./address-step", () => ({
   CieloAddressStep: () => <div>Endereço</div>,
@@ -125,6 +179,42 @@ describe("Cielo submission result UX", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     navigate.mockResolvedValue(undefined);
+    mockPlans(activePlans);
+  });
+
+  it("offers only the active plans of the business selected in the drawer", () => {
+    render(<CieloBusinessPage businessId={73} />);
+
+    expect(useCieloPlans).toHaveBeenCalledWith(42);
+    expect(screen.getByText("Identificação: Básico")).toBeInTheDocument();
+  });
+
+  it("shows the create-a-plan message instead of the form without active plans", () => {
+    mockPlans([]);
+    render(<CieloBusinessPage businessId={73} />);
+
+    expect(
+      screen.getByText(/Revenda não tem planos Cielo ativos/),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Criar plano Cielo" }),
+    ).toHaveAttribute("href", "/planos-cielo/novo");
+    expect(screen.queryByText(/^Identificação/)).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Continuar" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("sends the seller with the selected business as the plan scope", async () => {
+    mutateAsync.mockResolvedValue(persisted("SENT"));
+
+    await reachReviewAndSubmit();
+
+    await waitFor(() =>
+      expect(mutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({ businessId: 73, scopeBusinessId: 42 }),
+      ),
+    );
   });
 
   it("keeps Quick-side failures on the review step and displays the retry message", async () => {
