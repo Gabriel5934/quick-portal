@@ -9,7 +9,7 @@ import {
   useCreateCieloPlan,
 } from "#hooks/quickApi/useCieloPlans";
 import { NewCieloPlanPage } from "./cielo-plan-form-page";
-import { CIELO_CARD_BRANDS, CIELO_RATE_ROWS } from "./rates";
+import { CIELO_CARD_BRANDS, CIELO_RATE_ROWS, rateRowLabel } from "./rates";
 import type { CieloPlan, CieloPlanCreateRequest } from "./types";
 
 const { navigate, mutateAsync } = vi.hoisted(() => ({
@@ -116,23 +116,41 @@ describe("NewCieloPlanPage", () => {
   });
 
   it("moves a chip from incomplete to complete or error after Concluir", async () => {
-    mockSource(source);
-    const user = renderForm(7);
+    const user = renderForm();
     expect(chip("Visa")).toHaveTextContent("Incompleto");
 
     await user.click(summary("Visa"));
+    for (const row of CIELO_RATE_ROWS) {
+      await user.type(screen.getByLabelText(`MDR Visa ${rateRowLabel(row)}`), "1,5");
+      await user.type(screen.getByLabelText(`Taxa fixa Visa ${rateRowLabel(row)}`), "0");
+    }
     await user.click(screen.getByRole("button", { name: "Concluir" }));
 
     await waitFor(() => expect(chip("Visa")).toHaveTextContent("Completo"));
     expect(summary("Visa")).toHaveAttribute("aria-expanded", "false");
 
     await user.click(summary("Elo"));
-    await user.clear(screen.getByLabelText("MDR Elo Débito"));
     await user.click(screen.getByRole("button", { name: "Concluir" }));
 
     await waitFor(() => expect(chip("Elo")).toHaveTextContent("Com erros"));
     expect(summary("Elo")).toHaveAttribute("aria-expanded", "false");
     expect(chip("MasterCard")).toHaveTextContent("Incompleto");
+  });
+
+  it("shows a copied plan's rates as complete and keeps the chip current", async () => {
+    mockSource(source);
+    const user = renderForm(7);
+
+    await waitFor(() => expect(chip("Visa")).toHaveTextContent("Completo"));
+    expect(chip("Elo")).toHaveTextContent("Completo");
+    expect(chip("MasterCard")).toHaveTextContent("Completo");
+    expect(screen.queryByText("Informe o nome do plano")).not.toBeInTheDocument();
+
+    await user.click(summary("Elo"));
+    await user.clear(screen.getByLabelText("MDR Elo Débito"));
+
+    await waitFor(() => expect(chip("Elo")).toHaveTextContent("Com erros"));
+    expect(screen.getByText("Informe o MDR")).toBeInTheDocument();
   });
 
   it("expands only one accordion at a time", async () => {

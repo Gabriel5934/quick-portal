@@ -6,7 +6,7 @@ import CircularProgress from "@mui/material/CircularProgress";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
 import { useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Controller,
   FormProvider,
@@ -95,12 +95,18 @@ function CieloPlanForm({
   });
   const {
     control,
+    trigger,
     formState: { errors },
   } = methods;
   const [expanded, setExpanded] = useState<CieloCardBrand | false>(false);
+  // A copy starts from a saved plan's rates, so they are validated on load.
   const [validated, setValidated] = useState<ReadonlySet<CieloCardBrand>>(
-    () => new Set(),
+    () => new Set(source ? CIELO_CARD_BRANDS : []),
   );
+
+  useEffect(() => {
+    if (source) void trigger("rates");
+  }, [source, trigger]);
 
   function accordionState(brand: CieloCardBrand): RateAccordionState {
     if (!validated.has(brand)) return "incomplete";
