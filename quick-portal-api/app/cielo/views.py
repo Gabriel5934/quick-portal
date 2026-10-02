@@ -138,7 +138,8 @@ class CieloPlanListCreateView(ListCreateAPIView):
     def get_serializer_context(self):
         context = super().get_serializer_context()
         if self.request.method == "POST":
-            context["owner_business"] = self._owner_business
+            # OPTIONS builds a POST serializer before create() sets the owner.
+            context["owner_business"] = getattr(self, "_owner_business", None)
         return context
 
     def create(self, request, *args, **kwargs):

@@ -1107,6 +1107,12 @@ class CieloPlanEndpointTests(APITestCase):
         response = self.client.post(self.plan_url(plan, self.reseller, "unarchive"))
         self.assertEqual(response.status_code, 409)
 
+    def test_options_describes_the_create_fields(self):
+        response = self.client.options(self.plans_url(self.reseller))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("rates", response.data["actions"]["POST"])
+
     def test_there_are_no_update_or_delete_endpoints(self):
         plan = create_cielo_plan(self.reseller, name="Fixo")
         payload = plan_payload("Alterado")
