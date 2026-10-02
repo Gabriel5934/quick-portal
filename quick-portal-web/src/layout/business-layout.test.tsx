@@ -154,6 +154,15 @@ describe("BusinessLayout business selector", () => {
     expect(screen.queryByText("Estabelecimentos")).not.toBeInTheDocument();
     expect(screen.queryByText("Cadastro")).not.toBeInTheDocument();
     expect(screen.queryByText("Planos e Taxas")).not.toBeInTheDocument();
+    expect(screen.queryByText("Planos Cielo")).not.toBeInTheDocument();
+  });
+
+  it("shows Planos Cielo next to Planos e Taxas for resellers", () => {
+    renderHierarchy(hierarchy);
+
+    const ownPlans = screen.getByText("Planos e Taxas").closest("li");
+    const cieloPlans = screen.getByText("Planos Cielo").closest("li");
+    expect(ownPlans?.nextElementSibling).toBe(cieloPlans);
   });
 
   it("marks the current business route as selected", () => {
