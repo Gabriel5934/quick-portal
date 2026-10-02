@@ -30,6 +30,7 @@ export interface CieloBusinessSummary {
 }
 
 export interface CieloCreateRequest {
+  plan: number;
   contact_name?: string;
   website: string;
   birthday_date: string | null;

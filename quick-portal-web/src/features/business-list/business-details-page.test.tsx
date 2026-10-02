@@ -14,6 +14,8 @@ import {
   useRetryCieloBusiness,
 } from "#hooks/quickApi/useCielo";
 import type { CieloBusinessSummary } from "#features/cielo";
+import type { CieloPlanSummary } from "#features/cielo-plans/types";
+import { useCieloPlans } from "#hooks/quickApi/useCieloPlans";
 import { BusinessDetails } from "./business-details-page";
 
 vi.mock("@tanstack/react-router", () => {
@@ -55,6 +57,33 @@ vi.mock("#hooks/quickApi/useCielo", () => ({
   useCreateCieloBusiness: vi.fn(),
   useCieloOptions: vi.fn(),
 }));
+
+vi.mock("#hooks/quickApi/useCieloPlans", () => ({ useCieloPlans: vi.fn() }));
+
+vi.mock("../../layout/business-context", () => ({
+  useBusinessScope: () => ({
+    business: { id: 42, type: "RESELLER", name: "Revenda", trade_name: "" },
+  }),
+}));
+
+const activePlan: CieloPlanSummary = {
+  id: 9,
+  owner_business: 42,
+  name: "Básico",
+  description: "",
+  created_by: 1,
+  created_at: "2026-09-01T10:00:00Z",
+  archived_at: null,
+  archived_by: null,
+};
+
+function mockPlans(data: CieloPlanSummary[]) {
+  vi.mocked(useCieloPlans).mockReturnValue({
+    data,
+    isLoading: false,
+    error: null,
+  } as unknown as ReturnType<typeof useCieloPlans>);
+}
 
 const business: Business = {
   id: 73,
@@ -162,6 +191,7 @@ function expectTone(element: HTMLElement, tone: Tone) {
 describe("BusinessDetails", () => {
   beforeEach(() => {
     mockSeller(null);
+    mockPlans([activePlan]);
     vi.mocked(useRetryCieloBusiness).mockReturnValue({
       mutate: vi.fn(),
       isPending: false,
@@ -321,6 +351,26 @@ describe("BusinessDetails", () => {
       "href",
       "/business-list/73/credenciamento-cielo",
     );
+  });
+
+  it("disables Credenciar and links to a new plan without active plans", async () => {
+    mockPlans([]);
+    const user = userEvent.setup();
+    render(<BusinessDetails businessId={73} />);
+
+    await user.click(screen.getByRole("tab", { name: "Cielo" }));
+
+    expect(useCieloPlans).toHaveBeenCalledWith(42);
+    expect(screen.getByRole("button", { name: "Credenciar" })).toBeDisabled();
+    expect(
+      screen.queryByRole("link", { name: "Credenciar" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByText(/Revenda não tem planos Cielo ativos/),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Criar plano Cielo" }),
+    ).toHaveAttribute("href", "/planos-cielo/novo");
   });
 
   it("renders the Cielo card below the OWN card with the API labels", () => {

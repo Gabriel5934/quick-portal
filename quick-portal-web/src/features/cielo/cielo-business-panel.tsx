@@ -9,8 +9,12 @@ import TableCell from "@mui/material/TableCell";
 import TableContainer from "@mui/material/TableContainer";
 import TableRow from "@mui/material/TableRow";
 import Typography from "@mui/material/Typography";
+import Stack from "@mui/material/Stack";
 import { createLink } from "@tanstack/react-router";
 import { useCieloBusiness } from "#hooks/quickApi/useCielo";
+import { useCieloPlans } from "#hooks/quickApi/useCieloPlans";
+import { useBusinessScope } from "../../layout/business-context";
+import { CieloPlanRequiredAlert } from "./plan-required-alert";
 
 const RouterButton = createLink(Button);
 
@@ -21,6 +25,10 @@ function formatDate(value: string): string {
 
 export function CieloBusinessPanel({ businessId }: { businessId: number }) {
   const { data: seller, isLoading, error } = useCieloBusiness(businessId);
+  // The signup uses a plan of the business selected in the drawer.
+  const { business: scopeBusiness } = useBusinessScope();
+  const plans = useCieloPlans(scopeBusiness?.id);
+  const hasActivePlans = !!plans.data?.length;
 
   if (error) {
     return (
@@ -54,14 +62,31 @@ export function CieloBusinessPanel({ businessId }: { businessId: number }) {
         <Typography variant="h6" sx={{ mb: 1 }}>
           Estabelecimento não credenciado na Cielo
         </Typography>
-        <RouterButton
-          to="/business-list/$id/credenciamento-cielo"
-          params={{ id: String(businessId) }}
-          variant="contained"
-          startIcon={<AddBusinessOutlined />}
-        >
-          Credenciar
-        </RouterButton>
+        <Stack spacing={2} sx={{ alignItems: "center", maxWidth: 560 }}>
+          {hasActivePlans ? (
+            <RouterButton
+              to="/business-list/$id/credenciamento-cielo"
+              params={{ id: String(businessId) }}
+              variant="contained"
+              startIcon={<AddBusinessOutlined />}
+            >
+              Credenciar
+            </RouterButton>
+          ) : (
+            <Button
+              variant="contained"
+              startIcon={<AddBusinessOutlined />}
+              disabled
+            >
+              Credenciar
+            </Button>
+          )}
+          {plans.error ? (
+            <Alert severity="error">{plans.error.message}</Alert>
+          ) : plans.data?.length === 0 ? (
+            <CieloPlanRequiredAlert scopeBusiness={scopeBusiness} />
+          ) : null}
+        </Stack>
       </Box>
     );
   }

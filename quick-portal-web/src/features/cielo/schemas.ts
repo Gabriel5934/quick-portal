@@ -8,6 +8,7 @@ import {
 export const documentTypeSchema = z.enum(["CPF", "CNPJ"]);
 
 const identificationFieldsSchema = z.object({
+  plan: z.string().min(1, "Selecione um plano Cielo"),
   contactName: z.string().trim().max(100),
   website: z
     .string()

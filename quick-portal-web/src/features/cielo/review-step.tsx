@@ -1,6 +1,7 @@
 import Divider from "@mui/material/Divider";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
+import type { CieloPlanSummary } from "#features/cielo-plans/types";
 import { useCieloOptions, cieloRequestData } from "#hooks/quickApi/useCielo";
 import type { Business } from "#hooks/quickApi/useBusinesses";
 import { FormFieldPaper } from "../../components/multi-step-form";
@@ -23,9 +24,11 @@ function ReviewItem({
 export function CieloReviewStep({
   values,
   business,
+  plans,
 }: {
   values: CieloBusinessFormValues;
   business: Business;
+  plans: CieloPlanSummary[];
 }) {
   const payload = cieloRequestData(values);
   const { data: banks = [] } = useCieloOptions("banks");
@@ -41,6 +44,10 @@ export function CieloReviewStep({
     <>
       <FormFieldPaper title="Identificação">
         <Stack divider={<Divider flexItem />} spacing={1}>
+          <ReviewItem
+            label="Plano Cielo"
+            value={plans.find((plan) => plan.id === payload.plan)?.name}
+          />
           {business.document_type === "CNPJ" ? (
             <ReviewItem label="Contato" value={payload.contact_name} />
           ) : null}
