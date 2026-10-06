@@ -50,8 +50,9 @@ The Django manage.py lives at `app/manage.py`. The Docker volume mounts `./app` 
 
 ## Testing authenticated endpoints
 
-The development compose startup creates or updates a development superuser with email
-`root@email.com` and password `JustTesting593!`. Before testing an authenticated
+`make dev`, run from the parent monorepo root, creates or updates a development
+superuser with email `root@email.com` and password `JustTesting593!` (the dev
+containers no longer create it on startup). Before testing an authenticated
 endpoint, request an access token with cURL:
 
 ```bash

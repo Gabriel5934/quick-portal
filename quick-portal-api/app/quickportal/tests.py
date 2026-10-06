@@ -675,9 +675,9 @@ class BusinessAuthorizationApiTests(APITestCase):
         response = self.client.get(reverse("business_list_create"))
         self.assertEqual(response.data["count"], 0)
 
-class EnsureDevUserCommandTests(TestCase):
+class CreateDevUserCommandTests(TestCase):
     def test_creates_development_superuser(self):
-        call_command("ensure_dev_user", "root@email.com", "test-password", superuser=True)
+        call_command("create_dev_user", "root@email.com", "test-password", superuser=True)
         user = User.objects.get(email="root@email.com")
         self.assertTrue(user.is_active)
         self.assertTrue(user.is_staff)
@@ -686,14 +686,14 @@ class EnsureDevUserCommandTests(TestCase):
 
     def test_promotes_existing_user_without_creating_duplicate(self):
         user = User.objects.create_user(username="existing-root", email="ROOT@email.com")
-        call_command("ensure_dev_user", "root@email.com", "test-password", superuser=True)
+        call_command("create_dev_user", "root@email.com", "test-password", superuser=True)
         user.refresh_from_db()
         self.assertEqual(User.objects.filter(email__iexact="root@email.com").count(), 1)
         self.assertTrue(user.is_staff)
         self.assertTrue(user.is_superuser)
 
     def test_default_does_not_grant_superuser_access(self):
-        call_command("ensure_dev_user", "user@email.com", "test-password")
+        call_command("create_dev_user", "user@email.com", "test-password")
         user = User.objects.get(email="user@email.com")
         self.assertFalse(user.is_staff)
         self.assertFalse(user.is_superuser)

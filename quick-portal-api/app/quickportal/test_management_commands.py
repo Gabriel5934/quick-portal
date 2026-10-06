@@ -1,8 +1,18 @@
 from io import StringIO
 
-from django.core.management import call_command
+from django.contrib.auth.models import User
+from django.core.management import CommandError, call_command
 from django.test import TestCase
 
+from cielo.models import (
+    CieloBankAccountStatus,
+    CieloBusiness,
+    CieloKycStatus,
+    CieloOnboardingStatus,
+    CieloPlan,
+    CieloSubmissionStatus,
+    cielo_plan_rate_keys,
+)
 from quickportal.models import Business, BusinessType
 
 
@@ -27,10 +37,53 @@ class CreateBusinessCommandTests(TestCase):
         self.assertEqual(store.parent, re_reseller)
 
 
-class CreateRootBusinessCommandTests(TestCase):
-    def test_creates_a_root_store(self):
-        call_command("create_root_business", "store", seed=12, stdout=StringIO())
+class CreateAdminBusinessCommandTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username="root", email="root@email.com", password="secret"
+        )
+
+    def run_command(self, **options):
+        output = StringIO()
+        call_command("create_admin_business", stdout=output, **options)
+        return output.getvalue()
+
+    def test_creates_quick_digital_registered_with_cielo(self):
+        self.run_command()
 
         business = Business.objects.get()
-        self.assertEqual(business.type, BusinessType.STORE)
+        self.assertEqual(business.type, BusinessType.RESELLER)
         self.assertIsNone(business.parent)
+        self.assertEqual(business.name, "Quick Digital")
+        self.assertEqual(business.trade_name, "Quick Digital")
+
+        seller = CieloBusiness.objects.get(business=business)
+        self.assertEqual(seller.merchant_id, "00000000-0000-0000-0000-000000000000")
+        self.assertEqual(seller.status, CieloSubmissionStatus.SENT)
+        self.assertEqual(seller.kyc_status, CieloKycStatus.APPROVED)
+        self.assertEqual(seller.bank_account_status, CieloBankAccountStatus.SUCCESS)
+        self.assertEqual(seller.onboarding_status, CieloOnboardingStatus.APPROVED)
+        self.assertIsNone(seller.business_activity_id)
+        self.assertEqual(seller.onboarding_notifications.count(), 4)
+
+        plan = seller.plan
+        self.assertEqual(plan.name, "Quick Plan")
+        self.assertEqual(plan.description, "")
+        self.assertEqual(plan.owner_business, business)
+        self.assertEqual(plan.created_by, self.user)
+        self.assertEqual(plan.rates.count(), len(cielo_plan_rate_keys()))
+        self.assertFalse(plan.rates.exclude(mdr=0, fixed_fee=0).exists())
+
+    def test_rerun_does_nothing(self):
+        self.run_command()
+        output = self.run_command()
+
+        self.assertIn("nothing to do", output)
+        self.assertEqual(Business.objects.count(), 1)
+        self.assertEqual(CieloPlan.objects.count(), 1)
+        self.assertEqual(CieloBusiness.objects.count(), 1)
+
+    def test_requires_the_plan_creator(self):
+        with self.assertRaisesMessage(CommandError, "User not found: missing@email.com"):
+            self.run_command(user="missing@email.com")
+        self.assertFalse(Business.objects.exists())
