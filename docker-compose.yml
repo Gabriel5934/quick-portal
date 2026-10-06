@@ -2,4 +2,4 @@ include:
   - ./quick-portal-api/docker-compose.dev.yml
   - ./quick-portal-web/docker-compose.dev.yml
   - ./quick-docs/docker-compose.dev.yml
-  - ./local-mock-cielo/docker-compose.dev.yml
+  - ./cielo-mock/docker-compose.dev.yml

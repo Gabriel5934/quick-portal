@@ -31,7 +31,7 @@ This will start:
 
 - quick-portal-api (web)
 - quick-portal-api database (db)
-- quick-portal frontend (app)
+- quick-portal-web (app)
 - quick portal docs (docs)
 - cielo mock api (mock-cielo)
 - nginx

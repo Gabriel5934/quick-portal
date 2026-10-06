@@ -22,7 +22,7 @@ from cielo.models import (
 from quickportal.models import Business, BusinessType, DocumentType
 
 
-# Keep in sync with local-mock-cielo/src/scripts/seed-admin-business.ts.
+# Keep in sync with cielo-mock/src/scripts/seed-admin-business.ts.
 ADMIN_BUSINESS = {
     "document": "11222333000181",
     "name": "Quick Digital",
@@ -90,12 +90,16 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         existing = Business.objects.filter(document=ADMIN_BUSINESS["document"]).first()
         if existing is not None:
-            self.stdout.write(f"Quick Digital already exists as business #{existing.id}; nothing to do.")
+            self.stdout.write(
+                f"Quick Digital already exists as business #{existing.id}; nothing to do."
+            )
             return
 
         user = get_user_model().objects.filter(email__iexact=options["user"]).first()
         if user is None:
-            raise CommandError(f"User not found: {options['user']}. Run create_dev_user first.")
+            raise CommandError(
+                f"User not found: {options['user']}. Run create_dev_user first."
+            )
 
         business = Business(
             type=BusinessType.RESELLER,
@@ -105,7 +109,9 @@ class Command(BaseCommand):
         business.full_clean()
         business.save()
 
-        plan = CieloPlan.objects.create(owner_business=business, name=ADMIN_PLAN_NAME, created_by=user)
+        plan = CieloPlan.objects.create(
+            owner_business=business, name=ADMIN_PLAN_NAME, created_by=user
+        )
         rates = [
             CieloPlanRate(
                 plan=plan,

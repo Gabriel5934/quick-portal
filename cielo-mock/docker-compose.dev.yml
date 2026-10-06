@@ -1,0 +1,35 @@
+services:
+  cielo-mock:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "${MOCK_CIELO_PORT:-3001}:3000"
+    environment:
+      PORT: 3000
+      MOCK_CIELO_DATABASE_FILE: /app/data/cielo.sqlite3
+      MOCK_CIELO_MERCHANT_ID: ${MOCK_CIELO_MERCHANT_ID:-}
+      MOCK_CIELO_CLIENT_SECRET: ${MOCK_CIELO_CLIENT_SECRET:-}
+      MOCK_CIELO_TOKEN_LIFETIME_SECONDS: ${MOCK_CIELO_TOKEN_LIFETIME_SECONDS:-1200}
+      MOCK_CIELO_ONBOARDING_MODE: ${MOCK_CIELO_ONBOARDING_MODE:-success}
+      MOCK_CIELO_NOTIFICATION_URL: ${MOCK_CIELO_NOTIFICATION_URL:-}
+      MOCK_CIELO_NOTIFICATION_TOKEN: ${MOCK_CIELO_NOTIFICATION_TOKEN:-}
+      MOCK_CIELO_NOTIFICATION_DELAY_SECONDS: ${MOCK_CIELO_NOTIFICATION_DELAY_SECONDS:-5}
+      MOCK_CIELO_NOTIFICATION_SCENARIO: ${MOCK_CIELO_NOTIFICATION_SCENARIO:-approved}
+      MOCK_CIELO_TRANSACTION_NOTIFICATION_URL: ${MOCK_CIELO_TRANSACTION_NOTIFICATION_URL:-}
+      MOCK_CIELO_TRANSACTION_MERCHANT_ID: ${MOCK_CIELO_TRANSACTION_MERCHANT_ID:-}
+    volumes:
+      - mock_cielo_data:/app/data
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/health').then(response => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  mock_cielo_data:
