@@ -45,10 +45,13 @@ export function Sales() {
 function SalesTable({ business }: { business: Business | null }) {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(20);
-  const { data, isLoading, error } = useCieloTransactions(business?.id, {
-    page: page + 1,
-    pageSize: rowsPerPage,
-  });
+  const { data, isLoading, isPlaceholderData, error } = useCieloTransactions(
+    business?.id,
+    {
+      page: page + 1,
+      pageSize: rowsPerPage,
+    },
+  );
 
   return (
     <Box sx={{ minWidth: 0 }}>
@@ -70,7 +73,9 @@ function SalesTable({ business }: { business: Business | null }) {
                 : "Erro ao carregar as vendas."}
             </Typography>
           </Box>
-        ) : isLoading ? (
+        ) : isLoading || isPlaceholderData ? (
+          // The previous page is kept only so pagination keeps its count;
+          // its rows are never shown as the requested page.
           <Box sx={{ display: "flex", justifyContent: "center", py: 6 }}>
             <CircularProgress aria-label="Carregando vendas" />
           </Box>
@@ -101,7 +106,9 @@ function SalesTable({ business }: { business: Business | null }) {
                       </TableCell>
                       <TableCell>{displayValue(transaction.brand)}</TableCell>
                       <TableCell>{transaction.payment_type.label}</TableCell>
-                      <TableCell>{displayValue(transaction.provider)}</TableCell>
+                      <TableCell>
+                        {displayValue(transaction.provider)}
+                      </TableCell>
                       <TableCell>{transaction.status.label}</TableCell>
                     </TableRow>
                   ))

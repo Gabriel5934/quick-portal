@@ -107,12 +107,11 @@ describe("Sales", () => {
 
   it("requests the selected business and changes page", async () => {
     const user = userEvent.setup();
-    mockTransactions({
-      data: page(
-        Array.from({ length: 20 }, (_, index) => transaction(index + 1)),
-        45,
-      ),
-    });
+    const firstPage = page(
+      Array.from({ length: 20 }, (_, index) => transaction(index + 1)),
+      45,
+    );
+    mockTransactions({ data: firstPage });
 
     render(<Sales />);
 
@@ -122,12 +121,16 @@ describe("Sales", () => {
     });
     expect(screen.getByText("1–20 de 45")).toBeInTheDocument();
 
+    // While page 2 loads, the query keeps page 1 as placeholder data.
+    mockTransactions({ data: firstPage, isPlaceholderData: true });
     await user.click(screen.getByRole("button", { name: /próxima/i }));
 
     expect(useCieloTransactions).toHaveBeenLastCalledWith(7, {
       page: 2,
       pageSize: 20,
     });
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Carregando vendas")).toBeInTheDocument();
   });
 
   it("shows the empty state when there are no transactions", () => {
