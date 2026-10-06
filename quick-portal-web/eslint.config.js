@@ -22,6 +22,27 @@ export default defineConfig([
       },
       globals: globals.browser,
     },
+    rules: {
+      // TanStack Router uses thrown `redirect()` and `notFound()` values for
+      // control flow; allow them as documented by TanStack Router.
+      "@typescript-eslint/only-throw-error": [
+        "error",
+        {
+          allow: [
+            {
+              from: "package",
+              package: "@tanstack/router-core",
+              name: "Redirect",
+            },
+            {
+              from: "package",
+              package: "@tanstack/router-core",
+              name: "NotFoundError",
+            },
+          ],
+        },
+      ],
+    },
   },
   {
     files: ["src/routes/**/*.{ts,tsx}"],

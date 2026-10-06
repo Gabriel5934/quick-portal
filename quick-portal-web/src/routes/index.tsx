@@ -2,7 +2,7 @@ import { createFileRoute, redirect } from "@tanstack/react-router";
 import { LoginPage } from "../features/auth";
 
 export const Route = createFileRoute("/")({
-  beforeLoad: async ({ location }) => {
+  beforeLoad: ({ location }) => {
     if (localStorage.getItem("token")) {
       throw redirect({
         to: "/business-list",
