@@ -197,11 +197,14 @@ OWN_REGISTRATION_TRACE_DIR = BASE_DIR / "logs" / "own_registration"
 # configuration failure before any seller is persisted.
 CIELO_AUTH_BASE_URL = os.environ.get("CIELO_AUTH_BASE_URL", "")
 CIELO_ONBOARDING_BASE_URL = os.environ.get("CIELO_ONBOARDING_BASE_URL", "")
+# Base URL of Cielo's query API, used to look up notified transactions.
+CIELO_QUERY_BASE_URL = os.environ.get("CIELO_QUERY_BASE_URL", "")
 CIELO_MERCHANT_ID = os.environ.get("CIELO_MERCHANT_ID", "")
 CIELO_CLIENT_SECRET = os.environ.get("CIELO_CLIENT_SECRET", "")
 CIELO_RETRY_COOLDOWN_SECONDS = int(
     os.environ.get("CIELO_RETRY_COOLDOWN_SECONDS", "300")
 )
 # Shared secret Cielo returns in the X-Cielo-Webhook-Token header of every
-# onboarding notification. Blank is a configuration error for that endpoint.
+# onboarding and transaction notification. Blank is a configuration error for
+# those endpoints.
 CIELO_WEBHOOK_TOKEN = os.environ.get("CIELO_WEBHOOK_TOKEN", "")

@@ -10,7 +10,7 @@ from cielo.models import (
     CieloBusiness,
     CieloChangeType,
     CieloKycStatus,
-    CieloNotification,
+    CieloOnboardingNotification,
     CieloOnboardingStatus,
 )
 
@@ -28,12 +28,12 @@ SELLER_STATUS_CHOICES = {
 }
 
 
-class CieloNotificationPayloadError(Exception):
+class CieloOnboardingNotificationPayloadError(Exception):
     pass
 
 
 @dataclass(frozen=True)
-class ParsedCieloNotification:
+class ParsedCieloOnboardingNotification:
     change_type: int
     merchant_id: str
     kyc_status: int | None = None
@@ -47,14 +47,14 @@ def _status_value(value: object, name: str) -> int:
         or not isinstance(value, int)
         or not 0 <= value <= MAX_STATUS_VALUE
     ):
-        raise CieloNotificationPayloadError(f"{name} must be a non-negative integer.")
+        raise CieloOnboardingNotificationPayloadError(f"{name} must be a non-negative integer.")
     return value
 
 
 def _merchant_id(data: Mapping, key: str) -> str:
     value = data.get(key)
     if not isinstance(value, str) or not value or len(value) > MERCHANT_ID_MAX_LENGTH:
-        raise CieloNotificationPayloadError(f"Data.{key} is missing or invalid.")
+        raise CieloOnboardingNotificationPayloadError(f"Data.{key} is missing or invalid.")
     return value
 
 
@@ -67,26 +67,26 @@ def _optional_nested_status(data: Mapping, key: str) -> int | None:
     if nested is None:
         return None
     if not isinstance(nested, Mapping):
-        raise CieloNotificationPayloadError(f"Data.{key} must be an object.")
+        raise CieloOnboardingNotificationPayloadError(f"Data.{key} must be an object.")
     return _optional_status(nested.get("Status"), f"Data.{key}.Status")
 
 
-def parse_cielo_notification(payload: object) -> ParsedCieloNotification:
+def parse_cielo_onboarding_notification(payload: object) -> ParsedCieloOnboardingNotification:
     if not isinstance(payload, Mapping):
-        raise CieloNotificationPayloadError("The payload must be an object.")
+        raise CieloOnboardingNotificationPayloadError("The payload must be an object.")
     change_type = _status_value(payload.get("ChangeType"), "ChangeType")
     data = payload.get("Data")
     if not isinstance(data, Mapping):
-        raise CieloNotificationPayloadError("Data must be an object.")
+        raise CieloOnboardingNotificationPayloadError("Data must be an object.")
 
     if change_type == CieloChangeType.KYC:
-        return ParsedCieloNotification(
+        return ParsedCieloOnboardingNotification(
             change_type=change_type,
             merchant_id=_merchant_id(data, "SubordinateMerchantId"),
             kyc_status=_status_value(data.get("Status"), "Data.Status"),
         )
     if change_type == CieloChangeType.BANK_ACCOUNT:
-        return ParsedCieloNotification(
+        return ParsedCieloOnboardingNotification(
             change_type=change_type,
             merchant_id=_merchant_id(data, "MerchantId"),
             bank_account_status=_status_value(data.get("Status"), "Data.Status"),
@@ -94,7 +94,7 @@ def parse_cielo_notification(payload: object) -> ParsedCieloNotification:
     if change_type == CieloChangeType.ONBOARDING:
         # Each status is optional: an omitted or null status leaves the
         # seller's current value untouched instead of rejecting the payload.
-        return ParsedCieloNotification(
+        return ParsedCieloOnboardingNotification(
             change_type=change_type,
             merchant_id=_merchant_id(data, "SubordinateMerchantId"),
             kyc_status=_optional_nested_status(data, "KycAnalysisInfo"),
@@ -109,13 +109,13 @@ def parse_cielo_notification(payload: object) -> ParsedCieloNotification:
     merchant_key = (
         "SubordinateMerchantId" if "SubordinateMerchantId" in data else "MerchantId"
     )
-    return ParsedCieloNotification(
+    return ParsedCieloOnboardingNotification(
         change_type=change_type,
         merchant_id=_merchant_id(data, merchant_key),
     )
 
 
-def record_cielo_notification(parsed: ParsedCieloNotification) -> CieloNotification:
+def record_cielo_onboarding_notification(parsed: ParsedCieloOnboardingNotification) -> CieloOnboardingNotification:
     known_change_type = parsed.change_type in CieloChangeType.values
     with transaction.atomic():
         seller = (
@@ -125,7 +125,7 @@ def record_cielo_notification(parsed: ParsedCieloNotification) -> CieloNotificat
             if known_change_type
             else None
         )
-        notification = CieloNotification.objects.create(
+        notification = CieloOnboardingNotification.objects.create(
             cielo_business=seller,
             change_type=parsed.change_type,
             merchant_id=parsed.merchant_id,
@@ -136,14 +136,14 @@ def record_cielo_notification(parsed: ParsedCieloNotification) -> CieloNotificat
 
         if not known_change_type:
             logger.warning(
-                "Stored Cielo notification %s with unknown change type %s.",
+                "Stored Cielo onboarding notification %s with unknown change type %s.",
                 notification.pk,
                 parsed.change_type,
             )
             return notification
         if seller is None:
             logger.warning(
-                "Stored Cielo notification %s for unknown merchant %s.",
+                "Stored Cielo onboarding notification %s for unknown merchant %s.",
                 notification.pk,
                 parsed.merchant_id,
             )
@@ -159,7 +159,7 @@ def record_cielo_notification(parsed: ParsedCieloNotification) -> CieloNotificat
                 continue
             if value not in choices.values:
                 logger.warning(
-                    "Cielo notification %s has unlisted %s %s; seller %s keeps %s.",
+                    "Cielo onboarding notification %s has unlisted %s %s; seller %s keeps %s.",
                     notification.pk,
                     field,
                     value,
@@ -176,7 +176,7 @@ def record_cielo_notification(parsed: ParsedCieloNotification) -> CieloNotificat
             seller.full_clean(validate_unique=False)
         except ValidationError:
             logger.error(
-                "Cielo notification %s not applied: seller %s failed validation.",
+                "Cielo onboarding notification %s not applied: seller %s failed validation.",
                 notification.pk,
                 seller.pk,
                 exc_info=True,

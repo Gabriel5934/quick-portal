@@ -21,6 +21,9 @@ from cielo.models import (
     CieloPlan,
     CieloPlanRate,
     CieloSubmissionStatus,
+    CieloTransaction,
+    CieloTransactionPaymentType,
+    CieloTransactionStatus,
     cielo_plan_rate_keys,
 )
 from cielo.validators import validate_cnpj, validate_cpf
@@ -320,8 +323,8 @@ class CieloBusinessCreateSerializer(RejectUnknownFieldsSerializer):
         return data
 
 
-class CieloNotificationStatusField(serializers.Field):
-    """Serializes a Cielo status as ``{value, label}``, keeping unlisted values."""
+class CieloStatusField(serializers.Field):
+    """Serializes a Cielo choice as ``{value, label}``, keeping unlisted values."""
 
     def __init__(self, choices_class, **kwargs):
         self.choices_class = choices_class
@@ -339,9 +342,9 @@ class CieloNotificationStatusField(serializers.Field):
 class CieloBusinessSummarySerializer(serializers.ModelSerializer):
     retry_available_at = serializers.SerializerMethodField()
     can_retry = serializers.SerializerMethodField()
-    kyc_status = CieloNotificationStatusField(CieloKycStatus)
-    bank_account_status = CieloNotificationStatusField(CieloBankAccountStatus)
-    onboarding_status = CieloNotificationStatusField(CieloOnboardingStatus)
+    kyc_status = CieloStatusField(CieloKycStatus)
+    bank_account_status = CieloStatusField(CieloBankAccountStatus)
+    onboarding_status = CieloStatusField(CieloOnboardingStatus)
 
     class Meta:
         model = CieloBusiness
@@ -371,3 +374,23 @@ class CieloBusinessSummarySerializer(serializers.ModelSerializer):
             return False
         retry_at = self.get_retry_available_at(seller)
         return retry_at is None or retry_at <= timezone.now()
+
+
+class CieloTransactionSerializer(serializers.ModelSerializer):
+    payment_type = CieloStatusField(CieloTransactionPaymentType)
+    status = CieloStatusField(CieloTransactionStatus)
+
+    class Meta:
+        model = CieloTransaction
+        fields = [
+            "id",
+            "payment_id",
+            "received_date",
+            "amount",
+            "installments",
+            "payment_type",
+            "brand",
+            "provider",
+            "status",
+        ]
+        read_only_fields = fields
