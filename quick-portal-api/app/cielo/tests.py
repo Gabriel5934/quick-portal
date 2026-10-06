@@ -1423,15 +1423,16 @@ class CieloTransactionNotificationEndpointTests(APITestCase):
             body=lookup_response(Status=10)
         )
 
-        response = self.notify()
+        # A case variant of the same PaymentId updates the same transaction.
+        response = self.notify(payment_id=PAYMENT_ID.upper())
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(CieloTransaction.objects.get().pk, transaction.pk)
         transaction.refresh_from_db()
         self.assertEqual(transaction.status, 10)
         self.assertEqual(
-            list(transaction.notifications.values_list("change_type", flat=True)),
-            [1, 1],
+            list(transaction.notifications.values_list("change_type", "payment_id")),
+            [(1, PAYMENT_ID), (1, PAYMENT_ID)],
         )
 
     def test_partial_cancellation_triggers_a_lookup(self):

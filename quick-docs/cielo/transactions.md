@@ -28,7 +28,9 @@ Quick Portal receives transaction notifications at
 }
 ```
 
-Any other key, including `RecurrentPaymentId`, is ignored.
+Any other key, including `RecurrentPaymentId`, is ignored. `PaymentId` is
+stored in lowercase canonical form, so notifications that differ only in letter
+case share one transaction.
 
 ### Authentication
 
@@ -135,7 +137,7 @@ updated or deleted, and the Django admin shows them read-only.
 | Field         | Source                                                                                                                                   |
 | ------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
 | `transaction` | The transaction created or found for a lookup change type, or an existing transaction with the same `payment_id` for any other, or null. |
-| `payment_id`  | `PaymentId` as sent by Cielo.                                                                                                            |
+| `payment_id`  | `PaymentId` in lowercase canonical form.                                                                                                 |
 | `change_type` | `ChangeType`, stored even when unlisted.                                                                                                 |
 | `received_at` | Set when the notification is stored.                                                                                                     |
 
@@ -148,7 +150,7 @@ until the first successful lookup.
 
 | Field            | Source                                                                                                          |
 | ---------------- | --------------------------------------------------------------------------------------------------------------- |
-| `payment_id`     | Notification `PaymentId`; unique.                                                                               |
+| `payment_id`     | Notification `PaymentId` in lowercase canonical form; unique.                                                   |
 | `merchant_id`    | `MerchantId`.                                                                                                   |
 | `cielo_business` | The `CieloBusiness` whose `merchant_id` matches, or null.                                                       |
 | `installments`   | `Payment.Installments`; `1` when omitted.                                                                       |

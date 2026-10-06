@@ -97,8 +97,10 @@ def parse_cielo_transaction_notification(
         raise CieloTransactionNotificationPayloadError(
             "ChangeType must be a non-negative integer."
         )
+    # Stored in canonical lowercase form so case variants of one PaymentId share
+    # a transaction.
     return ParsedCieloTransactionNotification(
-        payment_id=payment_id, change_type=change_type
+        payment_id=str(UUID(payment_id)), change_type=change_type
     )
 
 
