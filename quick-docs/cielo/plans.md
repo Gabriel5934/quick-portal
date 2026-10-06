@@ -33,7 +33,7 @@ installment count:
 | Field          | Notes                                                       |
 | -------------- | ----------------------------------------------------------- |
 | `plan`         | FK to `CieloPlan`, `CASCADE`.                               |
-| `card_brand`   | `Visa`, `Elo`, or `MasterCard`.                             |
+| `card_brand`   | `Visa`, `Elo`, or `Master` (Cielo's Mastercard value).      |
 | `method`       | `Debit` or `Credit`.                                        |
 | `installments` | Null for debit; 1 to 12 for credit.                         |
 | `mdr`          | Percentage from 0 to 100, two decimal places.               |

@@ -1,6 +1,6 @@
 import type { CieloPlanFormValues } from "./schemas";
 
-export type CieloCardBrand = "Visa" | "Elo" | "MasterCard";
+export type CieloCardBrand = "Visa" | "Elo" | "Master";
 export type CieloPaymentMethod = "Debit" | "Credit";
 
 export interface CieloPlanRate {

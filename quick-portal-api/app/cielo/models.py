@@ -271,7 +271,7 @@ class CieloBank(models.TextChoices):
 class CieloCardBrand(models.TextChoices):
     VISA = "Visa", "Visa"
     ELO = "Elo", "Elo"
-    MASTERCARD = "MasterCard", "MasterCard"
+    MASTER = "Master", "Master"
 
 
 class CieloPaymentMethod(models.TextChoices):
@@ -588,25 +588,29 @@ class CieloBusiness(models.Model):
         return f"{self.business_id} / {self.business.document} / {self.status}"
 
 
-class CieloNotificationImmutableError(Exception):
+class CieloOnboardingNotificationImmutableError(Exception):
     pass
 
 
-class CieloNotificationQuerySet(models.QuerySet):
+class CieloOnboardingNotificationQuerySet(models.QuerySet):
     def update(self, **kwargs):
-        raise CieloNotificationImmutableError("Cielo notifications cannot be updated.")
+        raise CieloOnboardingNotificationImmutableError(
+            "Cielo onboarding notifications cannot be updated."
+        )
 
     def delete(self):
-        raise CieloNotificationImmutableError("Cielo notifications cannot be deleted.")
+        raise CieloOnboardingNotificationImmutableError(
+            "Cielo onboarding notifications cannot be deleted."
+        )
 
 
-class CieloNotification(models.Model):
+class CieloOnboardingNotification(models.Model):
     cielo_business = models.ForeignKey(
         CieloBusiness,
         on_delete=models.PROTECT,
         null=True,
         blank=True,
-        related_name="notifications",
+        related_name="onboarding_notifications",
     )
     change_type = models.PositiveSmallIntegerField(choices=CieloChangeType.choices)
     merchant_id = models.CharField(max_length=36)
@@ -616,18 +620,159 @@ class CieloNotification(models.Model):
     onboarding_status = models.PositiveSmallIntegerField(null=True, blank=True)
     received_at = models.DateTimeField(auto_now_add=True)
 
-    objects = CieloNotificationQuerySet.as_manager()
+    objects = CieloOnboardingNotificationQuerySet.as_manager()
 
     class Meta:
-        db_table = "cielo_notifications"
+        db_table = "cielo_onboarding_notifications"
 
     def save(self, *args, **kwargs):
         if not self._state.adding:
-            raise CieloNotificationImmutableError("Cielo notifications cannot be updated.")
+            raise CieloOnboardingNotificationImmutableError(
+                "Cielo onboarding notifications cannot be updated."
+            )
         super().save(*args, **kwargs)
 
     def delete(self, *args, **kwargs):
-        raise CieloNotificationImmutableError("Cielo notifications cannot be deleted.")
+        raise CieloOnboardingNotificationImmutableError(
+            "Cielo onboarding notifications cannot be deleted."
+        )
 
     def __str__(self):
         return f"{self.merchant_id} / {self.change_type} / {self.received_at}"
+
+
+class CieloTransactionChangeType(models.IntegerChoices):
+    PAYMENT_STATUS = 1, "Mudança de status do pagamento"
+    RECURRENCE_CREATED = 2, "Recorrência criada"
+    ANTIFRAUD_STATUS = 3, "Mudança de status do antifraude"
+    RECURRENCE_STATUS = 4, "Mudança de status da recorrência"
+    CANCELLATION_DENIED = 5, "Cancelamento negado"
+    BOLETO_UNDERPAID = 6, "Boleto pago a menor"
+    CHARGEBACK = 7, "Chargeback"
+    FRAUD_ALERT = 8, "Alerta de fraude"
+    PARTIAL_CANCELLATION = 25, "Cancelamento parcial"
+
+
+class CieloTransactionStatus(models.IntegerChoices):
+    NOT_FINISHED = 0, "Não finalizado"
+    AUTHORIZED = 1, "Autorizado"
+    PAYMENT_CONFIRMED = 2, "Pago"
+    DENIED = 3, "Negado"
+    VOIDED = 10, "Cancelado"
+    REFUNDED = 11, "Estornado"
+    PENDING = 12, "Pendente"
+    ABORTED = 13, "Abortado"
+    SCHEDULED = 20, "Agendado"
+
+
+class CieloTransactionPaymentType(models.TextChoices):
+    CREDIT_CARD = "CreditCard", "Crédito"
+    DEBIT_CARD = "DebitCard", "Débito"
+    SPLITTED_CREDIT_CARD = "SplittedCreditCard", "Crédito"
+    SPLITTED_DEBIT_CARD = "SplittedDebitCard", "Débito"
+    PIX = "Pix", "Pix"
+    BOLETO = "Boleto", "Boleto"
+
+
+class CieloTransactionLookupStatus(models.TextChoices):
+    SUCCESS = "SUCCESS", "Sucesso"
+    FAILED = "FAILED", "Falhou"
+
+
+class CieloTransaction(models.Model):
+    """Current state of one Cielo payment, refreshed by looking it up after each
+    payment notification. Choices are never enforced on save: Cielo values that
+    are not listed are stored unchanged."""
+
+    payment_id = models.CharField(max_length=36, unique=True)
+    merchant_id = models.CharField(max_length=36, null=True, blank=True, db_index=True)
+    cielo_business = models.ForeignKey(
+        CieloBusiness,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="transactions",
+    )
+    installments = models.PositiveSmallIntegerField(null=True, blank=True)
+    amount = models.PositiveBigIntegerField(null=True, blank=True)
+    received_date = models.DateTimeField(null=True, blank=True)
+    payment_type = models.CharField(
+        max_length=40,
+        choices=CieloTransactionPaymentType.choices,
+        null=True,
+        blank=True,
+    )
+    brand = models.CharField(max_length=30, null=True, blank=True)
+    provider = models.CharField(max_length=30, null=True, blank=True)
+    status = models.PositiveSmallIntegerField(
+        choices=CieloTransactionStatus.choices, null=True, blank=True
+    )
+    raw_response = models.JSONField(null=True, blank=True)
+    lookup_status = models.CharField(
+        max_length=10,
+        choices=CieloTransactionLookupStatus.choices,
+        null=True,
+        blank=True,
+    )
+    last_lookup_at = models.DateTimeField(null=True, blank=True)
+    lookup_error = models.CharField(max_length=255, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "cielo_transactions"
+
+    def __str__(self):
+        return f"{self.payment_id} / {self.status}"
+
+
+class CieloTransactionNotificationImmutableError(Exception):
+    pass
+
+
+class CieloTransactionNotificationQuerySet(models.QuerySet):
+    def update(self, **kwargs):
+        raise CieloTransactionNotificationImmutableError(
+            "Cielo transaction notifications cannot be updated."
+        )
+
+    def delete(self):
+        raise CieloTransactionNotificationImmutableError(
+            "Cielo transaction notifications cannot be deleted."
+        )
+
+
+class CieloTransactionNotification(models.Model):
+    transaction = models.ForeignKey(
+        CieloTransaction,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="notifications",
+    )
+    payment_id = models.CharField(max_length=36, db_index=True)
+    # Stored exactly as Cielo sent it, including unlisted values.
+    change_type = models.PositiveSmallIntegerField(
+        choices=CieloTransactionChangeType.choices
+    )
+    received_at = models.DateTimeField(auto_now_add=True)
+
+    objects = CieloTransactionNotificationQuerySet.as_manager()
+
+    class Meta:
+        db_table = "cielo_transaction_notifications"
+
+    def save(self, *args, **kwargs):
+        if not self._state.adding:
+            raise CieloTransactionNotificationImmutableError(
+                "Cielo transaction notifications cannot be updated."
+            )
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise CieloTransactionNotificationImmutableError(
+            "Cielo transaction notifications cannot be deleted."
+        )
+
+    def __str__(self):
+        return f"{self.payment_id} / {self.change_type} / {self.received_at}"

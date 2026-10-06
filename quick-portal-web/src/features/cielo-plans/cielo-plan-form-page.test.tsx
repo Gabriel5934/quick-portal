@@ -134,7 +134,7 @@ describe("NewCieloPlanPage", () => {
 
     await waitFor(() => expect(chip("Elo")).toHaveTextContent("Com erros"));
     expect(summary("Elo")).toHaveAttribute("aria-expanded", "false");
-    expect(chip("MasterCard")).toHaveTextContent("Incompleto");
+    expect(chip("Master")).toHaveTextContent("Incompleto");
   });
 
   it("shows a copied plan's rates as complete and keeps the chip current", async () => {
@@ -143,7 +143,7 @@ describe("NewCieloPlanPage", () => {
 
     await waitFor(() => expect(chip("Visa")).toHaveTextContent("Completo"));
     expect(chip("Elo")).toHaveTextContent("Completo");
-    expect(chip("MasterCard")).toHaveTextContent("Completo");
+    expect(chip("Master")).toHaveTextContent("Completo");
     expect(screen.queryByText("Informe o nome do plano")).not.toBeInTheDocument();
 
     await user.click(summary("Elo"));
@@ -159,8 +159,8 @@ describe("NewCieloPlanPage", () => {
     await user.click(summary("Visa"));
     expect(summary("Visa")).toHaveAttribute("aria-expanded", "true");
 
-    await user.click(summary("MasterCard"));
-    expect(summary("MasterCard")).toHaveAttribute("aria-expanded", "true");
+    await user.click(summary("Master"));
+    expect(summary("Master")).toHaveAttribute("aria-expanded", "true");
     expect(summary("Visa")).toHaveAttribute("aria-expanded", "false");
     expect(summary("Elo")).toHaveAttribute("aria-expanded", "false");
   });
@@ -172,7 +172,7 @@ describe("NewCieloPlanPage", () => {
 
     await waitFor(() => expect(chip("Visa")).toHaveTextContent("Com erros"));
     expect(chip("Elo")).toHaveTextContent("Com erros");
-    expect(chip("MasterCard")).toHaveTextContent("Com erros");
+    expect(chip("Master")).toHaveTextContent("Com erros");
     expect(summary("Visa")).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByText("Informe o nome do plano")).toBeInTheDocument();
     expect(mutateAsync).not.toHaveBeenCalled();

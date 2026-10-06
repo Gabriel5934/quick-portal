@@ -30,10 +30,16 @@ class CieloRemoteError(Exception):
     pass
 
 
+class CieloLookupError(Exception):
+    """A transaction lookup without a usable response. The message is a short
+    reason safe to store: it never contains response bodies, tokens, or headers."""
+
+
 @dataclass(frozen=True)
 class CieloConfiguration:
     auth_base_url: str
     onboarding_base_url: str
+    query_base_url: str
     merchant_id: str
     client_secret: str
 
@@ -58,7 +64,8 @@ def _valid_base_url(value: str) -> bool:
     )
 
 
-def _valid_merchant_id(value: object) -> bool:
+def is_cielo_uuid(value: object) -> bool:
+    """Return whether ``value`` is a hyphenated UUID string, as Cielo sends IDs."""
     if not isinstance(value, str) or len(value) != 36:
         return False
     try:
@@ -71,6 +78,7 @@ def get_cielo_configuration() -> CieloConfiguration:
     values = {
         "CIELO_AUTH_BASE_URL": settings.CIELO_AUTH_BASE_URL,
         "CIELO_ONBOARDING_BASE_URL": settings.CIELO_ONBOARDING_BASE_URL,
+        "CIELO_QUERY_BASE_URL": settings.CIELO_QUERY_BASE_URL,
         "CIELO_MERCHANT_ID": settings.CIELO_MERCHANT_ID,
         "CIELO_CLIENT_SECRET": settings.CIELO_CLIENT_SECRET,
     }
@@ -79,15 +87,21 @@ def get_cielo_configuration() -> CieloConfiguration:
         raise CieloQuickConfigurationError(
             f"Configuração Cielo ausente: {', '.join(missing)}."
         )
-    if not _valid_base_url(values["CIELO_AUTH_BASE_URL"]) or not _valid_base_url(
-        values["CIELO_ONBOARDING_BASE_URL"]
+    if not all(
+        _valid_base_url(values[name])
+        for name in (
+            "CIELO_AUTH_BASE_URL",
+            "CIELO_ONBOARDING_BASE_URL",
+            "CIELO_QUERY_BASE_URL",
+        )
     ):
         raise CieloQuickConfigurationError("As URLs configuradas para a Cielo são inválidas.")
-    if not _valid_merchant_id(values["CIELO_MERCHANT_ID"]):
+    if not is_cielo_uuid(values["CIELO_MERCHANT_ID"]):
         raise CieloQuickConfigurationError("CIELO_MERCHANT_ID deve ser um UUID válido.")
     return CieloConfiguration(
         auth_base_url=values["CIELO_AUTH_BASE_URL"].rstrip("/"),
         onboarding_base_url=values["CIELO_ONBOARDING_BASE_URL"].rstrip("/"),
+        query_base_url=values["CIELO_QUERY_BASE_URL"].rstrip("/"),
         merchant_id=values["CIELO_MERCHANT_ID"],
         client_secret=values["CIELO_CLIENT_SECRET"],
     )
@@ -273,7 +287,7 @@ def submit_cielo_seller(seller) -> CieloSubmissionOutcome:
 
     data = _response_json(response)
     merchant_id = data.get("MerchantId") if data else None
-    if not _valid_merchant_id(merchant_id):
+    if not is_cielo_uuid(merchant_id):
         return CieloSubmissionOutcome(
             status=CieloSubmissionStatus.INTERVENTION_REQUIRED,
             submitted_at=submitted_at,
@@ -283,3 +297,44 @@ def submit_cielo_seller(seller) -> CieloSubmissionOutcome:
         merchant_id=merchant_id,
         submitted_at=submitted_at,
     )
+
+
+def lookup_cielo_transaction(payment_id: str) -> Mapping:
+    """Return Cielo's current state of the payment ``payment_id``.
+
+    Raises ``CieloLookupError`` with a short reason for any failure before a
+    JSON object is received. The response content is validated by the caller.
+    """
+    try:
+        configuration = get_cielo_configuration()
+    except CieloQuickConfigurationError as exc:
+        raise CieloLookupError("Configuration error") from exc
+    try:
+        token = get_cielo_token(configuration)
+    except CieloQuickCredentialsError as exc:
+        raise CieloLookupError("Credentials rejected") from exc
+    except CieloRemoteError as exc:
+        raise CieloLookupError("Authentication unavailable") from exc
+
+    try:
+        # The lookup runs inside Cielo's webhook request while holding the
+        # transaction's row lock, so it must never wait indefinitely.
+        response = requests.get(
+            f"{configuration.query_base_url}/1/sales/{payment_id}",
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Accept": "application/json",
+            },
+            timeout=10,
+        )
+    except requests.Timeout as exc:
+        raise CieloLookupError("Timeout") from exc
+    except requests.RequestException as exc:
+        raise CieloLookupError("Connection error") from exc
+
+    if response.status_code != 200:
+        raise CieloLookupError(f"HTTP {response.status_code}")
+    data = _response_json(response)
+    if data is None:
+        raise CieloLookupError("Invalid JSON")
+    return data

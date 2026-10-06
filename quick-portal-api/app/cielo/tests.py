@@ -1,10 +1,12 @@
 import itertools
 import threading
 from concurrent.futures import ThreadPoolExecutor
-from datetime import timedelta
+from datetime import datetime, timedelta
+from datetime import timezone as dt_timezone
 from decimal import Decimal
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
+from uuid import uuid4
 
 import requests
 from django.contrib.auth import get_user_model
@@ -18,11 +20,15 @@ from rest_framework.test import APIClient, APITestCase
 from cielo.models import (
     CieloBusiness,
     CieloCardBrand,
-    CieloNotification,
+    CieloOnboardingNotification,
     CieloPaymentMethod,
     CieloPlan,
     CieloPlanRate,
     CieloSubmissionStatus,
+    CieloTransaction,
+    CieloTransactionLookupStatus,
+    CieloTransactionNotification,
+    CieloTransactionNotificationImmutableError,
     cielo_plan_rate_keys,
 )
 from cielo.services.cielo_api import (
@@ -442,6 +448,7 @@ class CieloRetryCooldownTests(APITestCase):
 @override_settings(
     CIELO_AUTH_BASE_URL="https://auth.cielo.test",
     CIELO_ONBOARDING_BASE_URL="https://onboarding.cielo.test",
+    CIELO_QUERY_BASE_URL="https://query.cielo.test",
     CIELO_MERCHANT_ID=VALID_MERCHANT_ID,
     CIELO_CLIENT_SECRET="secret",
 )
@@ -646,8 +653,8 @@ def onboarding_notification(onboarding=2, kyc=2, bank_account=3):
 
 
 @override_settings(CIELO_WEBHOOK_TOKEN=WEBHOOK_TOKEN, CIELO_MERCHANT_ID=VALID_MERCHANT_ID)
-class CieloNotificationEndpointTests(APITestCase):
-    url = "/cielo/notifications/"
+class CieloOnboardingNotificationEndpointTests(APITestCase):
+    url = "/cielo/onboarding/notifications/"
 
     def setUp(self):
         self.seller = create_cielo_business(
@@ -662,7 +669,7 @@ class CieloNotificationEndpointTests(APITestCase):
         return self.client.post(self.url, payload, format="json", **headers)
 
     def assert_nothing_stored(self):
-        self.assertFalse(CieloNotification.objects.exists())
+        self.assertFalse(CieloOnboardingNotification.objects.exists())
         self.seller.refresh_from_db()
         self.assertIsNone(self.seller.kyc_status)
         self.assertIsNone(self.seller.kyc_status_updated_at)
@@ -677,7 +684,7 @@ class CieloNotificationEndpointTests(APITestCase):
         response = self.notify(kyc_notification())
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json(), {})
-        self.assertEqual(CieloNotification.objects.count(), 1)
+        self.assertEqual(CieloOnboardingNotification.objects.count(), 1)
 
     def test_mismatched_master_merchant_is_forbidden(self):
         payload = kyc_notification()
@@ -702,7 +709,7 @@ class CieloNotificationEndpointTests(APITestCase):
                 response = self.notify(payload)
                 self.assertEqual(response.status_code, 200)
 
-                notification = CieloNotification.objects.latest("pk")
+                notification = CieloOnboardingNotification.objects.latest("pk")
                 self.seller.refresh_from_db()
                 self.assertEqual(notification.cielo_business, self.seller)
                 self.assertEqual(notification.merchant_id, SELLER_MERCHANT_ID)
@@ -721,7 +728,7 @@ class CieloNotificationEndpointTests(APITestCase):
         )
 
         self.assertEqual(response.status_code, 200)
-        notification = CieloNotification.objects.get()
+        notification = CieloOnboardingNotification.objects.get()
         self.seller.refresh_from_db()
         self.assertEqual(
             (
@@ -758,7 +765,7 @@ class CieloNotificationEndpointTests(APITestCase):
         response = self.notify(payload)
 
         self.assertEqual(response.status_code, 200)
-        notification = CieloNotification.objects.get()
+        notification = CieloOnboardingNotification.objects.get()
         self.assertIsNone(notification.bank_account_status)
         self.seller.refresh_from_db()
         self.assertEqual(self.seller.onboarding_status, 1)
@@ -772,7 +779,7 @@ class CieloNotificationEndpointTests(APITestCase):
         response = self.notify(kyc_notification(merchant_id=unknown_merchant_id))
 
         self.assertEqual(response.status_code, 200)
-        notification = CieloNotification.objects.get()
+        notification = CieloOnboardingNotification.objects.get()
         self.assertIsNone(notification.cielo_business)
         self.assertEqual(notification.merchant_id, unknown_merchant_id)
         self.seller.refresh_from_db()
@@ -790,7 +797,7 @@ class CieloNotificationEndpointTests(APITestCase):
 
         self.assertEqual(self.notify(payload).status_code, 200)
 
-        self.assertEqual(CieloNotification.objects.count(), 2)
+        self.assertEqual(CieloOnboardingNotification.objects.count(), 2)
         self.seller.refresh_from_db()
         self.assertEqual(
             (
@@ -803,11 +810,11 @@ class CieloNotificationEndpointTests(APITestCase):
 
     def test_invalid_seller_keeps_notification_without_applying_it(self):
         CieloBusiness.objects.filter(pk=self.seller.pk).update(kyc_status=9)
-        with self.assertLogs("cielo.services.notifications", "ERROR"):
+        with self.assertLogs("cielo.services.onboarding_notifications", "ERROR"):
             response = self.notify(bank_account_notification(status=3))
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(CieloNotification.objects.get().bank_account_status, 3)
+        self.assertEqual(CieloOnboardingNotification.objects.get().bank_account_status, 3)
         self.seller.refresh_from_db()
         self.assertIsNone(self.seller.bank_account_status)
         self.assertIsNone(self.seller.bank_account_status_updated_at)
@@ -818,13 +825,13 @@ class CieloNotificationEndpointTests(APITestCase):
             bank_account_status=2,
             bank_account_status_updated_at=previous_update,
         )
-        with self.assertLogs("cielo.services.notifications", "WARNING"):
+        with self.assertLogs("cielo.services.onboarding_notifications", "WARNING"):
             response = self.notify(
                 onboarding_notification(onboarding=1, kyc=2, bank_account=9)
             )
 
         self.assertEqual(response.status_code, 200)
-        notification = CieloNotification.objects.get()
+        notification = CieloOnboardingNotification.objects.get()
         self.assertEqual(notification.bank_account_status, 9)
         self.seller.refresh_from_db()
         self.assertEqual(self.seller.bank_account_status, 2)
@@ -1252,3 +1259,495 @@ class CieloSellerPlanTests(APITestCase):
         seller.refresh_from_db()
         self.assertEqual(seller.status, CieloSubmissionStatus.SENT)
         self.assertEqual(seller.plan, self.plan)
+
+
+PAYMENT_ID = "507821c5-7067-49ff-928f-a3eb1e256148"
+OTHER_MERCHANT_ID = "9140ca78-3955-44a5-bd44-793370afef94"
+
+
+def lookup_response(payment_id=PAYMENT_ID, merchant_id=SELLER_MERCHANT_ID, **payment):
+    """A Cielo lookup response like the documented sample, with ``payment``
+    overriding ``Payment`` keys; a ``None`` value removes the key."""
+    response = {
+        "MerchantId": merchant_id,
+        "MerchantOrderId": "2014111701",
+        "IsSplitted": False,
+        "Customer": {"Name": "Comprador", "Address": {}},
+        "Payment": {
+            "ServiceTaxAmount": 0,
+            "Installments": 3,
+            "Capture": True,
+            "CreditCard": {
+                "CardNumber": "455187******0181",
+                "Holder": "Teste Holder",
+                "ExpirationDate": "12/2030",
+                "Brand": "Visa",
+            },
+            "PaymentId": payment_id,
+            "Type": "CreditCard",
+            "Amount": 10000,
+            "ReceivedDate": "2017-12-10 18:18:18",
+            "Currency": "BRL",
+            "Country": "BRA",
+            "Provider": "Simulado",
+            "Status": 2,
+        },
+    }
+    for key, value in payment.items():
+        if value is None:
+            response["Payment"].pop(key, None)
+        else:
+            response["Payment"][key] = value
+    return response
+
+
+def http_response(status_code=200, body=None):
+    return Mock(status_code=status_code, json=Mock(return_value=body))
+
+
+@override_settings(
+    CIELO_WEBHOOK_TOKEN=WEBHOOK_TOKEN,
+    CIELO_AUTH_BASE_URL="https://auth.cielo.test",
+    CIELO_ONBOARDING_BASE_URL="https://onboarding.cielo.test",
+    CIELO_QUERY_BASE_URL="https://query.cielo.test",
+    CIELO_MERCHANT_ID=VALID_MERCHANT_ID,
+    CIELO_CLIENT_SECRET="secret",
+)
+class CieloTransactionNotificationEndpointTests(APITestCase):
+    url = "/cielo/transactions/notifications/"
+
+    def setUp(self):
+        self.seller = create_cielo_business(
+            create_business(),
+            status=CieloSubmissionStatus.SENT,
+            merchant_id=SELLER_MERCHANT_ID,
+        )
+        token_patcher = patch(
+            "cielo.services.cielo_api.get_cielo_token", return_value="query-token"
+        )
+        token_patcher.start()
+        self.addCleanup(token_patcher.stop)
+        get_patcher = patch("cielo.services.cielo_api.requests.get")
+        self.http_get = get_patcher.start()
+        self.addCleanup(get_patcher.stop)
+        self.http_get.return_value = http_response(body=lookup_response())
+
+    def notify(self, change_type=1, payment_id=PAYMENT_ID, token=WEBHOOK_TOKEN, payload=None):
+        if payload is None:
+            payload = {"PaymentId": payment_id, "ChangeType": change_type}
+        headers = {} if token is None else {"HTTP_X_CIELO_WEBHOOK_TOKEN": token}
+        return self.client.post(self.url, payload, format="json", **headers)
+
+    def assert_nothing_stored(self):
+        self.assertFalse(CieloTransactionNotification.objects.exists())
+        self.assertFalse(CieloTransaction.objects.exists())
+        self.http_get.assert_not_called()
+
+    def test_missing_or_invalid_token_is_unauthorized(self):
+        for token in (None, "", "wrong-token"):
+            with self.subTest(token=token):
+                response = self.notify(token=token)
+                self.assertEqual(response.status_code, 401)
+                self.assert_nothing_stored()
+
+    @override_settings(CIELO_WEBHOOK_TOKEN="")
+    def test_missing_webhook_token_configuration_is_a_server_error(self):
+        with self.assertLogs("cielo.views", "ERROR"):
+            response = self.notify()
+
+        self.assertEqual(response.status_code, 500)
+        self.assert_nothing_stored()
+
+    def test_malformed_payload_is_rejected(self):
+        payloads = (
+            [PAYMENT_ID, 1],
+            {"ChangeType": 1},
+            {"PaymentId": "not-a-uuid", "ChangeType": 1},
+            {"PaymentId": 123, "ChangeType": 1},
+            {"PaymentId": PAYMENT_ID},
+            {"PaymentId": PAYMENT_ID, "ChangeType": -1},
+            {"PaymentId": PAYMENT_ID, "ChangeType": "1"},
+            {"PaymentId": PAYMENT_ID, "ChangeType": True},
+        )
+        for payload in payloads:
+            with self.subTest(payload=payload):
+                with self.assertLogs("cielo.views", "WARNING"):
+                    response = self.notify(payload=payload)
+                self.assertEqual(response.status_code, 400)
+                self.assert_nothing_stored()
+
+    def test_payment_status_change_creates_looked_up_transaction(self):
+        response = self.notify(payload={
+            "PaymentId": PAYMENT_ID,
+            "ChangeType": 1,
+            "RecurrentPaymentId": "ignored",
+        })
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {})
+        self.http_get.assert_called_once_with(
+            f"https://query.cielo.test/1/sales/{PAYMENT_ID}",
+            headers={
+                "Authorization": "Bearer query-token",
+                "Accept": "application/json",
+            },
+            timeout=10,
+        )
+        transaction = CieloTransaction.objects.get()
+        notification = CieloTransactionNotification.objects.get()
+        self.assertEqual(notification.transaction, transaction)
+        self.assertEqual(notification.payment_id, PAYMENT_ID)
+        self.assertEqual(notification.change_type, 1)
+        self.assertEqual(transaction.payment_id, PAYMENT_ID)
+        self.assertEqual(transaction.merchant_id, SELLER_MERCHANT_ID)
+        self.assertEqual(transaction.cielo_business, self.seller)
+        self.assertEqual(transaction.installments, 3)
+        self.assertEqual(transaction.amount, 10000)
+        # 18:18:18 in São Paulo (UTC-2 in December 2017, daylight saving time).
+        self.assertEqual(
+            transaction.received_date,
+            datetime(2017, 12, 10, 20, 18, 18, tzinfo=dt_timezone.utc),
+        )
+        self.assertEqual(transaction.payment_type, "CreditCard")
+        self.assertEqual(transaction.brand, "Visa")
+        self.assertEqual(transaction.provider, "Simulado")
+        self.assertEqual(transaction.status, 2)
+        self.assertEqual(transaction.lookup_status, CieloTransactionLookupStatus.SUCCESS)
+        self.assertIsNotNone(transaction.last_lookup_at)
+        self.assertEqual(transaction.lookup_error, "")
+
+    def test_existing_payment_is_updated_with_a_second_notification(self):
+        self.notify()
+        transaction = CieloTransaction.objects.get()
+        self.http_get.return_value = http_response(
+            body=lookup_response(Status=10)
+        )
+
+        # A case variant of the same PaymentId updates the same transaction.
+        response = self.notify(payment_id=PAYMENT_ID.upper())
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(CieloTransaction.objects.get().pk, transaction.pk)
+        transaction.refresh_from_db()
+        self.assertEqual(transaction.status, 10)
+        self.assertEqual(
+            list(transaction.notifications.values_list("change_type", "payment_id")),
+            [(1, PAYMENT_ID), (1, PAYMENT_ID)],
+        )
+
+    def test_partial_cancellation_triggers_a_lookup(self):
+        response = self.notify(change_type=25)
+
+        self.assertEqual(response.status_code, 200)
+        self.http_get.assert_called_once()
+        transaction = CieloTransaction.objects.get()
+        self.assertEqual(transaction.lookup_status, CieloTransactionLookupStatus.SUCCESS)
+        self.assertEqual(transaction.status, 2)
+        self.assertEqual(
+            CieloTransactionNotification.objects.get().transaction, transaction
+        )
+
+    def test_failed_lookup_for_new_payment_stores_only_the_failure(self):
+        cases = (
+            ("HTTP 404", {"return_value": http_response(404, [{"Code": "NotFound"}])}),
+            ("Timeout", {"side_effect": requests.ReadTimeout()}),
+        )
+        for reason, behavior in cases:
+            with self.subTest(reason=reason):
+                self.http_get.reset_mock(return_value=True, side_effect=True)
+                self.http_get.configure_mock(**behavior)
+                payment_id = str(uuid4())
+
+                with self.assertLogs(
+                    "cielo.services.transaction_notifications", "WARNING"
+                ):
+                    response = self.notify(payment_id=payment_id)
+
+                self.assertEqual(response.status_code, 200)
+                transaction = CieloTransaction.objects.get(payment_id=payment_id)
+                self.assertEqual(
+                    transaction.lookup_status, CieloTransactionLookupStatus.FAILED
+                )
+                self.assertEqual(transaction.lookup_error, reason)
+                self.assertIsNotNone(transaction.last_lookup_at)
+                for field in (
+                    "merchant_id",
+                    "cielo_business",
+                    "installments",
+                    "amount",
+                    "received_date",
+                    "payment_type",
+                    "brand",
+                    "provider",
+                    "status",
+                    "raw_response",
+                ):
+                    self.assertIsNone(getattr(transaction, field), field)
+                self.assertTrue(
+                    CieloTransactionNotification.objects.filter(
+                        payment_id=payment_id, transaction=transaction
+                    ).exists()
+                )
+
+    def test_failed_lookup_keeps_previous_values(self):
+        self.notify()
+        before = CieloTransaction.objects.values().get()
+        self.http_get.return_value = http_response(500)
+
+        with self.assertLogs("cielo.services.transaction_notifications", "WARNING"):
+            response = self.notify()
+
+        self.assertEqual(response.status_code, 200)
+        after = CieloTransaction.objects.values().get()
+        changed = {field for field in before if before[field] != after[field]}
+        self.assertEqual(
+            changed, {"lookup_status", "last_lookup_at", "lookup_error", "updated_at"}
+        )
+        self.assertEqual(after["lookup_status"], CieloTransactionLookupStatus.FAILED)
+        self.assertEqual(after["lookup_error"], "HTTP 500")
+
+    def test_successful_lookup_after_failure_clears_the_error(self):
+        self.http_get.return_value = http_response(503)
+        with self.assertLogs("cielo.services.transaction_notifications", "WARNING"):
+            self.notify()
+        self.http_get.return_value = http_response(body=lookup_response())
+
+        self.notify()
+
+        transaction = CieloTransaction.objects.get()
+        self.assertEqual(transaction.lookup_status, CieloTransactionLookupStatus.SUCCESS)
+        self.assertEqual(transaction.lookup_error, "")
+        self.assertEqual(transaction.amount, 10000)
+
+    def test_other_change_type_is_stored_without_lookup(self):
+        response = self.notify(change_type=7)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNone(CieloTransactionNotification.objects.get().transaction)
+        self.assertFalse(CieloTransaction.objects.exists())
+
+        self.notify()
+        transaction = CieloTransaction.objects.get()
+        self.http_get.reset_mock()
+
+        response = self.notify(change_type=99)
+
+        self.assertEqual(response.status_code, 200)
+        self.http_get.assert_not_called()
+        notification = CieloTransactionNotification.objects.latest("pk")
+        self.assertEqual(notification.change_type, 99)
+        self.assertEqual(notification.transaction, transaction)
+
+    def test_splitted_credit_card_keeps_type_and_brand(self):
+        self.http_get.return_value = http_response(
+            body=lookup_response(Type="SplittedCreditCard")
+        )
+
+        self.notify()
+
+        transaction = CieloTransaction.objects.get()
+        self.assertEqual(transaction.payment_type, "SplittedCreditCard")
+        self.assertEqual(transaction.brand, "Visa")
+        self.assertEqual(transaction.get_payment_type_display(), "Crédito")
+
+    def test_raw_response_is_sanitized(self):
+        response = lookup_response(
+            DebitCard={"CardNumber": "455187******0182", "Brand": "Elo"},
+            SplitPayments=[{"SubordinateMerchantId": OTHER_MERCHANT_ID}],
+        )
+        self.http_get.return_value = http_response(body=response)
+
+        self.notify()
+
+        raw_response = CieloTransaction.objects.get().raw_response
+        self.assertNotIn("Customer", raw_response)
+        self.assertNotIn("CreditCard", raw_response["Payment"])
+        self.assertNotIn("DebitCard", raw_response["Payment"])
+        self.assertEqual(raw_response["Payment"]["Brand"], "Visa")
+        self.assertEqual(
+            raw_response["Payment"]["SplitPayments"],
+            [{"SubordinateMerchantId": OTHER_MERCHANT_ID}],
+        )
+        self.assertEqual(raw_response["MerchantOrderId"], "2014111701")
+
+    def test_pix_and_boleto_have_no_brand_and_default_installments(self):
+        for payment_type in ("Pix", "Boleto"):
+            with self.subTest(payment_type=payment_type):
+                payment_id = str(uuid4())
+                self.http_get.return_value = http_response(
+                    body=lookup_response(
+                        payment_id,
+                        Type=payment_type,
+                        CreditCard=None,
+                        Installments=None,
+                    )
+                )
+
+                self.notify(payment_id=payment_id)
+
+                transaction = CieloTransaction.objects.get(payment_id=payment_id)
+                self.assertEqual(transaction.payment_type, payment_type)
+                self.assertIsNone(transaction.brand)
+                self.assertEqual(transaction.installments, 1)
+                self.assertNotIn("Brand", transaction.raw_response["Payment"])
+
+    def test_unknown_merchant_is_stored_without_seller(self):
+        self.http_get.return_value = http_response(
+            body=lookup_response(merchant_id=OTHER_MERCHANT_ID)
+        )
+
+        with self.assertLogs("cielo.services.transaction_notifications", "WARNING"):
+            response = self.notify()
+
+        self.assertEqual(response.status_code, 200)
+        transaction = CieloTransaction.objects.get()
+        self.assertIsNone(transaction.cielo_business)
+        self.assertEqual(transaction.merchant_id, OTHER_MERCHANT_ID)
+        self.assertEqual(transaction.lookup_status, CieloTransactionLookupStatus.SUCCESS)
+
+    def test_unlisted_status_and_type_are_stored_unchanged(self):
+        self.http_get.return_value = http_response(
+            body=lookup_response(Status=99, Type="Voucher", CreditCard=None)
+        )
+
+        self.notify()
+
+        transaction = CieloTransaction.objects.get()
+        self.assertEqual(transaction.status, 99)
+        self.assertEqual(transaction.payment_type, "Voucher")
+
+    def test_notifications_cannot_be_updated_or_deleted(self):
+        self.notify()
+        notification = CieloTransactionNotification.objects.get()
+
+        notification.change_type = 25
+        with self.assertRaises(CieloTransactionNotificationImmutableError):
+            notification.save()
+        with self.assertRaises(CieloTransactionNotificationImmutableError):
+            notification.delete()
+        with self.assertRaises(CieloTransactionNotificationImmutableError):
+            CieloTransactionNotification.objects.update(change_type=25)
+        with self.assertRaises(CieloTransactionNotificationImmutableError):
+            CieloTransactionNotification.objects.all().delete()
+        self.assertEqual(CieloTransactionNotification.objects.get().change_type, 1)
+
+
+class CieloTransactionListEndpointTests(APITestCase):
+    def setUp(self):
+        self.user = create_user()
+        self.reseller = create_reseller(name="Revenda")
+        self.store = create_reseller(BusinessType.STORE, parent=self.reseller)
+        BusinessMembership.objects.create(
+            user=self.user, business=self.reseller, role=BusinessRole.VIEWER
+        )
+        self.client.force_authenticate(self.user)
+        self.seller = create_cielo_business(
+            self.reseller, merchant_id=SELLER_MERCHANT_ID
+        )
+        self.child_seller = create_cielo_business(
+            self.store, merchant_id=OTHER_MERCHANT_ID
+        )
+
+    def create_transaction(self, seller, received_date, **changes):
+        values = {
+            "payment_id": str(uuid4()),
+            "merchant_id": seller.merchant_id if seller else None,
+            "cielo_business": seller,
+            "installments": 1,
+            "amount": 10000,
+            "received_date": received_date,
+            "payment_type": "CreditCard",
+            "brand": "Visa",
+            "provider": "Simulado",
+            "status": 2,
+            "lookup_status": CieloTransactionLookupStatus.SUCCESS,
+            "last_lookup_at": timezone.now(),
+        }
+        values.update(changes)
+        return CieloTransaction.objects.create(**values)
+
+    def list(self, business):
+        return self.client.get(f"/cielo/transactions/?business={business.pk}")
+
+    def test_lists_only_the_selected_business_transactions_newest_first(self):
+        now = timezone.now()
+        older = self.create_transaction(self.seller, now - timedelta(days=2))
+        newer = self.create_transaction(self.seller, now)
+        same_date = self.create_transaction(self.seller, now - timedelta(days=2))
+        self.create_transaction(self.child_seller, now)
+        # A transaction whose only lookup failed has no seller.
+        CieloTransaction.objects.create(
+            payment_id=str(uuid4()),
+            lookup_status=CieloTransactionLookupStatus.FAILED,
+            last_lookup_at=now,
+            lookup_error="HTTP 404",
+        )
+
+        response = self.list(self.reseller)
+
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertEqual(body["count"], 3)
+        self.assertEqual(
+            [item["id"] for item in body["results"]],
+            [newer.pk, same_date.pk, older.pk],
+        )
+        self.assertEqual(
+            body["results"][0],
+            {
+                "id": newer.pk,
+                "payment_id": newer.payment_id,
+                "received_date": newer.received_date.isoformat().replace("+00:00", "Z"),
+                "amount": 10000,
+                "installments": 1,
+                "payment_type": {"value": "CreditCard", "label": "Crédito"},
+                "brand": "Visa",
+                "provider": "Simulado",
+                "status": {"value": 2, "label": "Pago"},
+            },
+        )
+
+    def test_transaction_whose_latest_lookup_failed_is_still_listed(self):
+        transaction = self.create_transaction(
+            self.seller,
+            timezone.now(),
+            lookup_status=CieloTransactionLookupStatus.FAILED,
+            lookup_error="Timeout",
+        )
+
+        response = self.list(self.reseller)
+
+        self.assertEqual(
+            [item["id"] for item in response.json()["results"]], [transaction.pk]
+        )
+
+    def test_business_scope_is_required_and_checked(self):
+        outsider = create_reseller(name="Outra revenda")
+
+        self.assertEqual(self.list(outsider).status_code, 404)
+        response = self.client.get("/cielo/transactions/")
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("business", response.json())
+
+    def test_business_without_seller_returns_an_empty_page(self):
+        business = create_reseller(BusinessType.STORE, parent=self.reseller)
+        self.create_transaction(self.seller, timezone.now())
+
+        response = self.list(business)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["count"], 0)
+        self.assertEqual(response.json()["results"], [])
+
+    def test_unlisted_values_use_unknown_labels(self):
+        self.create_transaction(
+            self.seller, timezone.now(), status=99, payment_type="Voucher"
+        )
+
+        result = self.list(self.reseller).json()["results"][0]
+
+        self.assertEqual(result["status"], {"value": 99, "label": "Desconhecido (99)"})
+        self.assertEqual(
+            result["payment_type"],
+            {"value": "Voucher", "label": "Desconhecido (Voucher)"},
+        )

@@ -11,7 +11,8 @@ from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.exceptions import ValidationError
-from rest_framework.generics import ListCreateAPIView, RetrieveAPIView
+from rest_framework.generics import ListAPIView, ListCreateAPIView, RetrieveAPIView
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.parsers import JSONParser
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
@@ -25,6 +26,7 @@ from cielo.models import (
     CieloDocumentType,
     CieloPlan,
     CieloSubmissionStatus,
+    CieloTransaction,
 )
 from cielo.serializers import (
     DUPLICATE_PLAN_NAME_MESSAGE,
@@ -32,6 +34,7 @@ from cielo.serializers import (
     CieloBusinessSummarySerializer,
     CieloPlanSerializer,
     CieloPlanSummarySerializer,
+    CieloTransactionSerializer,
 )
 from cielo.services.cielo_api import (
     CieloQuickConfigurationError,
@@ -39,10 +42,15 @@ from cielo.services.cielo_api import (
     CieloQuickPreTransmissionError,
     submit_cielo_seller,
 )
-from cielo.services.notifications import (
-    CieloNotificationPayloadError,
-    parse_cielo_notification,
-    record_cielo_notification,
+from cielo.services.onboarding_notifications import (
+    CieloOnboardingNotificationPayloadError,
+    parse_cielo_onboarding_notification,
+    record_cielo_onboarding_notification,
+)
+from cielo.services.transaction_notifications import (
+    CieloTransactionNotificationPayloadError,
+    parse_cielo_transaction_notification,
+    record_cielo_transaction_notification,
 )
 from quickportal.models import Business, BusinessType
 from quickportal.services.brasil_api import BrasilApiError
@@ -369,43 +377,48 @@ class CieloBusinessRetryView(APIView):
         return Response(CieloBusinessSummarySerializer(seller).data)
 
 
-class CieloNotificationView(APIView):
+def _check_cielo_webhook(request, required_settings=()):
+    """Return an error response unless the request carries the configured
+    ``X-Cielo-Webhook-Token``. ``required_settings`` names further settings that
+    must be configured before the notification is processed."""
+    expected_token = settings.CIELO_WEBHOOK_TOKEN
+    names = ("CIELO_WEBHOOK_TOKEN", *required_settings)
+    if any(
+        not isinstance(value, str) or not value.strip()
+        for value in (getattr(settings, name) for name in names)
+    ):
+        logger.error(
+            "Cielo notification rejected: %s is not configured.", " or ".join(names)
+        )
+        return Response(
+            {"detail": "Cielo notifications are not configured."},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
+
+    received_token = request.headers.get(CIELO_WEBHOOK_TOKEN_HEADER, "")
+    if not hmac.compare_digest(received_token.encode(), expected_token.encode()):
+        logger.warning("Cielo notification rejected: missing or invalid token.")
+        return Response(
+            {"detail": "Invalid notification token."},
+            status=status.HTTP_401_UNAUTHORIZED,
+        )
+    return None
+
+
+class CieloOnboardingNotificationView(APIView):
     authentication_classes = []
     permission_classes = [AllowAny]
     parser_classes = [JSONParser]
 
     def post(self, request):
-        expected_token = settings.CIELO_WEBHOOK_TOKEN
-        master_merchant_id = settings.CIELO_MERCHANT_ID
-        if (
-            not isinstance(expected_token, str)
-            or not expected_token.strip()
-            or not isinstance(master_merchant_id, str)
-            or not master_merchant_id.strip()
-        ):
-            logger.error(
-                "Cielo notification rejected: CIELO_WEBHOOK_TOKEN or "
-                "CIELO_MERCHANT_ID is not configured."
-            )
-            return Response(
-                {"detail": "Cielo notifications are not configured."},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
-
-        received_token = request.headers.get(CIELO_WEBHOOK_TOKEN_HEADER, "")
-        if not hmac.compare_digest(
-            received_token.encode(), expected_token.encode()
-        ):
-            logger.warning("Cielo notification rejected: missing or invalid token.")
-            return Response(
-                {"detail": "Invalid notification token."},
-                status=status.HTTP_401_UNAUTHORIZED,
-            )
+        error_response = _check_cielo_webhook(request, ("CIELO_MERCHANT_ID",))
+        if error_response is not None:
+            return error_response
 
         payload = request.data
         if (
             isinstance(payload, dict)
-            and payload.get("MasterMerchantId") != master_merchant_id
+            and payload.get("MasterMerchantId") != settings.CIELO_MERCHANT_ID
         ):
             logger.warning("Cielo notification rejected: MasterMerchantId mismatch.")
             return Response(
@@ -414,13 +427,56 @@ class CieloNotificationView(APIView):
             )
 
         try:
-            parsed = parse_cielo_notification(payload)
-        except CieloNotificationPayloadError as exc:
+            parsed = parse_cielo_onboarding_notification(payload)
+        except CieloOnboardingNotificationPayloadError as exc:
             logger.warning("Cielo notification rejected: %s", exc)
             return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
-        record_cielo_notification(parsed)
+        record_cielo_onboarding_notification(parsed)
         return Response({})
+
+
+class CieloTransactionNotificationView(APIView):
+    authentication_classes = []
+    permission_classes = [AllowAny]
+    parser_classes = [JSONParser]
+
+    def post(self, request):
+        error_response = _check_cielo_webhook(request)
+        if error_response is not None:
+            return error_response
+
+        try:
+            parsed = parse_cielo_transaction_notification(request.data)
+        except CieloTransactionNotificationPayloadError as exc:
+            logger.warning("Cielo transaction notification rejected: %s", exc)
+            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Answered with 200 even when the lookup fails: a resent notification
+        # would fail the same way.
+        record_cielo_transaction_notification(parsed)
+        return Response({})
+
+
+class CieloTransactionPagination(PageNumberPagination):
+    page_size = 20
+    page_size_query_param = "page_size"
+    max_page_size = 100
+
+
+class CieloTransactionListView(ListAPIView):
+    """Transactions of the selected business's own Cielo seller, without child
+    businesses. Only a successful lookup links a transaction to a seller."""
+
+    permission_classes = [IsAuthenticated]
+    serializer_class = CieloTransactionSerializer
+    pagination_class = CieloTransactionPagination
+
+    def get_queryset(self):
+        business = _scope_business(self.request)
+        return CieloTransaction.objects.filter(
+            cielo_business__business=business
+        ).order_by("-received_date", "-id")
 
 
 class CieloChoicesView(APIView):

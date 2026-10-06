@@ -7,11 +7,13 @@ from cielo.views import (
     CieloBusinessRetryView,
     CieloBusinessView,
     CieloDocumentTypeChoicesView,
-    CieloNotificationView,
+    CieloOnboardingNotificationView,
     CieloPlanArchiveView,
     CieloPlanDetailView,
     CieloPlanListCreateView,
     CieloPlanUnarchiveView,
+    CieloTransactionListView,
+    CieloTransactionNotificationView,
 )
 
 
@@ -35,9 +37,19 @@ urlpatterns = [
         name="cielo_plan_unarchive",
     ),
     path(
-        "notifications/",
-        CieloNotificationView.as_view(),
-        name="cielo_notifications",
+        "onboarding/notifications/",
+        CieloOnboardingNotificationView.as_view(),
+        name="cielo_onboarding_notifications",
+    ),
+    path(
+        "transactions/notifications/",
+        CieloTransactionNotificationView.as_view(),
+        name="cielo_transaction_notifications",
+    ),
+    path(
+        "transactions/",
+        CieloTransactionListView.as_view(),
+        name="cielo_transactions",
     ),
     path(
         "options/document-types/",

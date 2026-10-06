@@ -1,6 +1,13 @@
 from django.contrib import admin
 
-from cielo.models import CieloBusiness, CieloNotification, CieloPlan, CieloPlanRate
+from cielo.models import (
+    CieloBusiness,
+    CieloOnboardingNotification,
+    CieloPlan,
+    CieloPlanRate,
+    CieloTransaction,
+    CieloTransactionNotification,
+)
 
 
 class CieloPlanRateInline(admin.TabularInline):
@@ -59,8 +66,8 @@ class CieloBusinessAdmin(admin.ModelAdmin):
         return (*readonly_fields, "plan") if obj else readonly_fields
 
 
-@admin.register(CieloNotification)
-class CieloNotificationAdmin(admin.ModelAdmin):
+@admin.register(CieloOnboardingNotification)
+class CieloOnboardingNotificationAdmin(admin.ModelAdmin):
     list_display = (
         "id",
         "received_at",
@@ -82,3 +89,41 @@ class CieloNotificationAdmin(admin.ModelAdmin):
 
     def has_delete_permission(self, request, obj=None):
         return False
+
+
+class ReadOnlyAdmin(admin.ModelAdmin):
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(CieloTransaction)
+class CieloTransactionAdmin(ReadOnlyAdmin):
+    """Read-only: transactions are only written by notification lookups."""
+
+    list_display = (
+        "id",
+        "payment_id",
+        "cielo_business",
+        "received_date",
+        "amount",
+        "payment_type",
+        "brand",
+        "status",
+        "lookup_status",
+        "last_lookup_at",
+    )
+    search_fields = ("payment_id", "merchant_id")
+    list_filter = ("lookup_status",)
+
+
+@admin.register(CieloTransactionNotification)
+class CieloTransactionNotificationAdmin(ReadOnlyAdmin):
+    list_display = ("id", "received_at", "change_type", "payment_id", "transaction")
+    search_fields = ("payment_id",)
+    list_filter = ("change_type",)

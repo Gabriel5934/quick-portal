@@ -26,7 +26,7 @@ export const cieloPlanFormSchema = z.object({
   rates: z.object({
     Visa: brandRatesSchema,
     Elo: brandRatesSchema,
-    MasterCard: brandRatesSchema,
+    Master: brandRatesSchema,
   }),
 });
 

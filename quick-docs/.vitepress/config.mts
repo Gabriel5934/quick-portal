@@ -19,6 +19,7 @@ export default defineConfig({
           { text: "Seller Onboarding", link: "/cielo/seller-onboarding" },
           { text: "Onboarding Status", link: "/cielo/onboarding-status" },
           { text: "Plans", link: "/cielo/plans" },
+          { text: "Transactions", link: "/cielo/transactions" },
         ],
       },
       {
