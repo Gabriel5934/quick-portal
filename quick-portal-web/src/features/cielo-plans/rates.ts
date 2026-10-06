@@ -9,7 +9,7 @@ import type {
 export const CIELO_CARD_BRANDS = [
   "Visa",
   "Elo",
-  "MasterCard",
+  "Master",
 ] as const satisfies readonly CieloCardBrand[];
 
 export interface CieloRateRow {
@@ -64,7 +64,7 @@ export function formatFixedFee(value: string): string {
 
 export function emptyRates(): CieloPlanFormValues["rates"] {
   const rows = () => CIELO_RATE_ROWS.map(() => ({ mdr: "", fixed_fee: "" }));
-  return { Visa: rows(), Elo: rows(), MasterCard: rows() };
+  return { Visa: rows(), Elo: rows(), Master: rows() };
 }
 
 /** Form values copied from `plan`; the name starts empty because it must be new. */

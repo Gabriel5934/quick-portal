@@ -1,146 +1,146 @@
-import { useMemo } from "react";
-import Box from "@mui/material/Box";
-import Grid from "@mui/material/Grid";
-import Paper from "@mui/material/Paper";
-import Typography from "@mui/material/Typography";
-import { useTheme } from "@mui/material/styles";
+import { useState } from "react";
 import {
-  Area,
-  AreaChart,
-  CartesianGrid,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
+  Box,
+  CircularProgress,
+  Paper,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TablePagination,
+  TableRow,
+  Typography,
+} from "@mui/material";
+import type { Business } from "#hooks/quickApi/useBusinesses";
+import { useCieloTransactions } from "#hooks/quickApi/useCieloTransactions";
 import { useBusinessScope } from "../../layout/business-context";
-import { generateSalesDashboard } from "./sales-data";
+
+const COLUMNS = ["Data", "Valor", "Bandeira", "Tipo", "Adquirente", "Status"];
 
 const currencyFormatter = new Intl.NumberFormat("pt-BR", {
   style: "currency",
   currency: "BRL",
-  maximumFractionDigits: 2,
 });
 
-const compactCurrencyFormatter = new Intl.NumberFormat("pt-BR", {
-  style: "currency",
-  currency: "BRL",
-  notation: "compact",
-  maximumFractionDigits: 1,
-});
-
-interface MetricCardProps {
-  label: string;
-  value: number;
+function formatDate(value: string): string {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString("pt-BR");
 }
 
-function MetricCard({ label, value }: MetricCardProps) {
-  return (
-    <Paper variant="outlined" sx={{ height: "100%", p: 2.5 }}>
-      <Typography variant="body2" color="text.secondary" gutterBottom>
-        {label}
-      </Typography>
-      <Typography variant="h5" sx={{ fontWeight: 700 }}>
-        {currencyFormatter.format(value)}
-      </Typography>
-    </Paper>
-  );
+function formatCents(amount: number): string {
+  return currencyFormatter.format(amount / 100);
+}
+
+function displayValue(value: string | null): string {
+  return value == null || value.trim() === "" ? "—" : value;
 }
 
 export function Sales() {
-  const theme = useTheme();
   const { business } = useBusinessScope();
-  const businessName = business?.name ?? "Perfil sem nome";
-  const dashboard = useMemo(
-    () => generateSalesDashboard(businessName),
-    [businessName],
-  );
-  const currentYear = new Date().getFullYear();
+  // Remounting on a business change returns the table to its first page.
+  return <SalesTable key={business?.id} business={business} />;
+}
+
+function SalesTable({ business }: { business: Business | null }) {
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(20);
+  const { data, isLoading, error } = useCieloTransactions(business?.id, {
+    page: page + 1,
+    pageSize: rowsPerPage,
+  });
 
   return (
-    <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
-      <Typography component="h1" variant="h5" sx={{ fontWeight: "bold" }}>
-        Vendas
-      </Typography>
-
-      <Grid container spacing={2}>
-        <Grid size={{ xs: 12, sm: 6, lg: 3 }}>
-          <MetricCard
-            label="Total em vendas no mês vigente"
-            value={dashboard.currentMonthSales}
-          />
-        </Grid>
-        <Grid size={{ xs: 12, sm: 6, lg: 3 }}>
-          <MetricCard
-            label="Comissão total do dia"
-            value={dashboard.todayCommission}
-          />
-        </Grid>
-        <Grid size={{ xs: 12, sm: 6, lg: 3 }}>
-          <MetricCard
-            label="Valor a receber do dia"
-            value={dashboard.todayReceivable}
-          />
-        </Grid>
-        <Grid size={{ xs: 12, sm: 6, lg: 3 }}>
-          <MetricCard
-            label="Total em vendas do dia"
-            value={dashboard.todaySales}
-          />
-        </Grid>
-      </Grid>
-
-      <Paper variant="outlined" sx={{ p: 3 }}>
-        <Typography variant="h6" sx={{ mb: 3, fontWeight: 600 }}>
-          Vendas em {currentYear}
+    <Box sx={{ minWidth: 0 }}>
+      <Box sx={{ mb: 4 }}>
+        <Typography variant="h5" sx={{ fontWeight: "bold" }}>
+          Vendas
         </Typography>
-        <Box sx={{ width: "100%", height: 360 }}>
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart
-              data={dashboard.yearlySales}
-              margin={{ top: 8, right: 16, left: 16, bottom: 0 }}
-            >
-              <defs>
-                <linearGradient id="salesColor" x1="0" y1="0" x2="0" y2="1">
-                  <stop
-                    offset="5%"
-                    stopColor={theme.palette.primary.main}
-                    stopOpacity={0.35}
-                  />
-                  <stop
-                    offset="95%"
-                    stopColor={theme.palette.primary.main}
-                    stopOpacity={0.03}
-                  />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} />
-              <XAxis dataKey="month" tickLine={false} axisLine={false} />
-              <YAxis
-                tickFormatter={(value: number) =>
-                  compactCurrencyFormatter.format(value)
-                }
-                tickLine={false}
-                axisLine={false}
-                width={88}
-              />
-              <Tooltip
-                formatter={(value) => [
-                  currencyFormatter.format(Number(value)),
-                  "Vendas",
-                ]}
-              />
-              <Area
-                type="monotone"
-                dataKey="sales"
-                name="Vendas"
-                stroke={theme.palette.primary.main}
-                strokeWidth={3}
-                fill="url(#salesColor)"
-              />
-            </AreaChart>
-          </ResponsiveContainer>
-        </Box>
+        <Typography variant="body2" color="text.secondary">
+          Transações Cielo de {business?.name ?? "—"}
+        </Typography>
+      </Box>
+
+      <Paper variant="outlined">
+        {error ? (
+          <Box sx={{ display: "flex", justifyContent: "center", py: 6 }}>
+            <Typography color="error">
+              {error instanceof Error
+                ? error.message
+                : "Erro ao carregar as vendas."}
+            </Typography>
+          </Box>
+        ) : isLoading ? (
+          <Box sx={{ display: "flex", justifyContent: "center", py: 6 }}>
+            <CircularProgress aria-label="Carregando vendas" />
+          </Box>
+        ) : (
+          <TableContainer sx={{ overflowX: "auto" }}>
+            <Table size="small" aria-label="Vendas" sx={{ minWidth: 720 }}>
+              <TableHead>
+                <TableRow>
+                  {COLUMNS.map((column) => (
+                    <TableCell
+                      key={column}
+                      align={column === "Valor" ? "right" : "left"}
+                    >
+                      {column}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {data?.results.length ? (
+                  data.results.map((transaction) => (
+                    <TableRow key={transaction.id} hover>
+                      <TableCell sx={{ whiteSpace: "nowrap" }}>
+                        {formatDate(transaction.received_date)}
+                      </TableCell>
+                      <TableCell align="right" sx={{ whiteSpace: "nowrap" }}>
+                        {formatCents(transaction.amount)}
+                      </TableCell>
+                      <TableCell>{displayValue(transaction.brand)}</TableCell>
+                      <TableCell>{transaction.payment_type.label}</TableCell>
+                      <TableCell>{displayValue(transaction.provider)}</TableCell>
+                      <TableCell>{transaction.status.label}</TableCell>
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow>
+                    <TableCell
+                      colSpan={COLUMNS.length}
+                      align="center"
+                      sx={{ py: 6 }}
+                    >
+                      <Typography color="text.secondary">
+                        Nenhuma venda encontrada
+                      </Typography>
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        )}
+        <TablePagination
+          component="div"
+          count={data?.count ?? 0}
+          page={page}
+          onPageChange={(_, newPage) => setPage(newPage)}
+          rowsPerPage={rowsPerPage}
+          onRowsPerPageChange={(event) => {
+            setRowsPerPage(parseInt(event.target.value, 10));
+            setPage(0);
+          }}
+          rowsPerPageOptions={[10, 20, 50, 100]}
+          labelRowsPerPage="Linhas por página"
+          labelDisplayedRows={({ from, to, count }) =>
+            `${from}–${to} de ${count.toLocaleString("pt-BR")}`
+          }
+          getItemAriaLabel={(type) =>
+            type === "next" ? "Próxima página" : "Página anterior"
+          }
+        />
       </Paper>
     </Box>
   );
