@@ -30,7 +30,7 @@ with each notification request.
 
 ## Quick Portal endpoint
 
-Quick Portal receives notifications at `POST /cielo/notifications/`.
+Quick Portal receives notifications at `POST /cielo/onboarding/notifications/`.
 Registering this URL with Cielo is done outside Quick Portal.
 
 Because Cielo retries any response other than `200`, the endpoint returns an
@@ -129,7 +129,7 @@ In an onboarding notification, an omitted or `null` status is not an error; see
 #### 200 OK
 
 Returned when the notification passes every check. It is stored as a
-`CieloNotification` record, including when:
+`CieloOnboardingNotification` record, including when:
 
 - No seller matches the merchant ID. This includes a bank-account notification
   for the master merchant itself.
@@ -156,9 +156,10 @@ It returns `415 Unsupported Media Type` for a body that is not
 
 ### Processing
 
-Every accepted notification is stored as an immutable `CieloNotification`
-record. Quick Portal then looks up the seller by `merchant_id` and updates its
-statuses, using the notification's reception time as the update timestamp:
+Every accepted notification is stored as an immutable
+`CieloOnboardingNotification` record (table `cielo_onboarding_notifications`).
+Quick Portal then looks up the seller by `merchant_id` and updates its statuses,
+using the notification's reception time as the update timestamp:
 
 | Change Type | Seller fields updated                                                                 |
 | ----------- | ------------------------------------------------------------------------------------- |
@@ -203,9 +204,9 @@ would instead erase a status Quick Portal already received.
 ### Unlisted status values
 
 A status that is a valid integer but not one of the documented values is
-accepted and stored as-is on the `CieloNotification` record. It is not copied
-to the seller: that seller field and its `*_updated_at` timestamp keep their
-previous values, and a warning is logged. Other statuses in the same
+accepted and stored as-is on the `CieloOnboardingNotification` record. It is
+not copied to the seller: that seller field and its `*_updated_at` timestamp
+keep their previous values, and a warning is logged. Other statuses in the same
 notification are still applied.
 
 **Why:** The seller's status fields only accept documented values. Saving an
@@ -234,8 +235,8 @@ delivers it after a later notification for the same seller. This is unlikely:
   gives up after two more attempts.
 
 If a seller shows an unexpected status, compare it with the seller's
-`CieloNotification` history in the Django admin: every notification is stored
-immutably in the order it was received.
+`CieloOnboardingNotification` history in the Django admin: every notification
+is stored immutably in the order it was received.
 :::
 
 ### Stored fields
