@@ -60,7 +60,7 @@ def _valid_base_url(value: str) -> bool:
     return (
         settings.DEBUG
         and parsed.scheme == "http"
-        and parsed.hostname in {"localhost", "127.0.0.1", "::1", "mock-cielo"}
+        and parsed.hostname in {"localhost", "127.0.0.1", "::1", "cielo-mock"}
     )
 
 
@@ -82,7 +82,11 @@ def get_cielo_configuration() -> CieloConfiguration:
         "CIELO_MERCHANT_ID": settings.CIELO_MERCHANT_ID,
         "CIELO_CLIENT_SECRET": settings.CIELO_CLIENT_SECRET,
     }
-    missing = [name for name, value in values.items() if not isinstance(value, str) or not value.strip()]
+    missing = [
+        name
+        for name, value in values.items()
+        if not isinstance(value, str) or not value.strip()
+    ]
     if missing:
         raise CieloQuickConfigurationError(
             f"Configuração Cielo ausente: {', '.join(missing)}."
@@ -95,7 +99,9 @@ def get_cielo_configuration() -> CieloConfiguration:
             "CIELO_QUERY_BASE_URL",
         )
     ):
-        raise CieloQuickConfigurationError("As URLs configuradas para a Cielo são inválidas.")
+        raise CieloQuickConfigurationError(
+            "As URLs configuradas para a Cielo são inválidas."
+        )
     if not is_cielo_uuid(values["CIELO_MERCHANT_ID"]):
         raise CieloQuickConfigurationError("CIELO_MERCHANT_ID deve ser um UUID válido.")
     return CieloConfiguration(
@@ -144,7 +150,9 @@ def get_cielo_token(configuration: CieloConfiguration) -> str:
 
     data = _response_json(response)
     if data and data.get("error") == "invalid_client":
-        raise CieloQuickCredentialsError("As credenciais configuradas para a Cielo foram rejeitadas.")
+        raise CieloQuickCredentialsError(
+            "As credenciais configuradas para a Cielo foram rejeitadas."
+        )
     if response.status_code != 200:
         raise CieloRemoteError("A autenticação da Cielo está indisponível.")
 
@@ -157,7 +165,9 @@ def get_cielo_token(configuration: CieloConfiguration) -> str:
         or not isinstance(expires_in, (int, float))
         or expires_in <= 0
     ):
-        raise CieloRemoteError("A autenticação da Cielo retornou uma resposta inválida.")
+        raise CieloRemoteError(
+            "A autenticação da Cielo retornou uma resposta inválida."
+        )
 
     cache.set(cache_key, access_token, timeout=max(int(expires_in) - 10, 1))
     return access_token
@@ -171,9 +181,7 @@ def build_cielo_payload(seller, merchant_id: str) -> dict:
     corporate_name = (
         business.name if business.document_type == "CPF" else seller.corporate_name
     )
-    fancy_name = (
-        business.name if business.document_type == "CPF" else seller.fancy_name
-    )
+    fancy_name = business.name if business.document_type == "CPF" else seller.fancy_name
     bank_account = {
         "Bank": seller.bank,
         "BankAccountType": seller.bank_account_type,

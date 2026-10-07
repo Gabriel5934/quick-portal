@@ -1,4 +1,4 @@
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.db.models.deletion import ProtectedError
 from django.db.models import Count, Q
 from rest_framework import status
@@ -10,6 +10,7 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.views import TokenObtainPairView
 
 from quickportal.models import (
+    Business,
     BusinessColorPreference,
     BusinessMembership,
     BusinessRole,
@@ -195,7 +196,20 @@ class BusinessListCreateView(APIView):
                 _require_business_role(
                     request.user, parent, {BusinessRole.ADMIN}
                 )
-            business = serializer.save()
+            # A concurrent request can register the same document after
+            # validation; report it like any other duplicate.
+            try:
+                with transaction.atomic():
+                    business = serializer.save()
+            except IntegrityError:
+                document = serializer.validated_data["document"]
+                if not Business.objects.filter(document=document).exists():
+                    raise
+                raise ValidationError({
+                    "document": [
+                        Business._meta.get_field("document").error_messages["unique"]
+                    ]
+                })
         except BrasilApiError as exc:
             return _brasil_api_error_response(exc)
         return Response(
