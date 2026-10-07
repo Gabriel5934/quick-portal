@@ -156,6 +156,10 @@ CORS_ALLOWED_ORIGINS = os.environ.get(
     "http://127.0.0.1:5173 http://localhost:5173",
 ).split()
 
+# Origins allowed to submit CSRF-protected forms such as the Django admin.
+# nginx forwards the host without its port, so a non-default port needs this.
+CSRF_TRUSTED_ORIGINS = os.environ.get("CSRF_TRUSTED_ORIGINS", "").split()
+
 CORS_ALLOWED_ORIGIN_REGEXES = [
     r"^https?://localhost(:\d+)?$",
 ]
