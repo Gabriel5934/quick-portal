@@ -489,6 +489,42 @@ class BusinessAuthorizationApiTests(APITestCase):
             Business.objects.filter(document=self.unrelated_store.document).count(), 1
         )
 
+    @patch("quickportal.serializers.fetch_cnpj_info")
+    def test_create_reports_a_concurrent_duplicate_as_a_field_error(
+        self, fetch_cnpj_info
+    ):
+        BusinessMembership.objects.create(
+            user=self.user, business=self.reseller, role=BusinessRole.ADMIN
+        )
+        document = "11222333000181"
+
+        # Runs after the uniqueness check, like a request that saves first.
+        def register_concurrently(_document):
+            self.make_business("Concurrent", BusinessType.STORE, self.reseller)
+            Business.objects.filter(name="Concurrent").update(document=document)
+            return {"name": "Duplicate Ltda.", "trade_name": "Duplicate"}
+
+        fetch_cnpj_info.side_effect = register_concurrently
+
+        response = self.client.post(
+            reverse("business_list_create"),
+            {
+                "type": BusinessType.STORE,
+                "parent": self.reseller.id,
+                "document_type": "CNPJ",
+                "document": document,
+                "email": "duplicate@example.com",
+                "phone": "11999999999",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(
+            response.data, {"document": ["Este documento já está cadastrado."]}
+        )
+        self.assertEqual(Business.objects.filter(document=document).count(), 1)
+
     def test_reseller_membership_scopes_list_and_counts_to_descendants(self):
         BusinessMembership.objects.create(
             user=self.user, business=self.reseller, role=BusinessRole.VIEWER

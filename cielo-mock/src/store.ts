@@ -54,7 +54,9 @@ export class SqliteStore {
     if (filePath !== ":memory:") {
       mkdirSync(path.dirname(filePath), { recursive: true });
     }
-    this.database = new DatabaseSync(filePath);
+    // The server and the scripts share this file; wait for a concurrent writer
+    // instead of failing with SQLITE_BUSY.
+    this.database = new DatabaseSync(filePath, { timeout: 5_000 });
     this.database.exec("PRAGMA journal_mode = WAL;");
     this.database.exec(schema);
   }
