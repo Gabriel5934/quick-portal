@@ -26,6 +26,19 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    # runserver starts only after migrate, so a healthy web has its tables.
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/')",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 60s
 
   nginx:
     build: ./nginx

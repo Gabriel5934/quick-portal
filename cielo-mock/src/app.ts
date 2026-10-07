@@ -19,12 +19,6 @@ import type { SqliteStore } from "./store.js";
 import type { CieloError } from "./types.js";
 import { validateSellerPayload } from "./validation.js";
 
-interface AccessToken {
-  expiresAt: number;
-}
-
-const accessTokens = new Map<string, AccessToken>();
-
 function invalidClient(response: Response): void {
   response.status(400).json({
     error: "invalid_client",
@@ -50,30 +44,25 @@ function parseBasicCredentials(
   }
 }
 
-function requireBearerToken(
-  request: Request,
-  response: Response,
-  next: NextFunction,
-): void {
-  const header = request.header("authorization");
-  const token = header?.startsWith("Bearer ") ? header.slice(7) : null;
-  const stored = token ? accessTokens.get(token) : undefined;
-  if (!token || !stored || stored.expiresAt <= Date.now()) {
-    if (token) {
-      accessTokens.delete(token);
+function bearerTokenGuard(store: SqliteStore) {
+  return (request: Request, response: Response, next: NextFunction): void => {
+    const header = request.header("authorization");
+    const token = header?.startsWith("Bearer ") ? header.slice(7) : null;
+    if (!token || !store.isAccessTokenValid(token)) {
+      const body: CieloError[] = [
+        { Code: "Unauthorized", Message: "Access token is invalid or expired." },
+      ];
+      response.status(401).json(body);
+      return;
     }
-    const body: CieloError[] = [
-      { Code: "Unauthorized", Message: "Access token is invalid or expired." },
-    ];
-    response.status(401).json(body);
-    return;
-  }
-  next();
+    next();
+  };
 }
 
 export function createApp(store: SqliteStore) {
   const app = express();
   app.disable("x-powered-by");
+  const requireBearerToken = bearerTokenGuard(store);
 
   // Registered before the logging middleware so Docker health checks stay out of the logs.
   app.get("/health", (_request, response) => {
@@ -104,9 +93,10 @@ export function createApp(store: SqliteStore) {
     }
 
     const accessToken = randomBytes(32).toString("base64url");
-    accessTokens.set(accessToken, {
-      expiresAt: Date.now() + TOKEN_LIFETIME_SECONDS * 1_000,
-    });
+    store.createAccessToken(
+      accessToken,
+      Date.now() + TOKEN_LIFETIME_SECONDS * 1_000,
+    );
     response.json({
       access_token: accessToken,
       token_type: "bearer",

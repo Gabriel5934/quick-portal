@@ -2,7 +2,7 @@ from decimal import Decimal
 
 from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand, CommandError
-from django.db import transaction
+from django.db import models, transaction
 from django.utils import timezone
 
 from cielo.models import (
@@ -76,7 +76,8 @@ ADMIN_NOTIFICATIONS = (
 class Command(BaseCommand):
     help = (
         "Create the Quick Digital admin reseller with an approved Cielo seller and "
-        "its Quick Plan; does nothing if Quick Digital already exists"
+        "its Quick Plan, overwriting any existing Quick Digital business, Quick "
+        "Plan, or Cielo seller that conflicts with them"
     )
 
     def add_arguments(self, parser):
@@ -88,30 +89,40 @@ class Command(BaseCommand):
 
     @transaction.atomic
     def handle(self, *args, **options):
-        existing = Business.objects.filter(document=ADMIN_BUSINESS["document"]).first()
-        if existing is not None:
-            self.stdout.write(
-                f"Quick Digital already exists as business #{existing.id}; nothing to do."
-            )
-            return
-
         user = get_user_model().objects.filter(email__iexact=options["user"]).first()
         if user is None:
             raise CommandError(
                 f"User not found: {options['user']}. Run create_dev_user first."
             )
 
-        business = Business(
-            type=BusinessType.RESELLER,
-            document_type=DocumentType.CNPJ,
-            **ADMIN_BUSINESS,
-        )
+        # Overwrite in place so children, memberships, and other sellers on the
+        # plan keep pointing at the same records.
+        business = Business.objects.filter(document=ADMIN_BUSINESS["document"]).first()
+        created = business is None
+        if created:
+            business = Business()
+        business.type = BusinessType.RESELLER
+        business.parent = None
+        business.document_type = DocumentType.CNPJ
+        for field, value in ADMIN_BUSINESS.items():
+            setattr(business, field, value)
         business.full_clean()
         business.save()
 
-        plan = CieloPlan.objects.create(
-            owner_business=business, name=ADMIN_PLAN_NAME, created_by=user
-        )
+        plan = CieloPlan.objects.filter(
+            owner_business=business, name=ADMIN_PLAN_NAME
+        ).first()
+        if plan is None:
+            plan = CieloPlan.objects.create(
+                owner_business=business, name=ADMIN_PLAN_NAME, created_by=user
+            )
+        else:
+            # Plans are immutable through save(), so overwrite with an update.
+            CieloPlan.objects.filter(pk=plan.pk).update(
+                description="", created_by=user, archived_at=None, archived_by=None
+            )
+            plan.refresh_from_db()
+            plan.rates.all().delete()
         rates = [
             CieloPlanRate(
                 plan=plan,
@@ -127,33 +138,52 @@ class Command(BaseCommand):
             rate.full_clean(validate_unique=False, validate_constraints=False)
         CieloPlanRate.objects.bulk_create(rates)
 
+        CieloBusiness.objects.filter(merchant_id=ADMIN_MERCHANT_ID).exclude(
+            business=business
+        ).update(merchant_id=None)
+        seller = CieloBusiness.objects.filter(business=business).first()
+        if seller is None:
+            seller = CieloBusiness(business=business)
+        else:
+            # Notifications are immutable through the model and its queryset;
+            # the base queryset delete replaces the seller's history.
+            models.QuerySet.delete(seller.onboarding_notifications.all())
+        for field in CieloBusiness._meta.concrete_fields:
+            if not field.primary_key and field.name not in {
+                "business",
+                "created_at",
+                "updated_at",
+            }:
+                setattr(seller, field.attname, field.get_default())
+
         now = timezone.now()
-        seller = CieloBusiness(
-            business=business,
-            plan=plan,
-            status=CieloSubmissionStatus.SENT,
-            merchant_id=ADMIN_MERCHANT_ID,
-            last_submitted_at=now,
-            kyc_status=CieloKycStatus.APPROVED,
-            kyc_status_updated_at=now,
-            bank_account_status=CieloBankAccountStatus.SUCCESS,
-            bank_account_status_updated_at=now,
-            onboarding_status=CieloOnboardingStatus.APPROVED,
-            onboarding_status_updated_at=now,
-            **ADMIN_SELLER,
-        )
+        seller.plan = plan
+        seller.status = CieloSubmissionStatus.SENT
+        seller.merchant_id = ADMIN_MERCHANT_ID
+        seller.last_submitted_at = now
+        seller.kyc_status = CieloKycStatus.APPROVED
+        seller.kyc_status_updated_at = now
+        seller.bank_account_status = CieloBankAccountStatus.SUCCESS
+        seller.bank_account_status_updated_at = now
+        seller.onboarding_status = CieloOnboardingStatus.APPROVED
+        seller.onboarding_status_updated_at = now
+        for field, value in ADMIN_SELLER.items():
+            setattr(seller, field, value)
         seller.full_clean()
         seller.save()
-        for notification in ADMIN_NOTIFICATIONS:
-            CieloOnboardingNotification.objects.create(
+        for values in ADMIN_NOTIFICATIONS:
+            notification = CieloOnboardingNotification(
                 cielo_business=seller,
                 merchant_id=ADMIN_MERCHANT_ID,
-                **notification,
+                **values,
             )
+            notification.full_clean()
+            notification.save()
 
+        action = "Created" if created else "Overwrote"
         self.stdout.write(
             self.style.SUCCESS(
-                f"Created Quick Digital reseller #{business.id} with Cielo merchant "
+                f"{action} Quick Digital reseller #{business.id} with Cielo merchant "
                 f"{ADMIN_MERCHANT_ID} and plan #{plan.id} ({ADMIN_PLAN_NAME})."
             )
         )

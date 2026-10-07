@@ -1,6 +1,6 @@
 import { mkdirSync } from "node:fs";
 import path from "node:path";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
 
 import type {
@@ -30,6 +30,11 @@ const schema = `
   CREATE INDEX IF NOT EXISTS onboarding_attempts_document_number
     ON onboarding_attempts (document_number);
 
+  CREATE TABLE IF NOT EXISTS access_tokens (
+    token_hash TEXT PRIMARY KEY,
+    expires_at INTEGER NOT NULL
+  );
+
   CREATE TABLE IF NOT EXISTS transactions (
     payment_id TEXT PRIMARY KEY,
     merchant_id TEXT NOT NULL,
@@ -37,6 +42,10 @@ const schema = `
     response TEXT NOT NULL
   );
 `;
+
+function hashToken(token: string): string {
+  return createHash("sha256").update(token).digest("hex");
+}
 
 export class SqliteStore {
   private readonly database: DatabaseSync;
@@ -106,22 +115,15 @@ export class SqliteStore {
     });
   }
 
-  /** Insert a seller under a fixed MerchantId, unless its document exists. */
-  seedSeller(
-    merchantId: string,
-    payload: SellerPayload,
-  ): { created: true } | { created: false; merchantId: string } {
+  /**
+   * Insert a seller under a fixed MerchantId, replacing any seller that has
+   * the same MerchantId or document.
+   */
+  seedSeller(merchantId: string, payload: SellerPayload): { replaced: number } {
     return this.transaction(() => {
-      const existing = this.database
-        .prepare(
-          "SELECT merchant_id FROM sellers WHERE merchant_id = ? OR document_number = ?",
-        )
-        .get(merchantId, payload.DocumentNumber) as
-        | { merchant_id: string }
-        | undefined;
-      if (existing) {
-        return { created: false, merchantId: existing.merchant_id };
-      }
+      const { changes } = this.database
+        .prepare("DELETE FROM sellers WHERE merchant_id = ? OR document_number = ?")
+        .run(merchantId, payload.DocumentNumber);
 
       this.database
         .prepare(
@@ -136,8 +138,37 @@ export class SqliteStore {
           new Date().toISOString(),
           JSON.stringify(payload),
         );
-      return { created: true };
+      return { replaced: Number(changes) };
     });
+  }
+
+  /** Store an access token by its SHA-256 hash, pruning expired tokens. */
+  createAccessToken(token: string, expiresAt: number): void {
+    this.transaction(() => {
+      this.database
+        .prepare("DELETE FROM access_tokens WHERE expires_at <= ?")
+        .run(Date.now());
+      this.database
+        .prepare("INSERT INTO access_tokens (token_hash, expires_at) VALUES (?, ?)")
+        .run(hashToken(token), expiresAt);
+    });
+  }
+
+  /** Whether the token was issued and has not expired; expired tokens are deleted. */
+  isAccessTokenValid(token: string): boolean {
+    const tokenHash = hashToken(token);
+    const row = this.database
+      .prepare("SELECT expires_at FROM access_tokens WHERE token_hash = ?")
+      .get(tokenHash) as { expires_at: number } | undefined;
+    if (row && row.expires_at > Date.now()) {
+      return true;
+    }
+    if (row) {
+      this.database
+        .prepare("DELETE FROM access_tokens WHERE token_hash = ?")
+        .run(tokenHash);
+    }
+    return false;
   }
 
   createTransaction(response: TransactionResponse): void {

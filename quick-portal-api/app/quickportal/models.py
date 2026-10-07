@@ -65,7 +65,11 @@ class Business(models.Model):
         blank=True,
     )
     document_type = models.CharField(max_length=4, choices=DocumentType.choices)
-    document = models.CharField(max_length=20)
+    document = models.CharField(
+        max_length=20,
+        unique=True,
+        error_messages={"unique": "Este documento já está cadastrado."},
+    )
     name = models.CharField(max_length=200)
     trade_name = models.CharField(max_length=200, blank=True)
     email = models.EmailField()

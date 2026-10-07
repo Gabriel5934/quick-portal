@@ -9,14 +9,15 @@ The token endpoint validates HTTP Basic authentication against
 `MOCK_CIELO_MERCHANT_ID` and `MOCK_CIELO_CLIENT_SECRET`, and requires
 `grant_type=client_credentials`. Both variables are required and must match the
 backend's `CIELO_MERCHANT_ID` and `CIELO_CLIENT_SECRET`. Issued bearer tokens
-expire after `MOCK_CIELO_TOKEN_LIFETIME_SECONDS` (20 minutes by default).
+expire after `MOCK_CIELO_TOKEN_LIFETIME_SECONDS` (20 minutes by default) and
+survive restarts; see [Persistence](#persistence).
 
 ## Configuration
 
 Copy `.env.example` to `.env` in this directory and adjust it:
 
 ```bash
-cp local-mock-cielo/.env.example local-mock-cielo/.env
+cp cielo-mock/.env.example cielo-mock/.env
 ```
 
 Docker Compose reads that file to fill the variables in
@@ -36,12 +37,12 @@ docker compose up --build
 ```
 
 The mock is available from the host at `http://localhost:3001`. Quick Portal's
-backend uses the Docker-network address `http://mock-cielo:3000` by default.
+backend uses the Docker-network address `http://cielo-mock:3000` by default.
 
 To start only the mock:
 
 ```bash
-docker compose -f local-mock-cielo/docker-compose.dev.yml up --build
+docker compose -f cielo-mock/docker-compose.dev.yml up --build
 ```
 
 ## Endpoints
@@ -100,7 +101,7 @@ default includes it. Set the variables in `.env`, or override them for one run:
 MOCK_CIELO_NOTIFICATION_URL=http://web:8000/cielo/onboarding/notifications/ \
 MOCK_CIELO_NOTIFICATION_TOKEN=<same value as CIELO_WEBHOOK_TOKEN> \
 MOCK_CIELO_NOTIFICATION_SCENARIO=bank_error \
-docker compose up --build mock-cielo web
+docker compose up --build cielo-mock web
 ```
 
 ## Transaction notifications
@@ -119,15 +120,15 @@ transaction notification for it:
 | `MOCK_CIELO_TRANSACTION_MERCHANT_ID`      | `MerchantId` of generated transactions; set it to a seller's merchant ID.     |
 | `MOCK_CIELO_NOTIFICATION_TOKEN`           | Sent as `X-Cielo-Webhook-Token`, like onboarding notifications.               |
 
-Point the backend's `CIELO_QUERY_BASE_URL` at `http://mock-cielo:3000` so its
+Point the backend's `CIELO_QUERY_BASE_URL` at `http://cielo-mock:3000` so its
 lookup reaches the mock. Then, from the repository root:
 
 ```bash
 # Generate a new transaction and notify it
-docker compose exec mock-cielo npm run notify:transaction
+docker compose exec cielo-mock npm run notify:transaction
 
 # Change a stored transaction's status and notify it again
-docker compose exec mock-cielo npm run notify:transaction -- --payment-id <id>
+docker compose exec cielo-mock npm run notify:transaction -- --payment-id <id>
 ```
 
 Each run prints the notified `PaymentId`. A new transaction has:
@@ -153,12 +154,13 @@ transaction the merchant ID, is not configured.
 Quick Portal's `create_admin_business` command creates Quick Digital, an
 approved Cielo seller with merchant ID `00000000-0000-0000-0000-000000000000`.
 The `seed:admin-business` script registers the same seller in the mock, with
-the same CNPJ and onboarding data. It does nothing if the seller already exists.
+the same CNPJ and onboarding data. Like the Django command, it overwrites a
+conflicting seller: any seller with that merchant ID or CNPJ is replaced.
 From the repository root:
 
 ```bash
 docker compose exec -T web python manage.py create_admin_business
-docker compose exec mock-cielo npm run seed:admin-business
+docker compose exec cielo-mock npm run seed:admin-business
 ```
 
 The two sides share no code; keep the fixed data in
@@ -174,14 +176,14 @@ redacted, and authorization headers are never logged.
 Follow the logs from the repository root with:
 
 ```bash
-docker compose logs --follow mock-cielo
+docker compose logs --follow cielo-mock
 ```
 
 ## Persistence
 
-Successful sellers and every onboarding attempt are stored in a SQLite database
-through Node's built-in `node:sqlite` module, so no native dependency is
-installed. The database lives at `/app/data/cielo.sqlite3`, which Docker keeps
+Successful sellers, every onboarding attempt, and issued access tokens are
+stored in a SQLite database through Node's built-in `node:sqlite` module, so no
+native dependency is installed. The database lives at `/app/data/cielo.sqlite3`, which Docker keeps
 in the `mock_cielo_data` named volume. Override the path with
 `MOCK_CIELO_DATABASE_FILE`. Local development writes it to
 `data/cielo.sqlite3`, which is ignored by Git.
@@ -191,19 +193,23 @@ in the `mock_cielo_data` named volume. Override the path with
 | `sellers`             | One row per created seller, unique by `document_number`, with the JSON payload.        |
 | `onboarding_attempts` | Every `POST /api/merchants` request with its response status and JSON response body. |
 | `transactions`        | One row per generated transaction, by `payment_id`, with the full lookup response JSON. |
+| `access_tokens`       | One row per issued bearer token: its SHA-256 hash and expiry in epoch milliseconds. Expired rows are pruned. |
 
 Seller creation and its attempt record are written in one transaction. To
 inspect the data in the running container:
 
 ```bash
-docker compose exec mock-cielo node -e "const { DatabaseSync } = require('node:sqlite'); console.table(new DatabaseSync('/app/data/cielo.sqlite3').prepare('SELECT merchant_id, document_number, status, created_at FROM sellers').all())"
+docker compose exec cielo-mock node -e "const { DatabaseSync } = require('node:sqlite'); console.table(new DatabaseSync('/app/data/cielo.sqlite3').prepare('SELECT merchant_id, document_number, status, created_at FROM sellers').all())"
 ```
 
 To reset it from the repository root, remove the container and its volume:
 
 ```bash
-docker compose rm --stop --force mock-cielo && docker volume rm quick-portal_mock_cielo_data
+docker compose rm --stop --force cielo-mock && docker volume rm quick-portal_mock_cielo_data
 ```
+
+The standalone Compose project names the volume `cielo-mock_mock_cielo_data`
+instead.
 
 ## Response modes
 
@@ -220,5 +226,5 @@ Portal's result handling:
 For example:
 
 ```bash
-MOCK_CIELO_ONBOARDING_MODE=server_error docker compose up --build mock-cielo web
+MOCK_CIELO_ONBOARDING_MODE=server_error docker compose up --build cielo-mock web
 ```

@@ -1,5 +1,6 @@
 
 from datetime import datetime, timezone
+from unittest.mock import patch
 
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
@@ -459,6 +460,34 @@ class BusinessAuthorizationApiTests(APITestCase):
             "The business cannot be deleted while it has child businesses.",
         )
         self.assertTrue(Business.objects.filter(pk=self.reseller.pk).exists())
+
+    @patch("quickportal.serializers.fetch_cnpj_info")
+    def test_create_rejects_a_registered_document(self, fetch_cnpj_info):
+        BusinessMembership.objects.create(
+            user=self.user, business=self.reseller, role=BusinessRole.ADMIN
+        )
+
+        response = self.client.post(
+            reverse("business_list_create"),
+            {
+                "type": BusinessType.STORE,
+                "parent": self.reseller.id,
+                "document_type": "CNPJ",
+                "document": self.unrelated_store.document,
+                "email": "duplicate@example.com",
+                "phone": "11999999999",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(
+            response.data, {"document": ["Este documento já está cadastrado."]}
+        )
+        fetch_cnpj_info.assert_not_called()
+        self.assertEqual(
+            Business.objects.filter(document=self.unrelated_store.document).count(), 1
+        )
 
     def test_reseller_membership_scopes_list_and_counts_to_descendants(self):
         BusinessMembership.objects.create(

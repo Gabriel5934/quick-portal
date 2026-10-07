@@ -3,7 +3,7 @@ import { SqliteStore } from "../store.js";
 import { validateSellerPayload } from "../validation.js";
 
 // Keep in sync with quick-portal-api's create_admin_business command, which
-// creates the same seller in Quick Portal.
+// creates the same seller in Quick Portal. Both overwrite conflicting records.
 const ADMIN_MERCHANT_ID = "00000000-0000-0000-0000-000000000000";
 const ADMIN_DOCUMENT = "11222333000181";
 
@@ -51,16 +51,12 @@ if (!validation.success) {
 
 const store = new SqliteStore(databaseFile);
 try {
-  const result = store.seedSeller(ADMIN_MERCHANT_ID, validation.data);
-  if (result.created) {
-    console.log(`Created Quick Digital seller ${ADMIN_MERCHANT_ID}.`);
-  } else if (result.merchantId === ADMIN_MERCHANT_ID) {
-    console.log(`Quick Digital seller ${ADMIN_MERCHANT_ID} already exists; nothing to do.`);
-  } else {
-    fail(
-      `Document ${ADMIN_DOCUMENT} already belongs to seller ${result.merchantId}.`,
-    );
-  }
+  const { replaced } = store.seedSeller(ADMIN_MERCHANT_ID, validation.data);
+  console.log(
+    replaced
+      ? `Overwrote Quick Digital seller ${ADMIN_MERCHANT_ID}, replacing ${replaced} existing seller(s).`
+      : `Created Quick Digital seller ${ADMIN_MERCHANT_ID}.`,
+  );
 } finally {
   store.close();
 }
