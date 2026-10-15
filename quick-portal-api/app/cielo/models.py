@@ -5,7 +5,6 @@ from django.db import models
 from django.db.models import Q
 
 from cielo.validators import validate_cnpj, validate_cpf
-from quickportal.models import BusinessType
 
 
 digits_only = RegexValidator(r"^\d+$", "This field must contain only digits.")
@@ -336,11 +335,6 @@ class CieloPlan(models.Model):
 
     def clean(self):
         super().clean()
-        if (
-            self.owner_business_id is not None
-            and self.owner_business.type == BusinessType.STORE
-        ):
-            raise ValidationError({"owner_business": "A store cannot own plans."})
         if not self._state.adding:
             original = (
                 CieloPlan.objects.filter(pk=self.pk)

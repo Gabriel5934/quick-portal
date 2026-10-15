@@ -27,16 +27,11 @@ export interface RecurringFeePayload {
   start_date: string;
   end_date: string | null;
   active: boolean;
-  targets: number[];
 }
 
-export interface RecurringFee extends Omit<RecurringFeePayload, "targets"> {
+export interface RecurringFee extends RecurringFeePayload {
   id: number;
   owner: Pick<Business, "id" | "type" | "name" | "trade_name" | "document">;
-  target_businesses: Pick<
-    Business,
-    "id" | "type" | "name" | "trade_name" | "document"
-  >[];
   created_at: string;
   created_by: number;
 }
@@ -86,21 +81,6 @@ export function useRecurringFees(ownerId?: number) {
     queryFn: async () => {
       const page = await request<PaginatedResponse<RecurringFee>>(
         `${import.meta.env.VITE_API_BASE_URL}/api/businesses/${ownerId}/recurring-fees/?page_size=100`,
-        token!,
-      );
-      return page.results;
-    },
-    enabled: !!token && !!ownerId,
-  });
-}
-
-export function useRecurringFeeChildren(ownerId?: number) {
-  const { data: token } = useToken();
-  return useAuthQuery<Business[]>({
-    queryKey: ["businesses", ownerId, "direct-children"],
-    queryFn: async () => {
-      const page = await request<PaginatedResponse<Business>>(
-        `${import.meta.env.VITE_API_BASE_URL}/api/businesses/${ownerId}/children/?page_size=100`,
         token!,
       );
       return page.results;

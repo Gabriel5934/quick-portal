@@ -4,12 +4,7 @@ import { useStateMachine } from "little-state-machine";
 import { MultiStepFormShell } from "../../components/multi-step-form";
 import { useBusinessScope } from "../../layout/business-context";
 import { resetRecurringFeeDraft, updateRecurringFeeDraft } from "./form-store";
-import {
-  detailsSchema,
-  pricingSchema,
-  scheduleSchema,
-  targetsSchema,
-} from "./schemas";
+import { detailsSchema, pricingSchema, scheduleSchema } from "./schemas";
 import { recurringFeeStepPaths, recurringFeeSteps } from "./wizard-definition";
 
 export function RecurringFeeWizardPage({
@@ -48,7 +43,6 @@ export function RecurringFeeWizardPage({
       detailsSchema.safeParse(draft).success,
       pricingSchema.safeParse(draft).success,
       scheduleSchema.safeParse(draft).success,
-      targetsSchema.safeParse(draft).success,
     ];
     const earliestIncomplete = completed.findIndex((value) => !value);
     if (earliestIncomplete >= 0 && currentStep > earliestIncomplete) {

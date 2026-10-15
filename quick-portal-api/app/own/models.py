@@ -1,10 +1,8 @@
 from django.db import models
 from django.conf import settings
-from django.core.exceptions import ValidationError
 from django.core.validators import MinLengthValidator, MinValueValidator, RegexValidator
 
 from own.validators import validate_cpf
-from quickportal.models import BusinessType
 
 
 digits_only = RegexValidator(r"^\d+\Z", "This field must contain only digits.")
@@ -182,11 +180,6 @@ class OwnPlan(models.Model):
     class Meta:
         db_table = "own_plans"
         ordering = ["-created_at"]
-
-    def clean(self):
-        super().clean()
-        if self.owner_business_id is not None and self.owner_business.type == BusinessType.STORE:
-            raise ValidationError({"owner_business": "A store cannot own plans."})
 
     def save(self, *args, **kwargs):
         """Validate and persist ``self`` using Django's normal save arguments."""

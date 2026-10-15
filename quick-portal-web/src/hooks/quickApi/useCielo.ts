@@ -137,16 +137,13 @@ export function useCreateCieloBusiness() {
   return useMutation({
     mutationFn: async ({
       businessId,
-      scopeBusinessId,
       values,
     }: {
       businessId: number;
-      /** The business selected in the drawer, which owns the plan. */
-      scopeBusinessId: number;
       values: CieloBusinessFormValues;
     }) => {
       const response = await fetch(
-        `${import.meta.env.VITE_API_BASE_URL}/cielo/businesses/${businessId}/?business=${scopeBusinessId}`,
+        `${import.meta.env.VITE_API_BASE_URL}/cielo/businesses/${businessId}/`,
         {
           method: "POST",
           headers: authHeaders(token!),

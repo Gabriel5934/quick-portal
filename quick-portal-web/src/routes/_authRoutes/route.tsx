@@ -1,6 +1,6 @@
 import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
 import { AppLayout } from "../../layout/app";
-import { BusinessLayout } from "../../layout/business-layout";
+import { BusinessSelectionProvider } from "../../layout/business-selection-provider";
 import { getRefreshToken } from "#hooks/storage";
 import { useToken } from "#hooks/auth/useToken";
 
@@ -25,10 +25,10 @@ function RouteComponent() {
   useToken();
 
   return (
-    <AppLayout>
-      <BusinessLayout>
+    <BusinessSelectionProvider>
+      <AppLayout>
         <Outlet />
-      </BusinessLayout>
-    </AppLayout>
+      </AppLayout>
+    </BusinessSelectionProvider>
   );
 }

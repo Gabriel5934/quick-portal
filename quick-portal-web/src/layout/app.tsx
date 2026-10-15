@@ -13,10 +13,13 @@ import ListItemText from "@mui/material/ListItemText";
 import Toolbar from "@mui/material/Toolbar";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
+import AddBusinessIcon from "@mui/icons-material/AddBusiness";
+import StorefrontIcon from "@mui/icons-material/Storefront";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import LogoutIcon from "@mui/icons-material/Logout";
 import MenuIcon from "@mui/icons-material/Menu";
 import { useTheme } from "@mui/material/styles";
+import { Link, useRouterState } from "@tanstack/react-router";
 import { useLogout } from "#hooks/auth/useLogout";
 import { getUserEmail } from "#hooks/storage";
 
@@ -26,6 +29,49 @@ const MINI_DRAWER_WIDTH = 64;
 type AppLayoutProps = {
   children: ReactNode;
 };
+
+// ``routeId`` is the route whose pages mark the link as current.
+const navigation = [
+  {
+    to: "/sales",
+    routeId: "/_authRoutes/_businessRoutes",
+    label: "Meus ECs",
+    icon: <StorefrontIcon />,
+  },
+  {
+    to: "/novo-ec",
+    routeId: "/_authRoutes/novo-ec",
+    label: "Novo estabelecimento",
+    icon: <AddBusinessIcon />,
+  },
+] as const;
+
+function NavigationItem({
+  item,
+  drawerOpen,
+}: {
+  item: (typeof navigation)[number];
+  drawerOpen: boolean;
+}) {
+  const selected = useRouterState({
+    select: (state) =>
+      state.matches.some((match) => match.routeId === item.routeId),
+  });
+
+  return (
+    <ListItem disablePadding>
+      <Tooltip title={drawerOpen ? "" : item.label} placement="right">
+        <ListItemButton component={Link} to={item.to} selected={selected}>
+          <ListItemIcon sx={{ minWidth: 40 }}>{item.icon}</ListItemIcon>
+          <ListItemText
+            primary={item.label}
+            sx={{ opacity: drawerOpen ? 1 : 0 }}
+          />
+        </ListItemButton>
+      </Tooltip>
+    </ListItem>
+  );
+}
 
 function emailColor(email: string): string {
   let hash = 0;
@@ -115,7 +161,15 @@ export function AppLayout({ children }: AppLayoutProps) {
             ) : null}
           </Box>
           <Divider />
-          <Box sx={{ flexGrow: 1 }} />
+          <List sx={{ flexGrow: 1 }}>
+            {navigation.map((item) => (
+              <NavigationItem
+                key={item.to}
+                item={item}
+                drawerOpen={drawerOpen}
+              />
+            ))}
+          </List>
           <Divider />
           <List>
             <ListItem disablePadding>

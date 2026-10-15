@@ -5,7 +5,6 @@ import { FormProvider, useForm, useWatch } from "react-hook-form";
 import { useBasketAnticipation } from "#hooks/quickApi/useBasketAnticipation";
 import { useCreatePlan } from "#hooks/quickApi/useCreatePlan";
 import { useOwnFees } from "#hooks/quickApi/useOwnFees";
-import { useAllBusinesses } from "#hooks/quickApi/useBusinesses";
 import { useBusinessScope } from "../../layout/business-context";
 import { FormPage } from "../../layout/form-page";
 import { BasicInfo } from "./BasicInfo";
@@ -13,12 +12,10 @@ import { Fees } from "./Fees";
 import { basketFees, buildPlanFees } from "./catalog";
 import { newPlanSchema, type NewPlanFormValues } from "./schemas";
 
-export function NewPlan({ ownerBusinessId }: { ownerBusinessId?: number }) {
+export function NewPlan() {
   const navigate = useNavigate();
   const { business } = useBusinessScope();
-  const businessId = ownerBusinessId ?? business?.id;
-  const { data: businesses = [] } = useAllBusinesses();
-  const ownerBusiness = businesses.find((item) => item.id === businessId);
+  const businessId = business?.id;
   const { mutate: createPlan, isPending } = useCreatePlan(businessId);
   const { data: catalog } = useOwnFees();
   const methods = useForm<NewPlanFormValues>({
@@ -74,7 +71,7 @@ export function NewPlan({ ownerBusinessId }: { ownerBusinessId?: number }) {
         breadcrumbs={[{ to: "/planos-e-taxas", label: "Planos e Taxas" }]}
         currentLabel="Novo Plano"
         title="Novo Plano"
-        subtitle={`Configure os acréscimos das taxas OWN${ownerBusiness ? ` para ${ownerBusiness.name}` : ""}.`}
+        subtitle={`Configure os acréscimos das taxas OWN${business ? ` para ${business.name}` : ""}.`}
       >
         <Box component="form" noValidate onSubmit={(event) => void methods.handleSubmit(onSubmit)(event)} sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
           <BasicInfo />

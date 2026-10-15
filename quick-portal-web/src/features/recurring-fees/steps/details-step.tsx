@@ -76,7 +76,7 @@ export function DetailsStep() {
       </FormFieldPaper>
       <FormFieldPaper
         title="Valor de adesão"
-        description="Cobrado uma única vez, na primeira cobrança bem-sucedida de cada empresa."
+        description="Cobrado uma única vez, na primeira cobrança bem-sucedida."
         error={!!errors.setupValue}
         required
       >

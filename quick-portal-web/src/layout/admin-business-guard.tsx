@@ -2,16 +2,15 @@ import type { ReactNode } from "react";
 import { Navigate } from "@tanstack/react-router";
 import { useBusinessScope } from "./business-context";
 
-interface NonStoreBusinessGuardProps {
+interface AdminBusinessGuardProps {
   children: ReactNode;
 }
 
-export function NonStoreBusinessGuard({
-  children,
-}: NonStoreBusinessGuardProps) {
+/** Sends users who are not admins of the selected business to Sales. */
+export function AdminBusinessGuard({ children }: AdminBusinessGuardProps) {
   const { business } = useBusinessScope();
 
-  if (business?.type === "STORE") {
+  if (business && business.role !== "ADMIN") {
     return <Navigate to="/sales" replace />;
   }
 

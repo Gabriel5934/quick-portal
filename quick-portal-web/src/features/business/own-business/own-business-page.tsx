@@ -162,10 +162,7 @@ function OwnBusinessForm({
       } else {
         await ownBusiness.mutateAsync({ businessId, ...values });
       }
-      await navigate({
-        to: "/business-list/$id",
-        params: { id: String(businessId) },
-      });
+      await navigate({ to: "/credenciamento" });
     } catch (error) {
       methods.setError("root", {
         message:
@@ -179,7 +176,7 @@ function OwnBusinessForm({
   return (
     <FormProvider {...methods}>
       <MultiStepFormShell
-        breadcrumb={{ to: "/business-list", label: "Estabelecimentos" }}
+        breadcrumb={{ to: "/credenciamento", label: "Credenciamento" }}
         currentLabel="Credenciamento OWN"
         title={
           savedBusiness
@@ -220,10 +217,7 @@ function OwnBusinessForm({
           )}
           <WizardActions
             onCancel={() =>
-              void navigate({
-                to: "/business-list/$id",
-                params: { id: String(businessId) },
-              })
+              void navigate({ to: "/credenciamento" })
             }
             onBack={
               currentStep > 0
@@ -278,12 +272,8 @@ export function OwnBusiness({ businessId }: { businessId: number }) {
     return (
       <Alert severity="info">
         Este credenciamento não pode ser reenviado no momento. Consulte seu
-        status nos detalhes do estabelecimento.{" "}
-        <RouterButton
-          to="/business-list/$id"
-          params={{ id: String(businessId) }}
-          size="small"
-        >
+        status no credenciamento.{" "}
+        <RouterButton to="/credenciamento" size="small">
           Ver detalhes
         </RouterButton>
       </Alert>

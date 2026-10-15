@@ -12,13 +12,6 @@ from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from own.models import (
-    OwnActivity,
-    OwnBasket,
-    OwnBusiness,
-    OwnPlan,
-    OwnRegistrationStatus,
-)
 from quickportal.models import (
     Business,
     BusinessColorPreference,
@@ -26,7 +19,6 @@ from quickportal.models import (
     BusinessRole,
     BusinessType,
     RecurringFee,
-    RecurringFeeTarget,
 )
 
 
@@ -36,14 +28,8 @@ class RecurringFeeApiTests(APITestCase):
             username="fee-admin", email="fee-admin@example.com"
         )
         self.reseller = self.make_business("Owner", BusinessType.RESELLER)
-        self.re_reseller = self.make_business(
-            "Child reseller", BusinessType.RE_RESELLER, self.reseller
-        )
         self.direct_store = self.make_business(
             "Direct store", BusinessType.STORE, self.reseller
-        )
-        self.nested_store = self.make_business(
-            "Nested store", BusinessType.STORE, self.re_reseller
         )
         BusinessMembership.objects.create(
             user=self.user, business=self.reseller, role=BusinessRole.ADMIN
@@ -63,7 +49,7 @@ class RecurringFeeApiTests(APITestCase):
             phone="11999999999",
         )
 
-    def payload(self, targets=None):
+    def payload(self):
         return {
             "name": "Platform fee",
             "description": "Monthly access",
@@ -83,7 +69,6 @@ class RecurringFeeApiTests(APITestCase):
             "start_date": "2026-09-01",
             "end_date": None,
             "active": True,
-            "targets": [self.direct_store.id] if targets is None else targets,
         }
 
     def test_admin_creates_owner_scoped_fee_with_server_audit_fields(self):
@@ -97,32 +82,28 @@ class RecurringFeeApiTests(APITestCase):
         fee = RecurringFee.objects.get()
         self.assertEqual(fee.owner, self.reseller)
         self.assertEqual(fee.created_by, self.user)
-        self.assertEqual(list(fee.targets.all()), [self.direct_store])
         self.assertEqual(response.data["created_by"], self.user.id)
 
-    def test_rejects_grandchildren_and_store_owners(self):
+    def test_store_admin_creates_its_own_fee(self):
+        BusinessMembership.objects.create(
+            user=self.user, business=self.direct_store, role=BusinessRole.ADMIN
+        )
+
         response = self.client.post(
-            reverse("recurring_fee_list_create", args=[self.reseller.id]),
-            self.payload([self.nested_store.id]),
+            reverse("recurring_fee_list_create", args=[self.direct_store.id]),
+            self.payload(),
             format="json",
         )
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("targets", response.data)
 
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(RecurringFee.objects.get().owner, self.direct_store)
+
+    def test_parent_membership_does_not_reach_child_fees(self):
         response = self.client.get(
             reverse("recurring_fee_list_create", args=[self.direct_store.id])
         )
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-    def test_rejects_an_empty_target_list(self):
-        response = self.client.post(
-            reverse("recurring_fee_list_create", args=[self.reseller.id]),
-            self.payload([]),
-            format="json",
-        )
-
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("targets", response.data)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_collection_endpoints_return_paginated_results(self):
         create_response = self.client.post(
@@ -132,61 +113,50 @@ class RecurringFeeApiTests(APITestCase):
         )
         self.assertEqual(create_response.status_code, status.HTTP_201_CREATED)
 
-        children_response = self.client.get(
-            reverse("business_children_list", args=[self.reseller.id])
-        )
         fees_response = self.client.get(
             reverse("recurring_fee_list_create", args=[self.reseller.id])
         )
 
-        self.assertEqual(children_response.status_code, status.HTTP_200_OK)
-        self.assertEqual(children_response.data["count"], 2)
-        self.assertEqual(len(children_response.data["results"]), 2)
         self.assertEqual(fees_response.status_code, status.HTTP_200_OK)
         self.assertEqual(fees_response.data["count"], 1)
         self.assertEqual(len(fees_response.data["results"]), 1)
 
-    def test_viewer_can_list_but_cannot_create(self):
-        BusinessMembership.objects.filter(user=self.user).update(
-            role=BusinessRole.VIEWER
-        )
+    def test_non_admins_can_list_but_cannot_create(self):
         list_url = reverse("recurring_fee_list_create", args=[self.reseller.id])
-        self.assertEqual(self.client.get(list_url).status_code, status.HTTP_200_OK)
-        self.assertEqual(
-            self.client.post(list_url, self.payload(), format="json").status_code,
-            status.HTTP_403_FORBIDDEN,
-        )
+        for role in (BusinessRole.VIEWER, BusinessRole.MANAGER):
+            with self.subTest(role=role):
+                BusinessMembership.objects.filter(user=self.user).update(role=role)
+                self.assertEqual(
+                    self.client.get(list_url).status_code, status.HTTP_200_OK
+                )
+                self.assertEqual(
+                    self.client.post(
+                        list_url, self.payload(), format="json"
+                    ).status_code,
+                    status.HTTP_403_FORBIDDEN,
+                )
 
-    def test_update_preserves_retained_target_setup_state(self):
+    def test_update_preserves_charge_state(self):
         create_response = self.client.post(
             reverse("recurring_fee_list_create", args=[self.reseller.id]),
-            self.payload([self.direct_store.id, self.re_reseller.id]),
+            self.payload(),
             format="json",
         )
         fee = RecurringFee.objects.get(pk=create_response.data["id"])
-        retained_link = fee.target_links.get(target=self.direct_store)
         charged_at = datetime(2026, 9, 2, 12, tzinfo=timezone.utc)
-        retained_link.setup_charged_at = charged_at
-        retained_link.save(update_fields=["setup_charged_at"])
+        fee.setup_charged_at = charged_at
+        fee.save(update_fields=["setup_charged_at"])
 
         response = self.client.patch(
             reverse("recurring_fee_detail", args=[self.reseller.id, fee.id]),
-            {"targets": [self.direct_store.id], "active": False},
+            {"active": False, "setup_charged_at": None},
             format="json",
         )
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        retained_link.refresh_from_db()
-        self.assertEqual(retained_link.setup_charged_at, charged_at)
-        self.assertFalse(
-            RecurringFeeTarget.objects.filter(
-                recurring_fee=fee, target=self.re_reseller
-            ).exists()
-        )
-        self.assertEqual(
-            [business["id"] for business in response.data["target_businesses"]],
-            [self.direct_store.id],
-        )
+        fee.refresh_from_db()
+        self.assertFalse(fee.active)
+        self.assertEqual(fee.setup_charged_at, charged_at)
 
 
 class BusinessHierarchyModelTests(TestCase):
@@ -264,153 +234,6 @@ class BusinessHierarchyModelTests(TestCase):
         self.assertFalse(BusinessMembership.objects.exists())
 
 
-class BusinessSummaryApiTests(APITestCase):
-    def setUp(self):
-        self.user = User.objects.create_user(username="summary-user")
-        self.client.force_authenticate(self.user)
-        self.reseller = self.make_business("Reseller", BusinessType.RESELLER)
-        self.re_reseller = self.make_business(
-            "Re-reseller", BusinessType.RE_RESELLER, self.reseller
-        )
-        self.pending_store = self.make_business(
-            "Pending", BusinessType.STORE, self.reseller
-        )
-        self.completed_store = self.make_business(
-            "Completed", BusinessType.STORE, self.re_reseller
-        )
-        self.failed_store = self.make_business(
-            "Failed", BusinessType.STORE, self.reseller
-        )
-        self.unknown_store = self.make_business(
-            "Unknown", BusinessType.STORE, self.reseller
-        )
-        self.not_started_store = self.make_business(
-            "Not started", BusinessType.STORE, self.reseller
-        )
-        self.unrelated_store = self.make_business(
-            "Unrelated", BusinessType.STORE
-        )
-        BusinessMembership.objects.create(
-            user=self.user, business=self.reseller, role=BusinessRole.VIEWER
-        )
-
-        basket = OwnBasket.objects.create(id=999999, name="Summary basket")
-        activity = OwnActivity.objects.create(
-            cnae=9999999, description="Summary activity", mcc=9999
-        )
-        self.plan = OwnPlan.objects.create(
-            created_by=self.user,
-            updated_by=self.user,
-            title="Summary plan",
-            activity=activity,
-            basketId=basket,
-        )
-        self.create_own_business(
-            self.pending_store, OwnRegistrationStatus.PENDING
-        )
-        self.create_own_business(
-            self.completed_store, OwnRegistrationStatus.REGISTERED
-        )
-        self.create_own_business(
-            self.failed_store, OwnRegistrationStatus.API_REQUEST_FAILED
-        )
-        self.create_own_business(
-            self.unknown_store, OwnRegistrationStatus.UNKNOWN
-        )
-        self.create_own_business(
-            self.unrelated_store, OwnRegistrationStatus.REGISTERED
-        )
-
-    @staticmethod
-    def make_business(name, business_type, parent=None):
-        number = Business.objects.count() + 1
-        return Business.objects.create(
-            type=business_type,
-            parent=parent,
-            document_type="CNPJ",
-            document=f"{number:014d}",
-            name=name,
-            email=f"summary-{number}@example.com",
-            phone="11999999999",
-        )
-
-    def create_own_business(self, business, registration_status):
-        return OwnBusiness.objects.create(
-            business=business,
-            plan=self.plan,
-            signatory_name="Maria Silva",
-            signatory_cpf="52998224725",
-            signatory_email="maria@example.com",
-            forecast_revenue="10000.00",
-            contract_revenue="8000.00",
-            postal_code="12244867",
-            street="Rua Milton Martins",
-            address_number="100A",
-            neighborhood="Urbanova",
-            city="Sao Jose dos Campos",
-            state="SP",
-            pos_quantity=1,
-            bank_code="001",
-            bank_branch="0123",
-            bank_branch_digit="4",
-            bank_account="00123456",
-            bank_account_digit="7",
-            registration_status=registration_status,
-        )
-
-    def test_summarizes_descendants_and_ignores_list_filters(self):
-        response = self.client.get(
-            reverse("business_summary"),
-            {
-                "parent": self.reseller.id,
-                "document": self.pending_store.document,
-                "name": self.pending_store.name,
-                "trade_name": "ignored",
-                "page": 2,
-            },
-        )
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(
-            response.data,
-            {
-                "total": 6,
-                "not_started": 2,
-                "pending": 1,
-                "completed": 1,
-                "failed": 2,
-            },
-        )
-
-    def test_summary_changes_with_selected_parent(self):
-        response = self.client.get(
-            reverse("business_summary"), {"parent": self.re_reseller.id}
-        )
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(
-            response.data,
-            {
-                "total": 1,
-                "not_started": 0,
-                "pending": 0,
-                "completed": 1,
-                "failed": 0,
-            },
-        )
-
-    def test_summary_rejects_a_nonnumeric_parent(self):
-        response = self.client.get(
-            reverse("business_summary"), {"parent": "not-a-number"}
-        )
-
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(
-            response.data,
-            {"parent": ["A valid integer is required."]},
-        )
-
-
 class BusinessAuthorizationApiTests(APITestCase):
     def setUp(self):
         self.user = User.objects.create_user(username="tenant-user")
@@ -471,7 +294,6 @@ class BusinessAuthorizationApiTests(APITestCase):
             reverse("business_list_create"),
             {
                 "type": BusinessType.STORE,
-                "parent": self.reseller.id,
                 "document_type": "CNPJ",
                 "document": self.unrelated_store.document,
                 "email": "duplicate@example.com",
@@ -510,7 +332,6 @@ class BusinessAuthorizationApiTests(APITestCase):
             reverse("business_list_create"),
             {
                 "type": BusinessType.STORE,
-                "parent": self.reseller.id,
                 "document_type": "CNPJ",
                 "document": document,
                 "email": "duplicate@example.com",
@@ -525,46 +346,110 @@ class BusinessAuthorizationApiTests(APITestCase):
         )
         self.assertEqual(Business.objects.filter(document=document).count(), 1)
 
-    def test_reseller_membership_scopes_list_and_counts_to_descendants(self):
+    @patch("quickportal.serializers.fetch_cnpj_info")
+    def test_any_user_creates_a_root_store_and_becomes_its_admin(
+        self, fetch_cnpj_info
+    ):
+        fetch_cnpj_info.return_value = {"name": "New Ltda.", "trade_name": "New"}
+
+        response = self.client.post(
+            reverse("business_list_create"),
+            {
+                "type": BusinessType.STORE,
+                "document_type": "CNPJ",
+                "document": "11222333000181",
+                "email": "new@example.com",
+                "phone": "11999999999",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data["type"], BusinessType.STORE)
+        self.assertIsNone(response.data["parent"])
+        self.assertEqual(response.data["role"], BusinessRole.ADMIN)
+        self.assertTrue(
+            BusinessMembership.objects.filter(
+                user=self.user,
+                business_id=response.data["id"],
+                role=BusinessRole.ADMIN,
+            ).exists()
+        )
+
+    @patch("quickportal.serializers.fetch_cnpj_info")
+    def test_create_rejects_resellers_and_child_businesses(self, fetch_cnpj_info):
+        BusinessMembership.objects.create(
+            user=self.user, business=self.reseller, role=BusinessRole.ADMIN
+        )
+        superuser = User.objects.create_superuser(
+            username="creator-super", email="creator-super@example.com", password="x"
+        )
+        payload = {
+            "document_type": "CNPJ",
+            "document": "11222333000181",
+            "email": "new@example.com",
+            "phone": "11999999999",
+        }
+        cases = {
+            "reseller": {"type": BusinessType.RESELLER},
+            "re-reseller": {"type": BusinessType.RE_RESELLER, "parent": self.reseller.id},
+            "child store": {"type": BusinessType.STORE, "parent": self.reseller.id},
+            "missing type": {},
+        }
+        for user in (self.user, superuser):
+            self.client.force_authenticate(user)
+            for case, changes in cases.items():
+                with self.subTest(user=user.username, case=case):
+                    response = self.client.post(
+                        reverse("business_list_create"),
+                        {**payload, **changes},
+                        format="json",
+                    )
+                    self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+                    self.assertIn("type", response.data)
+
+        fetch_cnpj_info.assert_not_called()
+        self.assertFalse(Business.objects.filter(document="11222333000181").exists())
+
+    def test_list_contains_only_direct_memberships_with_their_roles(self):
         BusinessMembership.objects.create(
             user=self.user, business=self.reseller, role=BusinessRole.VIEWER
+        )
+        BusinessMembership.objects.create(
+            user=self.user, business=self.nested_store, role=BusinessRole.ADMIN
         )
         response = self.client.get(reverse("business_list_create"))
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data["count"], 4)
-        self.assertSetEqual(
-            {item["id"] for item in response.data["results"]},
+        self.assertEqual(response.data["count"], 2)
+        self.assertDictEqual(
+            {item["id"]: item["role"] for item in response.data["results"]},
             {
-                self.reseller.id,
-                self.re_reseller.id,
-                self.direct_store.id,
-                self.nested_store.id,
+                self.reseller.id: BusinessRole.VIEWER,
+                self.nested_store.id: BusinessRole.ADMIN,
             },
         )
 
     def test_business_colors_are_user_specific_and_default_to_blue(self):
         """Verify color defaults and preferences remain scoped per user.
 
-        The ``setUp`` fixture supplies the authenticated ``self.user`` and a
-        reseller hierarchy containing ``self.nested_store``. This parameterless
-        test first checks the blue default, saves a purple preference, then
-        authenticates another related user and confirms that user's default is
-        still blue. It performs assertions and returns ``None``.
+        The ``setUp`` fixture supplies the authenticated ``self.user`` and
+        ``self.nested_store``. This parameterless test first checks the blue
+        default, saves a purple preference, then authenticates another member
+        and confirms that user's default is still blue. It performs assertions
+        and returns ``None``.
         """
         BusinessMembership.objects.create(
             user=self.user, business=self.reseller, role=BusinessRole.VIEWER
+        )
+        BusinessMembership.objects.create(
+            user=self.user, business=self.nested_store, role=BusinessRole.VIEWER
         )
         response = self.client.get(reverse("business_list_create"))
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertSetEqual(
             {item["id"] for item in response.data["results"]},
-            {
-                self.reseller.id,
-                self.re_reseller.id,
-                self.direct_store.id,
-                self.nested_store.id,
-            },
+            {self.reseller.id, self.nested_store.id},
         )
         self.assertTrue(
             all(item["color"] == "blue" for item in response.data["results"])
@@ -588,7 +473,7 @@ class BusinessAuthorizationApiTests(APITestCase):
         other_user = User.objects.create_user(username="other-user")
         BusinessMembership.objects.create(
             user=other_user,
-            business=self.reseller,
+            business=self.nested_store,
             role=BusinessRole.VIEWER,
         )
         self.client.force_authenticate(other_user)
@@ -640,47 +525,26 @@ class BusinessAuthorizationApiTests(APITestCase):
         with self.assertRaises(ValidationError):
             preference.save()
 
-    def test_business_list_can_be_filtered_to_a_business_branch(self):
+    def test_parent_membership_does_not_reach_children(self):
         BusinessMembership.objects.create(
-            user=self.user, business=self.reseller, role=BusinessRole.VIEWER
+            user=self.user, business=self.reseller, role=BusinessRole.ADMIN
         )
-
-        response = self.client.get(
-            reverse("business_list_create"), {"parent": self.reseller.id}
-        )
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data["count"], 3)
-        self.assertSetEqual(
-            {item["id"] for item in response.data["results"]},
-            {self.re_reseller.id, self.direct_store.id, self.nested_store.id},
-        )
-
-    def test_re_reseller_and_store_memberships_only_see_their_branches(self):
-        membership = BusinessMembership.objects.create(
-            user=self.user,
-            business=self.re_reseller,
-            role=BusinessRole.VIEWER,
-        )
-        response = self.client.get(reverse("business_list_create"))
-        self.assertSetEqual(
-            {item["id"] for item in response.data["results"]},
-            {self.re_reseller.id, self.nested_store.id},
-        )
-        membership.business = self.direct_store
-        membership.save(update_fields=["business"])
         response = self.client.get(reverse("business_list_create"))
         self.assertEqual(
-            [item["id"] for item in response.data["results"]],
-            [self.direct_store.id],
+            [item["id"] for item in response.data["results"]], [self.reseller.id]
         )
+
+        for child in (self.re_reseller, self.direct_store, self.nested_store):
+            with self.subTest(child=child.name):
+                response = self.client.get(reverse("business_detail", args=[child.id]))
+                self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_viewer_cannot_write_and_unrelated_detail_is_hidden(self):
         BusinessMembership.objects.create(
             user=self.user, business=self.reseller, role=BusinessRole.VIEWER
         )
         response = self.client.patch(
-            reverse("business_detail", args=[self.direct_store.id]),
+            reverse("business_detail", args=[self.reseller.id]),
             {"phone": "11888888888"},
             format="json",
         )
@@ -691,7 +555,7 @@ class BusinessAuthorizationApiTests(APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
-    def test_overlapping_memberships_use_most_permissive_role(self):
+    def test_role_comes_from_the_business_own_membership(self):
         BusinessMembership.objects.create(
             user=self.user, business=self.reseller, role=BusinessRole.VIEWER
         )
@@ -705,25 +569,36 @@ class BusinessAuthorizationApiTests(APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-    def test_admin_manages_descendant_memberships_but_not_final_root_admin(self):
-        root_admin = BusinessMembership.objects.create(
+        response = self.client.patch(
+            reverse("business_detail", args=[self.reseller.id]),
+            {"phone": "11888888888"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_admin_manages_own_memberships_but_not_child_or_final_admin(self):
+        admin = BusinessMembership.objects.create(
             user=self.user, business=self.reseller, role=BusinessRole.ADMIN
         )
         new_user = User.objects.create_user(
             username="new-member", email="new@example.com"
         )
         response = self.client.post(
-            reverse("business_membership_list_create", args=[self.direct_store.id]),
+            reverse("business_membership_list_create", args=[self.reseller.id]),
             {"user": new_user.id, "role": BusinessRole.VIEWER},
             format="json",
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
+        response = self.client.post(
+            reverse("business_membership_list_create", args=[self.direct_store.id]),
+            {"user": new_user.id, "role": BusinessRole.VIEWER},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
         response = self.client.delete(
-            reverse(
-                "business_membership_detail",
-                args=[self.reseller.id, root_admin.id],
-            )
+            reverse("business_membership_detail", args=[self.reseller.id, admin.id])
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 

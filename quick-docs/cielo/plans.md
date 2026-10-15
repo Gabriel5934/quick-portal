@@ -43,7 +43,7 @@ installment count:
 
 ## Rules
 
-- A store cannot own a plan.
+- Every business type, stores included, can own plans.
 - Plan names are unique per owner business, archived plans included, and
   case-sensitive. An archived plan keeps its name reserved.
 - A plan has exactly 39 rates: for each brand, one debit rate and twelve credit
@@ -60,15 +60,14 @@ installment count:
 ## Access
 
 Plans are scoped to the business selected in the drawer, sent as the required
-`business` query parameter on every plan request and on the seller create
-request. A missing parameter returns `400`; a business the user cannot access
-returns `404`.
+`business` query parameter on every plan request. A missing parameter returns
+`400`; a business the user is not a direct member of returns `404`.
 
 - A business sees, copies, archives, unarchives, and assigns only the plans it
   owns. Plans of any other business, superior and subordinate businesses
   included, return `404`.
-- Any user with access to the selected business can create, archive, and
-  unarchive its plans, whatever their role.
+- Any member of the selected business can list and view its plans. Only its
+  admins can create, archive, and unarchive them; other roles get `404`.
 
 ## API
 
@@ -117,15 +116,15 @@ duplicate name, `{"rates": ["..."]}` for a missing or duplicated rate, and
 
 ### Seller create request
 
-`POST /cielo/businesses/<business_id>/?business=<selected_business_id>`
-requires a `plan` field with the ID of an active plan owned by the selected
-business. A missing plan, an archived plan, or a plan of another business
-returns `400` with a `plan` error. Which businesses the selected business can
-sign up is not restricted yet.
+`POST /cielo/businesses/<business_id>/` requires a `plan` field with the ID of
+an active plan owned by that same business, and the user must be one of its
+admins. A missing plan, an archived plan, or a plan of another business, its
+parent included, returns `400` with a `plan` error.
 
 ## Frontend
 
-- "Planos Cielo" in the business drawer, hidden for stores, opens
+- "Planos Cielo" in the business drawer, shown only to admins of the selected
+  business, opens
   `/planos-cielo`: active plans, and archived plans in a collapsed table.
 - `/planos-cielo/:id` shows a plan read-only, with "Copiar" and "Arquivar" or
   "Desarquivar".

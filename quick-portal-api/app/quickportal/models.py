@@ -251,11 +251,8 @@ class RecurringFee(models.Model):
         on_delete=models.PROTECT,
         related_name="created_recurring_fees",
     )
-    targets = models.ManyToManyField(
-        Business,
-        through="RecurringFeeTarget",
-        related_name="targeted_recurring_fees",
-    )
+    setup_charged_at = models.DateTimeField(null=True, blank=True)
+    next_charge_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         db_table = "recurring_fee"
@@ -337,26 +334,3 @@ class RecurringFee(models.Model):
     def save(self, *args, **kwargs):
         self.full_clean()
         return super().save(*args, **kwargs)
-
-
-class RecurringFeeTarget(models.Model):
-    recurring_fee = models.ForeignKey(
-        RecurringFee, on_delete=models.CASCADE, related_name="target_links"
-    )
-    target = models.ForeignKey(
-        Business, on_delete=models.PROTECT, related_name="recurring_fee_links"
-    )
-    setup_charged_at = models.DateTimeField(null=True, blank=True)
-    next_charge_at = models.DateTimeField(null=True, blank=True)
-
-    class Meta:
-        db_table = "recurring_fee_target"
-        constraints = [
-            models.UniqueConstraint(
-                fields=["recurring_fee", "target"],
-                name="unique_recurring_fee_target",
-            )
-        ]
-
-    def __str__(self):
-        return f"{self.recurring_fee_id} / {self.target_id}"

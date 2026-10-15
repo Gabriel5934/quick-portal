@@ -1,7 +1,6 @@
 import FormControlLabel from "@mui/material/FormControlLabel";
 import Radio from "@mui/material/Radio";
 import RadioGroup from "@mui/material/RadioGroup";
-import Switch from "@mui/material/Switch";
 import TextField from "@mui/material/TextField";
 import { useEffect } from "react";
 import { Controller, useFormContext } from "react-hook-form";
@@ -10,12 +9,10 @@ import {
   DerivedTextField,
   FormFieldPaper,
 } from "../../../components/multi-step-form";
-import { useBusinessScope } from "../../../layout/business-context";
 import { formatDocument } from "../document";
 import type { NewBusinessFormValues } from "./types";
 
 export function RegistrationStep() {
-  const { business } = useBusinessScope();
   const {
     register,
     control,
@@ -38,7 +35,6 @@ export function RegistrationStep() {
     error: cnpjError,
     isFetching: isCnpjLoading,
   } = useCnpj(document, isCnpj);
-  const canCreateReseller = business?.type === "RESELLER";
 
   useEffect(() => {
     if (!cnpjData && !cnpjError) return;
@@ -48,10 +44,6 @@ export function RegistrationStep() {
       nomeFantasia: cnpjData?.nome_fantasia ?? "",
     });
   }, [cnpjData, cnpjError, reset, getValues]);
-
-  useEffect(() => {
-    if (!canCreateReseller) setValue("isReseller", false);
-  }, [canCreateReseller, setValue]);
 
   const handleDocumentTypeChange = (
     fieldOnChange: (...event: unknown[]) => void,
@@ -67,27 +59,6 @@ export function RegistrationStep() {
 
   return (
     <>
-      {canCreateReseller && (
-        <FormFieldPaper title="Você está cadastrando uma revenda?">
-          <Controller
-            name="isReseller"
-            control={control}
-            render={({ field: { value, onChange, ...field } }) => (
-              <FormControlLabel
-                control={
-                  <Switch
-                    {...field}
-                    checked={value}
-                    onChange={(_, checked) => onChange(checked)}
-                  />
-                }
-                label="Revenda"
-              />
-            )}
-          />
-        </FormFieldPaper>
-      )}
-
       <FormFieldPaper
         title="Documento"
         error={Boolean(errors.document)}

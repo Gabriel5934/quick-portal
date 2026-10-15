@@ -43,7 +43,7 @@ vi.mock("#hooks/brasilApi/useCep", () => ({
 }));
 
 vi.mock("#hooks/quickApi/useOwnPlans", () => ({
-  useOwnPlansForSignup: () => ({ data: [{ id: 18, title: "Plano Teste" }] }),
+  useOwnPlans: () => ({ data: [{ id: 18, title: "Plano Teste" }] }),
 }));
 
 vi.mock("#hooks/quickApi/useBusinesses", () => ({
@@ -169,8 +169,7 @@ describe("OwnBusiness", () => {
       retry.mock.invocationCallOrder[0],
     );
     expect(navigate).toHaveBeenCalledWith({
-      to: "/business-list/$id",
-      params: { id: "73" },
+      to: "/credenciamento",
     });
   });
 

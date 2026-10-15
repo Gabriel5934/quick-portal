@@ -42,7 +42,6 @@ function refineDocument(
 }
 
 const newBusinessBaseSchema = z.object({
-  isReseller: z.boolean(),
   documentType: z.enum(["CNPJ", "CPF"]),
   document: z.string(),
   name: z.string(),

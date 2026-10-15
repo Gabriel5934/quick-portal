@@ -1,13 +1,10 @@
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { normalizeDocument } from "#features/business/document";
 import type { NewBusinessFormValues } from "#features/business/new-business/types";
 import type { ValidationErrors } from "#hooks/types";
 import { useToken } from "#hooks/auth/useToken";
 
-type CreateBusinessPayload = NewBusinessFormValues & {
-  parentId: number;
-  type: "RE_RESELLER" | "STORE";
-};
+type CreateBusinessPayload = NewBusinessFormValues;
 type CreateBusinessResponse = { id: number };
 
 async function fetchCreateBusiness(
@@ -23,8 +20,8 @@ async function fetchCreateBusiness(
         Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify({
-        type: payload.type,
-        parent: payload.parentId,
+        // New businesses are always stores without a parent.
+        type: "STORE",
         document_type: payload.documentType,
         document: normalizeDocument(payload.document, payload.documentType),
         email: payload.email,
@@ -56,8 +53,13 @@ async function fetchCreateBusiness(
 
 export function useCreateBusiness() {
   const { data: token } = useToken();
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (payload: CreateBusinessPayload) =>
       fetchCreateBusiness(payload, token!),
+    // The creator becomes an admin of the new business, so reload the
+    // business picker before callers select it.
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ["businesses", "all"] }),
   });
 }

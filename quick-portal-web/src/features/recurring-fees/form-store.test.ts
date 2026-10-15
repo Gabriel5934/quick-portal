@@ -8,7 +8,6 @@ describe("recurring fee form store", () => {
         ...initialRecurringFeeDraft,
         ownerId: 42,
         name: "Monthly fee",
-        targetIds: [7],
       },
     };
 

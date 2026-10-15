@@ -29,7 +29,6 @@ export interface RecurringFeeDraft {
   businessDayOrdinal?: number;
   startDate: string;
   endDate: string;
-  targetIds: number[];
 }
 
 export const initialRecurringFeeDraft: RecurringFeeDraft = {
@@ -49,7 +48,6 @@ export const initialRecurringFeeDraft: RecurringFeeDraft = {
   chargeDay: 1,
   startDate: new Date().toISOString().slice(0, 10),
   endDate: "",
-  targetIds: [],
 };
 
 declare module "little-state-machine" {

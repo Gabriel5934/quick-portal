@@ -215,9 +215,8 @@ class CieloSubmissionBusinessRuleTests(APITestCase):
         self.user.save(update_fields=["is_superuser"])
         self.client.force_authenticate(self.user)
         self.business = create_business()
-        self.scope = create_reseller()
-        self.plan = create_cielo_plan(self.scope, created_by=self.user)
-        self.url = f"/cielo/businesses/{self.business.pk}/?business={self.scope.pk}"
+        self.plan = create_cielo_plan(self.business, created_by=self.user)
+        self.url = f"/cielo/businesses/{self.business.pk}/"
         self.cnpj_patch = patch(
             "cielo.serializers.fetch_cnpj_registration",
             return_value={
@@ -846,14 +845,11 @@ class CieloPlanModelTests(TestCase):
         self.user = create_user()
         self.reseller = create_reseller()
 
-    def test_store_cannot_own_plan(self):
+    def test_store_can_own_plan(self):
         store = create_reseller(BusinessType.STORE, parent=self.reseller)
         plan = CieloPlan(owner_business=store, name="Loja", created_by=self.user)
 
-        with self.assertRaises(ValidationError) as context:
-            plan.full_clean()
-
-        self.assertIn("owner_business", context.exception.message_dict)
+        plan.full_clean()
 
     def test_plan_and_rates_cannot_change_after_creation(self):
         plan = create_cielo_plan(self.reseller, created_by=self.user)
@@ -917,9 +913,10 @@ class CieloPlanEndpointTests(APITestCase):
             BusinessType.RE_RESELLER, parent=self.reseller, name="Sub-revenda"
         )
         self.store = create_reseller(BusinessType.STORE, parent=self.re_reseller)
-        # A viewer of the reseller can access the whole hierarchy below it.
-        BusinessMembership.objects.create(
-            user=self.user, business=self.reseller, role=BusinessRole.VIEWER
+        # Access comes only from a membership on each business itself.
+        BusinessMembership.objects.bulk_create(
+            BusinessMembership(user=self.user, business=business, role=BusinessRole.ADMIN)
+            for business in (self.reseller, self.re_reseller, self.store)
         )
         self.client.force_authenticate(self.user)
 
@@ -933,7 +930,7 @@ class CieloPlanEndpointTests(APITestCase):
         suffix = f"{action}/" if action else ""
         return f"/cielo/plans/{plan.pk}/{suffix}?business={business.pk}"
 
-    def test_viewer_creates_a_plan_with_all_its_rates(self):
+    def test_admin_creates_a_plan_with_all_its_rates(self):
         response = self.client.post(
             self.plans_url(self.reseller), plan_payload(), format="json"
         )
@@ -965,14 +962,48 @@ class CieloPlanEndpointTests(APITestCase):
         self.assertEqual(response.status_code, 404)
         self.assertFalse(CieloPlan.objects.exists())
 
-    def test_store_cannot_own_a_plan(self):
+    def test_store_owns_its_own_plans(self):
         response = self.client.post(
             self.plans_url(self.store), plan_payload(), format="json"
         )
 
-        self.assertEqual(response.status_code, 400)
-        self.assertIn("business", response.data)
-        self.assertFalse(CieloPlan.objects.exists())
+        self.assertEqual(response.status_code, 201, response.data)
+        self.assertEqual(CieloPlan.objects.get().owner_business, self.store)
+
+    def test_parent_membership_does_not_reach_child_plans(self):
+        create_cielo_plan(self.re_reseller, name="Filho")
+        parent_admin = create_user()
+        BusinessMembership.objects.create(
+            user=parent_admin, business=self.reseller, role=BusinessRole.ADMIN
+        )
+        self.client.force_authenticate(parent_admin)
+
+        self.assertEqual(self.client.get(self.plans_url(self.re_reseller)).status_code, 404)
+        response = self.client.post(
+            self.plans_url(self.re_reseller), plan_payload(), format="json"
+        )
+        self.assertEqual(response.status_code, 404)
+
+    def test_non_admins_read_but_cannot_create_or_archive_plans(self):
+        plan = create_cielo_plan(self.reseller)
+        for role in (BusinessRole.VIEWER, BusinessRole.MANAGER):
+            with self.subTest(role=role):
+                BusinessMembership.objects.filter(
+                    user=self.user, business=self.reseller
+                ).update(role=role)
+
+                response = self.client.get(self.plans_url(self.reseller))
+                self.assertEqual([item["id"] for item in response.data], [plan.pk])
+                response = self.client.post(
+                    self.plans_url(self.reseller), plan_payload(), format="json"
+                )
+                self.assertEqual(response.status_code, 404)
+                response = self.client.post(self.plan_url(plan, self.reseller, "archive"))
+                self.assertEqual(response.status_code, 404)
+
+        plan.refresh_from_db()
+        self.assertIsNone(plan.archived_at)
+        self.assertEqual(CieloPlan.objects.count(), 1)
 
     def test_plan_names_are_unique_per_business_including_archived_plans(self):
         create_cielo_plan(self.reseller, name="Básico", archived=True)
@@ -1093,7 +1124,7 @@ class CieloPlanEndpointTests(APITestCase):
                 self.assertEqual(response.data["archived_at"] is not None, archived)
                 self.assertEqual(len(response.data["rates"]), 39)
 
-    def test_viewer_archives_and_unarchives_plans(self):
+    def test_admin_archives_and_unarchives_plans(self):
         plan = create_cielo_plan(self.reseller)
 
         response = self.client.post(self.plan_url(plan, self.reseller, "archive"))
@@ -1160,11 +1191,11 @@ class CieloSellerPlanTests(APITestCase):
             BusinessType.STORE, parent=self.re_reseller, document="11222333000181"
         )
         BusinessMembership.objects.create(
-            user=self.user, business=self.reseller, role=BusinessRole.ADMIN
+            user=self.user, business=self.business, role=BusinessRole.ADMIN
         )
         self.client.force_authenticate(self.user)
-        self.plan = create_cielo_plan(self.reseller, created_by=self.user)
-        self.url = f"/cielo/businesses/{self.business.pk}/?business={self.reseller.pk}"
+        self.plan = create_cielo_plan(self.business, created_by=self.user)
+        self.url = f"/cielo/businesses/{self.business.pk}/"
         for target, value in (
             (
                 "cielo.serializers.fetch_cnpj_registration",
@@ -1187,31 +1218,35 @@ class CieloSellerPlanTests(APITestCase):
             patcher.start()
             self.addCleanup(patcher.stop)
 
-    def test_seller_is_created_with_an_active_plan_of_the_selected_business(self):
+    def test_seller_is_created_with_an_active_plan_of_the_business_itself(self):
         response = self.client.post(self.url, cielo_payload(plan=self.plan), format="json")
 
         self.assertEqual(response.status_code, 201, response.data)
         self.assertEqual(CieloBusiness.objects.get().plan, self.plan)
 
-    def test_seller_requires_the_business_query_parameter(self):
-        response = self.client.post(
-            f"/cielo/businesses/{self.business.pk}/",
-            cielo_payload(plan=self.plan),
-            format="json",
+    def test_non_admins_cannot_create_or_retry_sellers(self):
+        BusinessMembership.objects.filter(user=self.user).update(
+            role=BusinessRole.MANAGER
         )
 
-        self.assertEqual(response.status_code, 400)
-        self.assertIn("business", response.data)
-        self.assertFalse(CieloBusiness.objects.exists())
+        response = self.client.post(self.url, cielo_payload(plan=self.plan), format="json")
+        self.assertEqual(response.status_code, 404)
+        self.assertFalse(CieloBusiness.objects.filter(business=self.business).exists())
+
+        create_cielo_business(self.business, plan=self.plan)
+        response = self.client.post(
+            f"/cielo/businesses/{self.business.pk}/retry/", {}, format="json"
+        )
+        self.assertEqual(response.status_code, 404)
 
     def test_seller_without_a_valid_plan_is_rejected(self):
         cases = {
             "without plan": cielo_payload(),
             "archived plan": cielo_payload(
-                plan=create_cielo_plan(self.reseller, name="Arquivado", archived=True)
+                plan=create_cielo_plan(self.business, name="Arquivado", archived=True)
             ),
-            "subordinate business plan": cielo_payload(
-                plan=create_cielo_plan(self.re_reseller, name="Filho")
+            "parent business plan": cielo_payload(
+                plan=create_cielo_plan(self.re_reseller, name="Pai")
             ),
             "unrelated business plan": cielo_payload(plan=create_cielo_plan(name="Outro")),
         }
@@ -1222,13 +1257,20 @@ class CieloSellerPlanTests(APITestCase):
                 self.assertIn("plan", response.data)
         self.assertFalse(CieloBusiness.objects.exists())
 
-    def test_plan_of_the_superior_business_is_rejected(self):
-        url = f"/cielo/businesses/{self.business.pk}/?business={self.re_reseller.pk}"
+    def test_admin_of_the_parent_cannot_register_the_child(self):
+        parent_admin = create_user()
+        BusinessMembership.objects.create(
+            user=parent_admin, business=self.re_reseller, role=BusinessRole.ADMIN
+        )
+        self.client.force_authenticate(parent_admin)
 
-        response = self.client.post(url, cielo_payload(plan=self.plan), format="json")
+        response = self.client.post(
+            f"{self.url}?business={self.re_reseller.pk}",
+            cielo_payload(plan=create_cielo_plan(self.re_reseller, name="Pai")),
+            format="json",
+        )
 
-        self.assertEqual(response.status_code, 400)
-        self.assertIn("plan", response.data)
+        self.assertEqual(response.status_code, 404)
         self.assertFalse(CieloBusiness.objects.exists())
 
     def test_model_rejects_an_archived_plan_only_for_new_sellers(self):
@@ -1729,8 +1771,16 @@ class CieloTransactionListEndpointTests(APITestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn("business", response.json())
 
+    def test_child_transactions_need_a_membership_on_the_child(self):
+        self.create_transaction(self.child_seller, timezone.now())
+
+        self.assertEqual(self.list(self.store).status_code, 404)
+
     def test_business_without_seller_returns_an_empty_page(self):
         business = create_reseller(BusinessType.STORE, parent=self.reseller)
+        BusinessMembership.objects.create(
+            user=self.user, business=business, role=BusinessRole.VIEWER
+        )
         self.create_transaction(self.seller, timezone.now())
 
         response = self.list(business)

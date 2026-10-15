@@ -24,10 +24,9 @@ export interface OwnPlan {
 async function fetchOwnPlans(
   token: string,
   businessId: number,
-  scope: "business" | "signup_business",
 ): Promise<OwnPlan[]> {
   const response = await fetch(
-    `${import.meta.env.VITE_API_BASE_URL}/own/plans/?${scope}=${businessId}`,
+    `${import.meta.env.VITE_API_BASE_URL}/own/plans/?business=${businessId}`,
     { headers: { Authorization: `Bearer ${token}` } },
   );
   if (!response.ok) throw new ApiError(response.status, "Erro ao carregar planos da OWN.");
@@ -38,16 +37,7 @@ export function useOwnPlans(businessId: number | undefined) {
   const { data: token } = useToken();
   return useAuthQuery<OwnPlan[]>({
     queryKey: ["own-plans", businessId],
-    queryFn: () => fetchOwnPlans(token!, businessId!, "business"),
-    enabled: !!token && !!businessId,
-  });
-}
-
-export function useOwnPlansForSignup(businessId: number | undefined) {
-  const { data: token } = useToken();
-  return useAuthQuery<OwnPlan[]>({
-    queryKey: ["own-plans", "signup", businessId],
-    queryFn: () => fetchOwnPlans(token!, businessId!, "signup_business"),
+    queryFn: () => fetchOwnPlans(token!, businessId!),
     enabled: !!token && !!businessId,
   });
 }

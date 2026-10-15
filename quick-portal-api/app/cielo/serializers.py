@@ -203,9 +203,10 @@ class CieloBusinessCreateSerializer(RejectUnknownFieldsSerializer):
 
     def get_fields(self):
         fields = super().get_fields()
-        # Plans of other businesses are reported as nonexistent.
+        # Only the business's own plans are accepted; others are reported as
+        # nonexistent.
         fields["plan"].queryset = CieloPlan.objects.filter(
-            owner_business=self.context["plan_owner"]
+            owner_business=self.context["business"]
         )
         return fields
 
