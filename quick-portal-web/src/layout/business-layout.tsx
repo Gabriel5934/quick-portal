@@ -113,8 +113,8 @@ export function BusinessLayout({ children }: BusinessLayoutProps) {
     );
   });
   const scope = useMemo(
-    () => ({ business: selectedBusiness }),
-    [selectedBusiness],
+    () => ({ business: selectedBusiness, isLoading }),
+    [selectedBusiness, isLoading],
   );
 
   return (

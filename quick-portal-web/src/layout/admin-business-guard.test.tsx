@@ -10,8 +10,12 @@ vi.mock("@tanstack/react-router", () => ({
 
 function renderGuard(role: BusinessRole | null) {
   const business = { id: 1, type: "STORE", parent: null, role } as Business;
+  renderScope(business, false);
+}
+
+function renderScope(business: Business | null, isLoading: boolean) {
   render(
-    <BusinessScopeContext value={{ business }}>
+    <BusinessScopeContext value={{ business, isLoading }}>
       <AdminBusinessGuard>
         <div>Guarded page</div>
       </AdminBusinessGuard>
@@ -34,5 +38,19 @@ describe("AdminBusinessGuard", () => {
     renderGuard("ADMIN");
 
     expect(screen.getByText("Guarded page")).toBeInTheDocument();
+  });
+
+  it("shows a loading state while the businesses load", () => {
+    renderScope(null, true);
+
+    expect(screen.getByLabelText("Carregando empresa")).toBeInTheDocument();
+    expect(screen.queryByText("Guarded page")).not.toBeInTheDocument();
+  });
+
+  it("asks for a business when none is selected", () => {
+    renderScope(null, false);
+
+    expect(screen.getByText("Selecione uma empresa.")).toBeInTheDocument();
+    expect(screen.queryByText("Guarded page")).not.toBeInTheDocument();
   });
 });

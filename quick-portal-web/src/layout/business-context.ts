@@ -3,6 +3,8 @@ import type { Business } from "#hooks/quickApi/useBusinesses";
 
 export interface BusinessScope {
   business: Business | null;
+  /** Whether the businesses available to the picker are still loading. */
+  isLoading: boolean;
 }
 
 export const BusinessScopeContext = createContext<BusinessScope | null>(null);

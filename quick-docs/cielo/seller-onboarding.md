@@ -640,13 +640,16 @@ mutation hooks under `src/hooks/`. The onboarding route is
 drawer. Like every accreditation route, it is available to admins of any
 business type.
 
-The Cielo tab on the "Credenciamento" page (`/credenciamento`):
+The "Credenciamento" page (`/credenciamento`) has a single Cielo section, with
+no tabs:
 
-- With no seller, show a `Credenciar` action to open the onboarding route.
-- With a seller, show `merchant_id` and `last_submitted_at` in the tab. The
-  submission and notification statuses, and the retry action, are shown in the
-  Cielo status card above the tabs; see
-  [Onboarding Status](./onboarding-status.md).
+- The Cielo status card shows the submission and notification statuses and the
+  retry action; see [Onboarding Status](./onboarding-status.md).
+- With no seller, the card shows a `Credenciar` action to open the onboarding
+  route. Without an active plan of the business, `Credenciar` is disabled and
+  a `Novo plano` action opens `/planos-cielo/novo`.
+- With a seller, `merchant_id` and `last_submitted_at` are shown below the
+  card.
 - Show retry only for `FAILED`, enabled when `can_retry` is true.
 - During cooldown, keep retry disabled and show `retry_available_at` in its
   tooltip.
@@ -654,10 +657,9 @@ The Cielo tab on the "Credenciamento" page (`/credenciamento`):
   and refreshes the seller summary in place.
 - Quick-side retry errors and cooldown errors remain on the accreditation page
   and display an error there.
-- Persisted create outcomes redirect to `/credenciamento?tab=cielo`; the
-  accreditation route uses that search parameter to select the Cielo tab. A missing Cielo seller (`404` from the detail endpoint) is the normal
-  state that displays the onboarding action; other detail errors display an
-  error instead.
+- Persisted create outcomes redirect to `/credenciamento`. A missing Cielo
+  seller (`404` from the detail endpoint) is the normal state that displays the
+  onboarding action; other detail errors display an error instead.
 
 ## Submission result UX
 
@@ -667,6 +669,6 @@ follows:
 | Result                                                                               | Persisted result        | Frontend behavior                                       |
 | ------------------------------------------------------------------------------------ | ----------------------- | ------------------------------------------------------- |
 | Quick validation, configuration, credentials, or backend failure before transmission | No Cielo seller record  | Remain on the review step and display an error message. |
-| Cielo `4xx`/`5xx`, service outage, timeout, connection failure, or missing response  | `FAILED`                | Redirect to the underlying business details page.       |
-| Malformed or locally unpersistable Cielo outcome                                     | `INTERVENTION_REQUIRED` | Redirect to the underlying business details page.       |
-| Valid Cielo `2xx`                                                                    | `SENT`                  | Redirect to the underlying business details page.       |
+| Cielo `4xx`/`5xx`, service outage, timeout, connection failure, or missing response  | `FAILED`                | Redirect to `/credenciamento`.                          |
+| Malformed or locally unpersistable Cielo outcome                                     | `INTERVENTION_REQUIRED` | Redirect to `/credenciamento`.                          |
+| Valid Cielo `2xx`                                                                    | `SENT`                  | Redirect to `/credenciamento`.                          |

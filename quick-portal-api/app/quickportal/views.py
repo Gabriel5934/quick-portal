@@ -1,3 +1,5 @@
+from collections.abc import Mapping
+
 from django.db import IntegrityError, transaction
 from django.db.models.deletion import ProtectedError
 from rest_framework import status
@@ -122,9 +124,11 @@ class BusinessListCreateView(APIView):
         the created business and HTTP 201.
         """
         # Checked before validation so a rejected request skips BrasilAPI.
-        if (
-            request.data.get("type") != BusinessType.STORE
-            or request.data.get("parent") is not None
+        # Non-mapping bodies are left to the serializer, which rejects them.
+        data = request.data
+        if isinstance(data, Mapping) and (
+            data.get("type") != BusinessType.STORE
+            or data.get("parent") is not None
         ):
             raise ValidationError(
                 {"type": ["New businesses must be stores without a parent."]}

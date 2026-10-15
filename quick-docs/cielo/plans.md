@@ -19,7 +19,7 @@ seller's pricing therefore never changes after signup.
 
 | Field            | Notes                                                                 |
 | ---------------- | --------------------------------------------------------------------- |
-| `owner_business` | FK to `Business`, `PROTECT`. Never a store.                           |
+| `owner_business` | FK to `Business`, `PROTECT`. Any business type, stores included.      |
 | `name`           | Required, maximum 200 characters. Unique per `owner_business`.        |
 | `description`    | Optional.                                                             |
 | `created_by`     | FK to the user who created the plan.                                  |
@@ -77,7 +77,7 @@ All endpoints require JWT authentication.
 | ------ | -------------------------------------------- | ------------------------------------------------------------------------- |
 | `GET`  | `/cielo/plans/?business=<id>`                | Active plans of the business, newest first. No rates.                     |
 | `GET`  | `/cielo/plans/?business=<id>&archived=true`  | Archived plans of the business, most recently archived first. No rates.   |
-| `POST` | `/cielo/plans/?business=<id>`                | Create a plan with all its rates. Stores get `400`. Copies use this too.  |
+| `POST` | `/cielo/plans/?business=<id>`                | Create a plan with all its rates; returns `201`. Copies use this too.     |
 | `GET`  | `/cielo/plans/<id>/?business=<id>`           | A plan of the business, active or archived, with its rates.               |
 | `POST` | `/cielo/plans/<id>/archive/?business=<id>`   | Archive an active plan. Returns the plan.                                 |
 | `POST` | `/cielo/plans/<id>/unarchive/?business=<id>` | Unarchive an archived plan. Returns the plan.                             |

@@ -411,6 +411,16 @@ class BusinessAuthorizationApiTests(APITestCase):
         fetch_cnpj_info.assert_not_called()
         self.assertFalse(Business.objects.filter(document="11222333000181").exists())
 
+    def test_create_rejects_a_non_object_body(self):
+        response = self.client.post(
+            reverse("business_list_create"),
+            [{"type": BusinessType.STORE}],
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("non_field_errors", response.data)
+
     def test_list_contains_only_direct_memberships_with_their_roles(self):
         BusinessMembership.objects.create(
             user=self.user, business=self.reseller, role=BusinessRole.VIEWER
