@@ -6,11 +6,9 @@ from quickportal.models import (
     BusinessColorPreference,
     BusinessMembership,
     RecurringFee,
-    RecurringFeeTarget,
 )
 
 admin.site.register(Business)
 admin.site.register(BusinessColorPreference)
 admin.site.register(BusinessMembership)
 admin.site.register(RecurringFee)
-admin.site.register(RecurringFeeTarget)

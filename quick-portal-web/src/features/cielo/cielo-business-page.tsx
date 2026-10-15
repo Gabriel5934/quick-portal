@@ -42,7 +42,8 @@ const steps = [
 export function CieloBusinessPage({ businessId }: { businessId: number }) {
   const businessQuery = useBusiness(businessId);
   const { business: scopeBusiness } = useBusinessScope();
-  const plansQuery = useCieloPlans(scopeBusiness?.id);
+  // The signup uses a plan owned by the business itself.
+  const plansQuery = useCieloPlans(businessId);
 
   if (businessQuery.isPending) {
     return <CircularProgress aria-label="Carregando estabelecimento" />;
@@ -53,7 +54,7 @@ export function CieloBusinessPage({ businessId }: { businessId: number }) {
   if (plansQuery.isError) {
     return <Alert severity="error">{plansQuery.error.message}</Alert>;
   }
-  if (!scopeBusiness || plansQuery.isPending) {
+  if (plansQuery.isPending) {
     return <CircularProgress aria-label="Carregando planos Cielo" />;
   }
   if (plansQuery.data.length === 0) {
@@ -61,22 +62,16 @@ export function CieloBusinessPage({ businessId }: { businessId: number }) {
   }
 
   return (
-    <CieloBusinessForm
-      business={businessQuery.data}
-      plans={plansQuery.data}
-      scopeBusinessId={scopeBusiness.id}
-    />
+    <CieloBusinessForm business={businessQuery.data} plans={plansQuery.data} />
   );
 }
 
 function CieloBusinessForm({
   business,
   plans,
-  scopeBusinessId,
 }: {
   business: Business;
   plans: CieloPlanSummary[];
-  scopeBusinessId: number;
 }) {
   const [currentStep, setCurrentStep] = useState(0);
   const navigate = useNavigate();
@@ -157,24 +152,20 @@ function CieloBusinessForm({
 
   async function submit(values: CieloBusinessFormValues) {
     try {
-      await createSeller.mutateAsync({ businessId, scopeBusinessId, values });
+      await createSeller.mutateAsync({ businessId, values });
     } catch {
       methods.setError("root", {
         message: "Tente novamente mais tarde",
       });
       return;
     }
-    await navigate({
-      to: "/business-list/$id",
-      params: { id: String(businessId) },
-      search: { tab: "cielo" },
-    });
+    await navigate({ to: "/credenciamento" });
   }
 
   return (
     <FormProvider {...methods}>
       <MultiStepFormShell
-        breadcrumb={{ to: "/business-list", label: "Estabelecimentos" }}
+        breadcrumb={{ to: "/credenciamento", label: "Credenciamento" }}
         currentLabel="Credenciamento Cielo"
         title="Credenciamento Cielo do seller"
         subtitle="Informe os dados de identificação, endereço e conta bancária para enviar o seller à Cielo."
@@ -221,11 +212,7 @@ function CieloBusinessForm({
           ) : null}
           <WizardActions
             onCancel={() =>
-              void navigate({
-                to: "/business-list/$id",
-                params: { id: String(businessId) },
-                search: { tab: "cielo" },
-              })
+              void navigate({ to: "/credenciamento" })
             }
             onBack={
               currentStep > 0

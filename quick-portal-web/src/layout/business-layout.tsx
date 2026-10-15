@@ -14,10 +14,7 @@ import RadioGroup from "@mui/material/RadioGroup";
 import TextField from "@mui/material/TextField";
 import Toolbar from "@mui/material/Toolbar";
 import { createTheme, ThemeProvider, useTheme } from "@mui/material/styles";
-import AddIcon from "@mui/icons-material/Add";
 import StoreIcon from "@mui/icons-material/Store";
-import RequestQuoteIcon from "@mui/icons-material/RequestQuote";
-import AutorenewIcon from "@mui/icons-material/Autorenew";
 import PointOfSaleIcon from "@mui/icons-material/PointOfSale";
 import CreditCardIcon from "@mui/icons-material/CreditCard";
 import {
@@ -27,6 +24,7 @@ import {
   type BusinessColor,
 } from "#hooks/quickApi/useBusinesses";
 import { BusinessScopeContext } from "./business-context";
+import { useBusinessSelection } from "./business-selection";
 
 const BUSINESS_DRAWER_WIDTH = 240;
 const BUSINESS_COLORS: Record<BusinessColor, string> = {
@@ -52,49 +50,21 @@ const navigation = [
     activePaths: ["/sales"],
     label: "Vendas",
     icon: <PointOfSaleIcon />,
-    nonStoreOnly: false,
+    adminOnly: false,
   },
   {
-    to: "/business-list",
-    activePaths: ["/business-list"],
-    label: "Estabelecimentos",
+    to: "/credenciamento",
+    activePaths: ["/credenciamento"],
+    label: "Credenciamento",
     icon: <StoreIcon />,
-    nonStoreOnly: true,
-  },
-  {
-    to: "/novo-ec",
-    activePaths: ["/novo-ec"],
-    label: "Cadastro",
-    icon: <AddIcon />,
-    nonStoreOnly: true,
-  },
-  {
-    to: "/recurring-fees",
-    activePaths: [
-      "/recurring-fees",
-      "/recurring-fees/new/details",
-      "/recurring-fees/new/pricing",
-      "/recurring-fees/new/schedule",
-      "/recurring-fees/new/targets",
-      "/recurring-fees/new/review",
-    ],
-    label: "Taxas Recorrentes",
-    icon: <AutorenewIcon />,
-    nonStoreOnly: true,
-  },
-  {
-    to: "/planos-e-taxas",
-    activePaths: ["/planos-e-taxas", "/novo-plano"],
-    label: "Planos e Taxas",
-    icon: <RequestQuoteIcon />,
-    nonStoreOnly: true,
+    adminOnly: true,
   },
   {
     to: "/planos-cielo",
     activePaths: ["/planos-cielo"],
     label: "Planos Cielo",
     icon: <CreditCardIcon />,
-    nonStoreOnly: true,
+    adminOnly: true,
   },
 ] as const;
 
@@ -104,20 +74,21 @@ export function BusinessLayout({ children }: BusinessLayoutProps) {
   const pathname = useRouterState({
     select: (state) => state.location.pathname,
   });
-  const [businessId, setBusinessId] = useState<number | null | undefined>();
+  const { selectedBusinessId: businessId, selectBusiness } =
+    useBusinessSelection();
   const [colorsExpanded, setColorsExpanded] = useState(false);
   const colorMutation = useBusinessColor();
-  const { data: hierarchy = [], isLoading } = useAllBusinesses();
+  const { data: businesses = [], isLoading } = useAllBusinesses();
 
-  const accessibleIds = new Set(hierarchy.map((business) => business.id));
-  const highestLevelBusinesses = hierarchy.filter(
+  const accessibleIds = new Set(businesses.map((business) => business.id));
+  const highestLevelBusinesses = businesses.filter(
     (business) =>
       business.parent === null || !accessibleIds.has(business.parent),
   );
   const selectedBusiness =
     businessId === undefined
       ? (highestLevelBusinesses[0] ?? null)
-      : (hierarchy.find((business) => business.id === businessId) ?? null);
+      : (businesses.find((business) => business.id === businessId) ?? null);
   const selectedColor = selectedBusiness?.color ?? "blue";
   const colorOptions = [
     selectedColor,
@@ -130,7 +101,7 @@ export function BusinessLayout({ children }: BusinessLayoutProps) {
       }),
     [outerTheme, selectedColor],
   );
-  const options = hierarchy.toSorted((left, right) => {
+  const options = businesses.toSorted((left, right) => {
     const groupComparison = businessGroup(right).localeCompare(
       businessGroup(left),
       "pt-BR",
@@ -142,8 +113,8 @@ export function BusinessLayout({ children }: BusinessLayoutProps) {
     );
   });
   const scope = useMemo(
-    () => ({ business: selectedBusiness }),
-    [selectedBusiness],
+    () => ({ business: selectedBusiness, isLoading }),
+    [selectedBusiness, isLoading],
   );
 
   return (
@@ -171,7 +142,7 @@ export function BusinessLayout({ children }: BusinessLayoutProps) {
                 loading={isLoading}
                 groupBy={businessGroup}
                 onChange={(_, selected) => {
-                  setBusinessId(selected?.id ?? null);
+                  selectBusiness(selected?.id ?? null);
                   setColorsExpanded(false);
                   void navigate({ to: "/sales" });
                 }}
@@ -234,7 +205,7 @@ export function BusinessLayout({ children }: BusinessLayoutProps) {
                 {navigation
                   .filter(
                     (item) =>
-                      !item.nonStoreOnly || selectedBusiness?.type !== "STORE",
+                      !item.adminOnly || selectedBusiness?.role === "ADMIN",
                   )
                   .map((item) => (
                     <ListItem key={item.to} disablePadding>

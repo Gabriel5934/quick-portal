@@ -13,7 +13,6 @@ import {
   Typography,
 } from "@mui/material";
 import { useNavigate } from "@tanstack/react-router";
-import { useAllBusinesses } from "#hooks/quickApi/useBusinesses";
 import { useOwnActivities } from "#hooks/quickApi/useOwnActivities";
 import { useOwnPlans } from "#hooks/quickApi/useOwnPlans";
 import { useBusinessScope } from "../../layout/business-context";
@@ -32,7 +31,6 @@ export function Plans() {
   const { business } = useBusinessScope();
   const { data, isLoading, error } = useOwnPlans(business?.id);
   const { data: activities = [] } = useOwnActivities();
-  const { data: businesses = [] } = useAllBusinesses();
 
   return (
     <Box>
@@ -106,7 +104,6 @@ export function Plans() {
                   <TableCell>Nome</TableCell>
                   <TableCell>Atividade</TableCell>
                   <TableCell>Cesta</TableCell>
-                  <TableCell>Empresa</TableCell>
                   <TableCell>Antecipação</TableCell>
                   <TableCell>Criado em</TableCell>
                 </TableRow>
@@ -132,7 +129,6 @@ export function Plans() {
                         </Typography>
                       </TableCell>
                       <TableCell>{BASKETS.find((basket) => basket.id === plan.basketId)?.name ?? plan.basketId}</TableCell>
-                      <TableCell>{businesses.find((item) => item.id === plan.owner_business)?.name ?? "—"}</TableCell>
                       <TableCell>
                         <Chip
                           label={plan.anticipation_type === "Rotating" ? "Sim" : "Não"}
@@ -148,7 +144,7 @@ export function Plans() {
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={6} align="center" sx={{ py: 6 }}>
+                    <TableCell colSpan={5} align="center" sx={{ py: 6 }}>
                       <Typography color="text.secondary">
                         Nenhum plano cadastrado
                       </Typography>

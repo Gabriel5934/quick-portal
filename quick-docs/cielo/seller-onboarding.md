@@ -487,10 +487,10 @@ may differ from the seller document.
 
 ## Quick Portal API
 
-All endpoints require JWT authentication. Business lookup uses the existing
-hierarchy-aware `get_accessible_business_or_404` helper without filtering by
-role, so any authenticated user with access to the business may use the Cielo
-flow.
+All endpoints require JWT authentication. Business lookup uses
+`get_accessible_business_or_404`, which only reaches businesses the user is a
+direct member of. Any member can read the seller summary; creating and
+retrying a seller require an admin of the business.
 
 | Method | Route                                    | Result                                                                                 |
 | ------ | ---------------------------------------- | -------------------------------------------------------------------------------------- |
@@ -505,8 +505,8 @@ flow.
 ### Create request
 
 The business comes from the path and must not also be accepted in the body.
-The business selected in the drawer is the `business` query parameter, and
-`plan` must be one of its active plans; see [Plans](./plans.md#seller-create-request).
+`plan` must be one of that business's own active plans; see
+[Plans](./plans.md#seller-create-request).
 Use this snake_case JSON contract:
 
 ```json
@@ -635,39 +635,41 @@ the frontend CNPJ lookup belong to the generic business form. The Cielo form
 continues to validate the independently supplied bank-account holder document.
 
 Place the feature under `src/features/cielo/`, with authenticated query and
-mutation hooks under `src/hooks/`. Add the route
-`/business-list/$id/credenciamento-cielo`; unlike the existing OWN onboarding
-route, it must not use the non-store guard because every business type may have
-a Cielo seller.
+mutation hooks under `src/hooks/`. The onboarding route is
+`/credenciamento/cielo` and always registers the business selected in the
+drawer. Like every accreditation route, it is available to admins of any
+business type.
 
-Replace the existing Cielo-unavailable tab on business details:
+The "Credenciamento" page (`/credenciamento`) has a single Cielo section, with
+no tabs:
 
-- With no seller, show a `Credenciar` action to open the onboarding route.
-- With a seller, show `merchant_id` and `last_submitted_at` in the tab. The
-  submission and notification statuses, and the retry action, are shown in the
-  Cielo status card above the tabs; see
-  [Onboarding Status](./onboarding-status.md).
+- The Cielo status card shows the submission and notification statuses and the
+  retry action; see [Onboarding Status](./onboarding-status.md).
+- With no seller, the card shows a `Credenciar` action to open the onboarding
+  route. Without an active plan of the business, `Credenciar` is disabled and
+  a `Novo plano` action opens `/planos-cielo/novo`.
+- With a seller, `merchant_id` and `last_submitted_at` are shown below the
+  card.
 - Show retry only for `FAILED`, enabled when `can_retry` is true.
 - During cooldown, keep retry disabled and show `retry_available_at` in its
   tooltip.
 - Retry calls the empty-body endpoint directly, without reopening the form,
   and refreshes the seller summary in place.
-- Quick-side retry errors and cooldown errors remain on the details page and
-  display an error there.
-- Persisted create outcomes redirect to `/business-list/$id?tab=cielo`; the
-  business-details route must use that search parameter to select the Cielo
-  tab. A missing Cielo seller (`404` from the detail endpoint) is the normal
-  state that displays the onboarding action; other detail errors display an
-  error instead.
+- Quick-side retry errors and cooldown errors remain on the accreditation page
+  and display an error there.
+- Persisted create outcomes redirect to `/credenciamento`. A missing Cielo
+  seller (`404` from the detail endpoint) is the normal state that displays the
+  onboarding action; other detail errors display an error instead.
 
 ## Submission result UX
 
 Submission begins from the review step. The frontend handles the result as
 follows:
 
-| Result                                                                               | Persisted result        | Frontend behavior                                       |
-| ------------------------------------------------------------------------------------ | ----------------------- | ------------------------------------------------------- |
-| Quick validation, configuration, credentials, or backend failure before transmission | No Cielo seller record  | Remain on the review step and display an error message. |
-| Cielo `4xx`/`5xx`, service outage, timeout, connection failure, or missing response  | `FAILED`                | Redirect to the underlying business details page.       |
-| Malformed or locally unpersistable Cielo outcome                                     | `INTERVENTION_REQUIRED` | Redirect to the underlying business details page.       |
-| Valid Cielo `2xx`                                                                    | `SENT`                  | Redirect to the underlying business details page.       |
+| Result                                                                                       | Persisted result        | Frontend behavior                                       |
+| -------------------------------------------------------------------------------------------- | ----------------------- | ------------------------------------------------------- |
+| Quick validation, configuration, credentials, or classified pre-transmission failure         | No Cielo seller record  | Remain on the review step and display an error message. |
+| Unexpected backend error while submitting (the seller is kept so it cannot be sent twice)    | `INTERVENTION_REQUIRED` | Remain on the review step and display an error message. |
+| Cielo `4xx`/`5xx`, service outage, timeout, connection failure, or missing response          | `FAILED`                | Redirect to `/credenciamento`.                          |
+| Malformed or locally unpersistable Cielo outcome                                             | `INTERVENTION_REQUIRED` | Redirect to `/credenciamento`.                          |
+| Valid Cielo `2xx`                                                                            | `SENT`                  | Redirect to `/credenciamento`.                          |

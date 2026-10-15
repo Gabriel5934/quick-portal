@@ -3,7 +3,6 @@ import { newBusinessSchema } from "./schema";
 import { isValidCnpj, isValidCpf, normalizeCnpj } from "../document";
 
 const validBusiness = {
-  isReseller: false,
   name: "Gabriel Andrade",
   nomeFantasia: "",
   email: "gabriel@example.com",

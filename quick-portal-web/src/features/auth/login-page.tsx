@@ -18,7 +18,7 @@ export function LoginPage() {
 
       try {
         await tokenMutation.mutateAsync(data);
-        await navigate({ to: "/business-list" });
+        await navigate({ to: "/sales" });
       } catch (error) {
         const message =
           error instanceof Error

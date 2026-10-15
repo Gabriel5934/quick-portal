@@ -63,7 +63,6 @@ export function RecurringFeesPage() {
                 <TableRow>
                   <TableCell>Nome</TableCell>
                   <TableCell>Modelo</TableCell>
-                  <TableCell>Empresas</TableCell>
                   <TableCell>Status</TableCell>
                   <TableCell>Início</TableCell>
                 </TableRow>
@@ -83,7 +82,6 @@ export function RecurringFeesPage() {
                       <TableCell>
                         {fee.pricing_mode === "FIXED" ? "Fixo" : "Por meta"}
                       </TableCell>
-                      <TableCell>{fee.target_businesses.length}</TableCell>
                       <TableCell>
                         <Chip
                           size="small"
@@ -100,7 +98,7 @@ export function RecurringFeesPage() {
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={5} align="center" sx={{ py: 6 }}>
+                    <TableCell colSpan={4} align="center" sx={{ py: 6 }}>
                       <Typography color="text.secondary">
                         Nenhuma taxa recorrente cadastrada.
                       </Typography>

@@ -52,7 +52,7 @@ from cielo.services.transaction_notifications import (
     parse_cielo_transaction_notification,
     record_cielo_transaction_notification,
 )
-from quickportal.models import Business, BusinessType
+from quickportal.models import Business, BusinessRole
 from quickportal.services.brasil_api import BrasilApiError
 from quickportal.services.business_access import get_accessible_business_or_404
 
@@ -112,18 +112,21 @@ def _apply_outcome(seller, outcome) -> None:
         seller.last_submitted_at = outcome.submitted_at
 
 
-def _scope_business(request):
+ADMIN_ROLES = {BusinessRole.ADMIN}
+
+
+def _scope_business(request, roles=None):
     """Return the business selected in the drawer, from the ``business`` query
-    parameter. Any role on the business is enough."""
+    parameter. Any role on the business is enough unless ``roles`` is given."""
     business_id = request.query_params.get("business")
     if not business_id:
         raise ValidationError({"business": ["This query parameter is required."]})
-    return get_accessible_business_or_404(request.user, business_id)
+    return get_accessible_business_or_404(request.user, business_id, roles=roles)
 
 
-def _scope_plans(request):
+def _scope_plans(request, roles=None):
     """Return the plans owned by the scope business; other plans are not found."""
-    return CieloPlan.objects.filter(owner_business=_scope_business(request))
+    return CieloPlan.objects.filter(owner_business=_scope_business(request, roles))
 
 
 class CieloPlanListCreateView(ListCreateAPIView):
@@ -151,9 +154,7 @@ class CieloPlanListCreateView(ListCreateAPIView):
         return context
 
     def create(self, request, *args, **kwargs):
-        self._owner_business = _scope_business(request)
-        if self._owner_business.type == BusinessType.STORE:
-            raise ValidationError({"business": ["A store cannot own plans."]})
+        self._owner_business = _scope_business(request, ADMIN_ROLES)
         try:
             return super().create(request, *args, **kwargs)
         except DjangoValidationError as exc:
@@ -189,7 +190,7 @@ class CieloPlanArchiveView(APIView):
     archive = True
 
     def post(self, request, pk):
-        plans = _scope_plans(request)
+        plans = _scope_plans(request, ADMIN_ROLES)
         with transaction.atomic():
             plan = get_object_or_404(plans.select_for_update(), pk=pk)
             if (plan.archived_at is not None) == self.archive:
@@ -218,10 +219,11 @@ class CieloBusinessView(APIView):
         return Response(CieloBusinessSummarySerializer(seller).data)
 
     def post(self, request, business_id):
-        business = get_accessible_business_or_404(request.user, business_id)
+        business = get_accessible_business_or_404(
+            request.user, business_id, roles=ADMIN_ROLES
+        )
         serializer = CieloBusinessCreateSerializer(
-            data=request.data,
-            context={"business": business, "plan_owner": _scope_business(request)},
+            data=request.data, context={"business": business}
         )
         try:
             serializer.is_valid(raise_exception=True)
@@ -320,7 +322,9 @@ class CieloBusinessRetryView(APIView):
                 {"non_field_errors": ["The retry request body must be empty."]},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        business = get_accessible_business_or_404(request.user, business_id)
+        business = get_accessible_business_or_404(
+            request.user, business_id, roles=ADMIN_ROLES
+        )
         try:
             with transaction.atomic():
                 seller = get_object_or_404(

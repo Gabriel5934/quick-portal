@@ -102,7 +102,7 @@ export function ScheduleStep() {
                 ? values.businessDayOrdinal
                 : undefined,
           });
-          void navigate({ to: "/recurring-fees/new/targets" });
+          void navigate({ to: "/recurring-fees/new/review" });
         })(event)
       }
     >

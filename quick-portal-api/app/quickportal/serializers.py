@@ -2,13 +2,12 @@ import uuid
 from django.contrib.auth import authenticate
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError as DjangoValidationError
-from django.db import transaction
 from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
 from quickportal.models import (
-    Business, BusinessColor, BusinessColorPreference, BusinessMembership, BusinessType,
-    DocumentType, RecurringFee, RecurringFeeTarget,
+    Business, BusinessColor, BusinessColorPreference, BusinessMembership, BusinessRole,
+    BusinessType, DocumentType, RecurringFee,
 )
 from quickportal.services.brasil_api import fetch_cnpj_info
 from quickportal.validators import validate_cnpj, validate_cpf
@@ -207,6 +206,42 @@ class BusinessWriteSerializer(serializers.ModelSerializer):
 
 class BusinessReadSerializer(serializers.ModelSerializer):
     color = serializers.SerializerMethodField()
+    role = serializers.SerializerMethodField()
+
+    def _business_ids(self, business):
+        """Return the IDs of the list or detail objects being serialized."""
+        business_ids = self.context.get("business_ids")
+        if business_ids is None:
+            instances = getattr(self.parent, "instance", None)
+            business_ids = (
+                [item.id for item in instances]
+                if instances is not None
+                else [business.id]
+            )
+        return business_ids
+
+    def get_role(self, business):
+        """Return the requesting user's ``BusinessRole`` on ``business``.
+
+        Superusers are reported as admins. ``None`` is returned when there is
+        no request or the user has no membership on ``business``. Memberships
+        are loaded once and cached in the ``business_roles`` context.
+        """
+        request = self.context.get("request")
+        if request is None:
+            return None
+        if request.user.is_superuser:
+            return BusinessRole.ADMIN
+        roles = self.context.get("business_roles")
+        if roles is None:
+            roles = dict(
+                BusinessMembership.objects.filter(
+                    user=request.user,
+                    business_id__in=self._business_ids(business),
+                ).values_list("business_id", "role")
+            )
+            self.context["business_roles"] = roles
+        return roles.get(business.id)
 
     def get_color(self, business):
         """Return the requesting user's color for ``business``.
@@ -223,18 +258,10 @@ class BusinessReadSerializer(serializers.ModelSerializer):
             return BusinessColor.BLUE
         colors = self.context.get("business_colors")
         if colors is None:
-            business_ids = self.context.get("business_ids")
-            if business_ids is None:
-                instances = getattr(self.parent, "instance", None)
-                business_ids = (
-                    [item.id for item in instances]
-                    if instances is not None
-                    else [business.id]
-                )
             colors = dict(
                 BusinessColorPreference.objects.filter(
                     user=request.user,
-                    business_id__in=business_ids,
+                    business_id__in=self._business_ids(business),
                 )
                 .values_list("business_id", "color")
             )
@@ -246,7 +273,7 @@ class BusinessReadSerializer(serializers.ModelSerializer):
         fields = [
             "id", "type", "parent", "document_type", "document", "name",
             "trade_name", "email", "phone", "landline",
-            "color",
+            "color", "role",
         ]
 
 
@@ -261,12 +288,6 @@ class RecurringFeeBusinessSerializer(serializers.ModelSerializer):
 
 
 class RecurringFeeSerializer(serializers.ModelSerializer):
-    targets = serializers.PrimaryKeyRelatedField(
-        queryset=Business.objects.all(), many=True, write_only=True
-    )
-    target_businesses = RecurringFeeBusinessSerializer(
-        source="targets", many=True, read_only=True
-    )
     owner = RecurringFeeBusinessSerializer(read_only=True)
     created_by = serializers.PrimaryKeyRelatedField(read_only=True)
 
@@ -293,26 +314,10 @@ class RecurringFeeSerializer(serializers.ModelSerializer):
             "start_date",
             "end_date",
             "active",
-            "targets",
-            "target_businesses",
             "created_at",
             "created_by",
         ]
         read_only_fields = ["id", "owner", "created_at", "created_by"]
-
-    def validate_targets(self, targets):
-        owner = self.context["owner"]
-        target_ids = [target.pk for target in targets]
-        if not targets:
-            raise serializers.ValidationError("Select at least one target business.")
-        if len(target_ids) != len(set(target_ids)):
-            raise serializers.ValidationError("Target businesses must be unique.")
-        invalid = [target.pk for target in targets if target.parent_id != owner.pk]
-        if invalid:
-            raise serializers.ValidationError(
-                "Targets must be direct children of the owner business."
-            )
-        return targets
 
     def validate(self, attrs):
         attrs = super().validate(attrs)
@@ -321,7 +326,7 @@ class RecurringFeeSerializer(serializers.ModelSerializer):
             for field in RecurringFee._meta.fields
             if self.instance is not None and field.name != "id"
         }
-        model_values.update({key: value for key, value in attrs.items() if key != "targets"})
+        model_values.update(attrs)
         model_values.setdefault("owner", self.context["owner"])
         model_values.setdefault("created_by", self.context["request"].user)
         candidate = RecurringFee(**model_values)
@@ -331,39 +336,12 @@ class RecurringFeeSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(error.message_dict) from error
         return attrs
 
-    @transaction.atomic
     def create(self, validated_data):
-        targets = validated_data.pop("targets")
-        recurring_fee = RecurringFee(
+        return RecurringFee.objects.create(
             owner=self.context["owner"],
             created_by=self.context["request"].user,
             **validated_data,
         )
-        recurring_fee.full_clean()
-        recurring_fee.save()
-        for target in targets:
-            link = RecurringFeeTarget(recurring_fee=recurring_fee, target=target)
-            link.full_clean()
-            link.save()
-        return recurring_fee
-
-    @transaction.atomic
-    def update(self, instance, validated_data):
-        targets = validated_data.pop("targets", None)
-        for field, value in validated_data.items():
-            setattr(instance, field, value)
-        instance.full_clean()
-        instance.save()
-        if targets is not None:
-            target_ids = {target.pk for target in targets}
-            instance.target_links.exclude(target_id__in=target_ids).delete()
-            for target in targets:
-                RecurringFeeTarget.objects.get_or_create(
-                    recurring_fee=instance,
-                    target=target,
-                )
-            instance._prefetched_objects_cache = {}
-        return instance
 
 
 class BusinessMembershipReadSerializer(serializers.ModelSerializer):

@@ -3,7 +3,6 @@ from datetime import timedelta
 
 from django.db import transaction
 from django.db import IntegrityError
-from django.db.models import Q
 from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework.generics import (
     ListAPIView,
@@ -14,7 +13,7 @@ from rest_framework.views import APIView
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework.permissions import IsAuthenticated
-from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
+from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.response import Response
 from rest_framework import status
 
@@ -33,7 +32,7 @@ from own.serializers import (
     OwnFeeSerializer,
     OwnPlanSerializer,
 )
-from quickportal.models import BusinessRole, BusinessType
+from quickportal.models import BusinessRole
 from quickportal.services.brasil_api import BrasilApiError
 from quickportal.services.business_access import (
     accessible_businesses,
@@ -49,6 +48,7 @@ from own.services.own_signup import build_own_business_signup_payload
 
 
 WRITE_ROLES = {BusinessRole.ADMIN, BusinessRole.MANAGER}
+ADMIN_ROLES = {BusinessRole.ADMIN}
 PENDING_RETRY_AFTER = timedelta(minutes=5)
 
 
@@ -128,7 +128,7 @@ def _submit_registration(own_business):
 
 
 def _manageable_signup_or_404(user, pk, lock=False):
-    """Return signup ``pk`` when ``user`` has a manager or administrator role."""
+    """Return signup ``pk`` when ``user`` is an administrator of its business."""
     queryset = OwnBusiness.objects.select_related(
             "business", "plan", "plan__activity", "plan__basketId"
         ).prefetch_related(
@@ -141,7 +141,7 @@ def _manageable_signup_or_404(user, pk, lock=False):
     return get_object_or_404(
         queryset,
         pk=pk,
-        business__in=accessible_businesses(user, roles=WRITE_ROLES),
+        business__in=accessible_businesses(user, roles=ADMIN_ROLES),
     )
 
 
@@ -191,9 +191,8 @@ class OwnBusinessSignupView(ListCreateAPIView):
         business = get_accessible_business_or_404(
             request.user,
             business_id,
-            roles=WRITE_ROLES,
+            roles=ADMIN_ROLES,
         )
-        _signup_plan_owner_or_404(request.user, business)
         if OwnBusiness.objects.filter(business=business).exists():
             return Response(
                 {"business": ["This business already has an OWN signup."]},
@@ -401,46 +400,21 @@ class OwnBasketAnticipationFeeView(APIView):
 
 
 def _plan_scope_business(request, *, writing=False):
-    """Resolve the business scope for an OWN plan management request.
+    """Resolve the business that owns the plans of an OWN plan request.
 
     ``request`` is the authenticated DRF request whose ``business`` query
-    parameter identifies the requested scope. ``writing`` controls whether the
-    user must have a role in ``WRITE_ROLES`` and whether store ownership is
-    rejected. Returns the requested non-store business; for read requests
-    involving a store, returns its accessible parent, or ``None`` when the store
-    is parentless. Raises DRF validation or not-found errors for missing or
-    inaccessible scopes.
+    parameter identifies the owner. ``writing`` requires the user to be an
+    admin of that business. Raises DRF validation or not-found errors for
+    missing or inaccessible businesses.
     """
     business_id = request.query_params.get("business")
     if not business_id:
         raise ValidationError({"business": ["This query parameter is required."]})
-    business = get_accessible_business_or_404(
+    return get_accessible_business_or_404(
         request.user,
         business_id,
-        roles=WRITE_ROLES if writing else None,
+        roles=ADMIN_ROLES if writing else None,
     )
-    if business.type == BusinessType.STORE:
-        if writing:
-            raise ValidationError({"business": ["A store cannot own plans."]})
-        if business.parent_id is not None and not accessible_businesses(request.user).filter(
-            pk=business.parent_id
-        ).exists():
-            raise NotFound()
-        return business.parent
-    return business
-
-
-def _signup_plan_owner_or_404(user, business):
-    """Return the accessible plan-owner scope used during signup.
-
-    ``user`` is the authenticated user performing the signup and ``business``
-    is the existing target business being registered with OWN. Returns the
-    target's direct parent, or the target itself when it has no parent, after
-    requiring a role in ``WRITE_ROLES``. Raises ``NotFound`` when that owner
-    scope is inaccessible.
-    """
-    owner_id = business.parent_id or business.pk
-    return get_accessible_business_or_404(user, owner_id, roles=WRITE_ROLES)
 
 
 class OwnPlanListCreateView(ListCreateAPIView):
@@ -451,26 +425,7 @@ class OwnPlanListCreateView(ListCreateAPIView):
         queryset = OwnPlan.objects.select_related(
             "owner_business", "activity", "basketId", "created_by", "updated_by"
         ).prefetch_related("fees")
-        signup_business_id = self.request.query_params.get("signup_business")
-        if signup_business_id is not None:
-            signup_business = get_accessible_business_or_404(
-                self.request.user, signup_business_id, roles=WRITE_ROLES
-            )
-            owner = _signup_plan_owner_or_404(self.request.user, signup_business)
-            return queryset.filter(owner_business=owner)
-
-        business = _plan_scope_business(self.request)
-        if business is None:
-            return queryset.none()
-        if business.type == BusinessType.RESELLER:
-            return queryset.filter(
-                Q(owner_business=business)
-                | Q(
-                    owner_business__parent=business,
-                    owner_business__type=BusinessType.RE_RESELLER,
-                )
-            )
-        return queryset.filter(owner_business=business)
+        return queryset.filter(owner_business=_plan_scope_business(self.request))
 
     def create(self, request, *args, **kwargs):
         self._owner_business = _plan_scope_business(request, writing=True)
@@ -495,13 +450,11 @@ class OwnPlanDetailView(RetrieveUpdateDestroyAPIView):
         if self.request.user.is_superuser:
             return queryset
         return queryset.filter(
-            owner_business__in=accessible_businesses(self.request.user).exclude(
-                type=BusinessType.STORE
-            )
+            owner_business__in=accessible_businesses(self.request.user)
         )
 
     def _check_write_access(self, instance):
-        if effective_business_role(self.request.user, instance.owner_business) not in WRITE_ROLES:
+        if effective_business_role(self.request.user, instance.owner_business) not in ADMIN_ROLES:
             raise PermissionDenied("You cannot change this plan.")
 
     def perform_update(self, serializer):

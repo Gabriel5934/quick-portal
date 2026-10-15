@@ -1,95 +1,22 @@
-import AddBusinessOutlined from "@mui/icons-material/AddBusinessOutlined";
-import Alert from "@mui/material/Alert";
-import Box from "@mui/material/Box";
-import Button from "@mui/material/Button";
-import CircularProgress from "@mui/material/CircularProgress";
+import Paper from "@mui/material/Paper";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
 import TableCell from "@mui/material/TableCell";
 import TableContainer from "@mui/material/TableContainer";
 import TableRow from "@mui/material/TableRow";
-import Typography from "@mui/material/Typography";
-import Stack from "@mui/material/Stack";
-import { createLink } from "@tanstack/react-router";
 import { useCieloBusiness } from "#hooks/quickApi/useCielo";
-import { useCieloPlans } from "#hooks/quickApi/useCieloPlans";
-import { useBusinessScope } from "../../layout/business-context";
-import { CieloPlanRequiredAlert } from "./plan-required-alert";
-
-const RouterButton = createLink(Button);
 
 function formatDate(value: string): string {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? value : date.toLocaleString("pt-BR");
 }
 
+/** Shows the Cielo seller's details; renders nothing until it is signed up.
+ * Loading and errors are reported by ``CieloStatusCard``. */
 export function CieloBusinessPanel({ businessId }: { businessId: number }) {
-  const { data: seller, isLoading, error } = useCieloBusiness(businessId);
-  // The signup uses a plan of the business selected in the drawer.
-  const { business: scopeBusiness } = useBusinessScope();
-  const plans = useCieloPlans(scopeBusiness?.id);
-  const hasActivePlans = !!plans.data?.length;
+  const { data: seller } = useCieloBusiness(businessId);
 
-  if (error) {
-    return (
-      <Alert severity="error">
-        {error instanceof Error
-          ? error.message
-          : "Erro ao carregar o credenciamento Cielo."}
-      </Alert>
-    );
-  }
-  if (isLoading || seller === undefined) {
-    return (
-      <Box sx={{ display: "flex", justifyContent: "center", py: 6 }}>
-        <CircularProgress aria-label="Carregando credenciamento Cielo" />
-      </Box>
-    );
-  }
-  if (!seller) {
-    return (
-      <Box
-        sx={{
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          textAlign: "center",
-          py: { xs: 4, sm: 7 },
-          px: 2,
-        }}
-      >
-        <AddBusinessOutlined color="disabled" sx={{ fontSize: 56, mb: 2 }} />
-        <Typography variant="h6" sx={{ mb: 1 }}>
-          Estabelecimento não credenciado na Cielo
-        </Typography>
-        <Stack spacing={2} sx={{ alignItems: "center", maxWidth: 560 }}>
-          {hasActivePlans ? (
-            <RouterButton
-              to="/business-list/$id/credenciamento-cielo"
-              params={{ id: String(businessId) }}
-              variant="contained"
-              startIcon={<AddBusinessOutlined />}
-            >
-              Credenciar
-            </RouterButton>
-          ) : (
-            <Button
-              variant="contained"
-              startIcon={<AddBusinessOutlined />}
-              disabled
-            >
-              Credenciar
-            </Button>
-          )}
-          {plans.error ? (
-            <Alert severity="error">{plans.error.message}</Alert>
-          ) : plans.data?.length === 0 ? (
-            <CieloPlanRequiredAlert scopeBusiness={scopeBusiness} />
-          ) : null}
-        </Stack>
-      </Box>
-    );
-  }
+  if (!seller) return null;
 
   const rows = [
     { label: "Merchant ID", value: seller.merchant_id },
@@ -102,7 +29,7 @@ export function CieloBusinessPanel({ businessId }: { businessId: number }) {
   ];
 
   return (
-    <TableContainer>
+    <TableContainer component={Paper} variant="outlined">
       <Table aria-label="Dados Cielo do estabelecimento">
         <TableBody>
           {rows.map((row) => (

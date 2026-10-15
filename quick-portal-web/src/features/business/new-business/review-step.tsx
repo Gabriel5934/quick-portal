@@ -1,4 +1,3 @@
-import Chip from "@mui/material/Chip";
 import Divider from "@mui/material/Divider";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
@@ -22,12 +21,6 @@ export function BusinessReviewStep({ values }: BusinessReviewStepProps) {
     <>
       <FormFieldPaper title="Informações">
         <Stack spacing={1}>
-          <Chip
-            label={values.isReseller ? "Revenda" : "Estabelecimento"}
-            color={values.isReseller ? "primary" : "default"}
-            size="small"
-            sx={{ alignSelf: "flex-start" }}
-          />
           <ReviewItem label="Tipo de documento" value={values.documentType} />
           <ReviewItem label="Documento" value={values.document} />
         </Stack>

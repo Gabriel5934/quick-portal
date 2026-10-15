@@ -90,6 +90,7 @@ const business: Business = {
   phone: "11987654321",
   landline: "",
   color: "blue",
+  role: "ADMIN",
 };
 
 vi.mock("#hooks/quickApi/useBusinesses", () => ({
@@ -182,10 +183,10 @@ describe("Cielo submission result UX", () => {
     mockPlans(activePlans);
   });
 
-  it("offers only the active plans of the business selected in the drawer", () => {
+  it("offers only the active plans of the business itself", () => {
     render(<CieloBusinessPage businessId={73} />);
 
-    expect(useCieloPlans).toHaveBeenCalledWith(42);
+    expect(useCieloPlans).toHaveBeenCalledWith(73);
     expect(screen.getByText("Identificação: Básico")).toBeInTheDocument();
   });
 
@@ -205,15 +206,18 @@ describe("Cielo submission result UX", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("sends the seller with the selected business as the plan scope", async () => {
+  it("sends the seller for the business", async () => {
     mutateAsync.mockResolvedValue(persisted("SENT"));
 
     await reachReviewAndSubmit();
 
-    await waitFor(() =>
-      expect(mutateAsync).toHaveBeenCalledWith(
-        expect.objectContaining({ businessId: 73, scopeBusinessId: 42 }),
-      ),
+    await waitFor(() => expect(mutateAsync).toHaveBeenCalledOnce());
+    expect(Object.keys(mutateAsync.mock.calls[0][0] as object)).toEqual([
+      "businessId",
+      "values",
+    ]);
+    expect(mutateAsync).toHaveBeenCalledWith(
+      expect.objectContaining({ businessId: 73 }),
     );
   });
 
@@ -242,7 +246,7 @@ describe("Cielo submission result UX", () => {
   });
 
   it.each(["FAILED", "INTERVENTION_REQUIRED", "SENT"] as const)(
-    "redirects persisted %s outcomes to the Cielo details tab",
+    "redirects persisted %s outcomes to Credenciamento",
     async (status) => {
       mutateAsync.mockResolvedValue(persisted(status));
 
@@ -250,9 +254,7 @@ describe("Cielo submission result UX", () => {
 
       await waitFor(() =>
         expect(navigate).toHaveBeenCalledWith({
-          to: "/business-list/$id",
-          params: { id: "73" },
-          search: { tab: "cielo" },
+          to: "/credenciamento",
         }),
       );
     },

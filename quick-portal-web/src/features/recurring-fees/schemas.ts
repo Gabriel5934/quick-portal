@@ -119,11 +119,6 @@ export const scheduleSchema = z
     }
   });
 
-export const targetsSchema = z.object({
-  targetIds: z.array(z.number()).min(1, "Selecione ao menos uma empresa"),
-});
-
 export type DetailsValues = z.infer<typeof detailsSchema>;
 export type PricingValues = z.infer<typeof pricingSchema>;
 export type ScheduleValues = z.infer<typeof scheduleSchema>;
-export type TargetsValues = z.infer<typeof targetsSchema>;

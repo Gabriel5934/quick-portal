@@ -2,10 +2,11 @@ import type { ReactNode } from "react";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { Business } from "#hooks/quickApi/useBusinesses";
+import type { Business, BusinessRole } from "#hooks/quickApi/useBusinesses";
 import { useAllBusinesses } from "#hooks/quickApi/useBusinesses";
 import { useBusinessColor } from "#hooks/quickApi/useBusinesses";
 import { BusinessLayout } from "./business-layout";
+import { BusinessSelectionProvider } from "./business-selection-provider";
 
 const navigate = vi.hoisted(() => vi.fn());
 
@@ -37,6 +38,7 @@ function business(
   name: string,
   type: Business["type"],
   parent: number | null,
+  role: BusinessRole | null = "ADMIN",
 ): Business {
   return {
     id,
@@ -50,6 +52,7 @@ function business(
     phone: "11999999999",
     landline: "",
     color: "blue",
+    role,
   };
 }
 
@@ -72,9 +75,11 @@ function renderHierarchy(businesses: Business[], mutate = vi.fn()) {
   } as unknown as ReturnType<typeof useBusinessColor>);
 
   render(
-    <BusinessLayout>
-      <div>Conteúdo</div>
-    </BusinessLayout>,
+    <BusinessSelectionProvider>
+      <BusinessLayout>
+        <div>Conteúdo</div>
+      </BusinessLayout>
+    </BusinessSelectionProvider>,
   );
 }
 
@@ -147,23 +152,23 @@ describe("BusinessLayout business selector", () => {
     expect(navigate).toHaveBeenCalledWith({ to: "/sales" });
   });
 
-  it("only shows Sales in the guarded navigation when a store is selected", () => {
+  it("shows every business page to store admins", () => {
     renderHierarchy([business(1, "Estabelecimento", "STORE", null)]);
 
-    expect(screen.getByText("Vendas")).toBeInTheDocument();
-    expect(screen.queryByText("Estabelecimentos")).not.toBeInTheDocument();
-    expect(screen.queryByText("Cadastro")).not.toBeInTheDocument();
-    expect(screen.queryByText("Planos e Taxas")).not.toBeInTheDocument();
-    expect(screen.queryByText("Planos Cielo")).not.toBeInTheDocument();
+    expect(
+      screen.getAllByRole("listitem").map((item) => item.textContent),
+    ).toEqual(["Vendas", "Credenciamento", "Planos Cielo"]);
   });
 
-  it("shows Planos Cielo next to Planos e Taxas for resellers", () => {
-    renderHierarchy(hierarchy);
+  it.each<BusinessRole | null>(["MANAGER", "VIEWER", null])(
+    "only shows Sales to %s members",
+    (role) => {
+      renderHierarchy([business(1, "Revenda", "RESELLER", null, role)]);
 
-    const ownPlans = screen.getByText("Planos e Taxas").closest("li");
-    const cieloPlans = screen.getByText("Planos Cielo").closest("li");
-    expect(ownPlans?.nextElementSibling).toBe(cieloPlans);
-  });
+      expect(screen.getAllByRole("listitem")).toHaveLength(1);
+      expect(screen.getByText("Vendas")).toBeInTheDocument();
+    },
+  );
 
   it("marks the current business route as selected", () => {
     renderHierarchy(hierarchy);

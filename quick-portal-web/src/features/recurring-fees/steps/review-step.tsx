@@ -12,7 +12,6 @@ import {
 import { useBusinessScope } from "../../../layout/business-context";
 import {
   useCreateRecurringFee,
-  useRecurringFeeChildren,
   type RecurringFeePayload,
 } from "../../../hooks/quickApi/useRecurringFees";
 import { resetRecurringFeeDraft } from "../form-store";
@@ -43,9 +42,7 @@ export function ReviewStep() {
   const { business } = useBusinessScope();
   const { state, actions } = useStateMachine({ resetRecurringFeeDraft });
   const draft = state.recurringFeeDraft;
-  const { data: children = [] } = useRecurringFeeChildren(business?.id);
   const createFee = useCreateRecurringFee(business?.id);
-  const selected = children.filter((item) => draft.targetIds.includes(item.id));
 
   const submit = () => {
     const payload: RecurringFeePayload = {
@@ -77,7 +74,6 @@ export function ReviewStep() {
       start_date: draft.startDate,
       end_date: draft.endDate || null,
       active: draft.active,
-      targets: draft.targetIds,
     };
     createFee.mutate(payload, {
       onSuccess: () => {
@@ -145,18 +141,11 @@ export function ReviewStep() {
             : ", sem data final"}
         </Typography>
       </FormFieldPaper>
-      <FormFieldPaper title={`Empresas (${selected.length})`}>
-        <Stack direction="row" sx={{ gap: 1, flexWrap: "wrap" }}>
-          {selected.map((item) => (
-            <Chip key={item.id} label={item.trade_name || item.name} />
-          ))}
-        </Stack>
-      </FormFieldPaper>
       <WizardActions
         submitLabel="Criar taxa recorrente"
         loading={createFee.isPending}
         onCancel={cancel}
-        onBack={() => void navigate({ to: "/recurring-fees/new/targets" })}
+        onBack={() => void navigate({ to: "/recurring-fees/new/schedule" })}
       />
     </StepForm>
   );

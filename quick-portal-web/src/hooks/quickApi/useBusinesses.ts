@@ -1,14 +1,11 @@
-import {
-  keepPreviousData,
-  useMutation,
-  useQueryClient,
-} from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ApiError, useAuthQuery } from "../auth/useAuthQuery";
 import { useToken } from "#hooks/auth/useToken";
 
 export type BusinessType = "RESELLER" | "RE_RESELLER" | "STORE";
 export type BusinessDocumentType = "CNPJ" | "CPF";
 export type BusinessColor = "blue" | "green" | "yellow" | "purple" | "orange";
+export type BusinessRole = "ADMIN" | "MANAGER" | "VIEWER";
 
 export interface Business {
   id: number;
@@ -22,6 +19,8 @@ export interface Business {
   phone: string;
   landline: string;
   color: BusinessColor;
+  /** The requesting user's role on this business. */
+  role: BusinessRole | null;
 }
 
 export interface BusinessesResponse {
@@ -29,89 +28,6 @@ export interface BusinessesResponse {
   next: string | null;
   previous: string | null;
   results: Business[];
-}
-
-export interface BusinessSummary {
-  total: number;
-  not_started: number;
-  pending: number;
-  completed: number;
-  failed: number;
-}
-
-interface BusinessQuery {
-  parent?: number;
-  document?: string;
-  name?: string;
-  trade_name?: string;
-  page?: number;
-  page_size?: number;
-}
-
-async function fetchBusinesses(
-  query: BusinessQuery,
-  token: string,
-): Promise<BusinessesResponse> {
-  const params = new URLSearchParams();
-  if (query.parent) params.set("parent", String(query.parent));
-  if (query.document) {
-    const document = query.document.replace(/\D/g, "");
-    if (document) params.set("document", document);
-  }
-  if (query.name) params.set("name", query.name);
-  if (query.trade_name) params.set("trade_name", query.trade_name);
-  if (query.page && query.page > 1) params.set("page", String(query.page));
-  if (query.page_size) params.set("page_size", String(query.page_size));
-
-  const qs = params.toString();
-  const url = `${import.meta.env.VITE_API_BASE_URL}/api/businesses/${qs ? `?${qs}` : ""}`;
-
-  const res = await fetch(url, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-
-  if (!res.ok) throw new Error("Erro ao carregar estabelecimentos.");
-
-  return res.json() as Promise<BusinessesResponse>;
-}
-
-export function useBusinesses(query: BusinessQuery = {}) {
-  const { data: token } = useToken();
-  return useAuthQuery<BusinessesResponse>({
-    queryKey: ["businesses", query],
-    queryFn: () => fetchBusinesses(query, token!),
-    placeholderData: keepPreviousData,
-    enabled: !!token,
-  });
-}
-
-async function fetchBusinessSummary(
-  parent: number,
-  token: string,
-): Promise<BusinessSummary> {
-  const params = new URLSearchParams({ parent: String(parent) });
-  const res = await fetch(
-    `${import.meta.env.VITE_API_BASE_URL}/api/businesses/summary/?${params}`,
-    { headers: { Authorization: `Bearer ${token}` } },
-  );
-
-  if (!res.ok) {
-    throw new ApiError(
-      res.status,
-      "Erro ao carregar o resumo de estabelecimentos.",
-    );
-  }
-
-  return res.json() as Promise<BusinessSummary>;
-}
-
-export function useBusinessSummary(parent: number | undefined) {
-  const { data: token } = useToken();
-  return useAuthQuery<BusinessSummary>({
-    queryKey: ["businesses", "summary", parent],
-    queryFn: () => fetchBusinessSummary(parent!, token!),
-    enabled: !!token && parent !== undefined,
-  });
 }
 
 async function fetchAllBusinesses(token: string): Promise<Business[]> {
@@ -126,7 +42,7 @@ async function fetchAllBusinesses(token: string): Promise<Business[]> {
     if (!res.ok) {
       throw new ApiError(
         res.status,
-        "Erro ao carregar a hierarquia de empresas.",
+        "Erro ao carregar as empresas.",
       );
     }
 

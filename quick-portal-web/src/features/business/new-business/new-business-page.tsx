@@ -15,18 +15,17 @@ import {
   MultiStepFormShell,
   WizardActions,
 } from "../../../components/multi-step-form";
-import { useBusinessScope } from "../../../layout/business-context";
+import { useBusinessSelection } from "../../../layout/business-selection";
 import { newBusinessSchema } from "./schema";
 import { RegistrationStep } from "./registration-step";
 import { ContactStep } from "./contact-step";
 import { BusinessReviewStep } from "./review-step";
 import type { NewBusinessFormValues } from "./types";
-import { childBusinessType } from "./business-rules";
 
 export function NewBusiness() {
   const [currentStep, setCurrentStep] = useState(0);
   const navigate = useNavigate();
-  const { business } = useBusinessScope();
+  const { selectBusiness } = useBusinessSelection();
   const { mutate: createBusiness, isPending } = useCreateBusiness();
 
   const cnpjErrorRef = useRef<Error | null>(null);
@@ -47,7 +46,6 @@ export function NewBusiness() {
   const methods = useForm<NewBusinessFormValues>({
     resolver,
     defaultValues: {
-      isReseller: false,
       documentType: "CNPJ",
       document: "",
       name: "",
@@ -73,26 +71,15 @@ export function NewBusiness() {
   }, [cnpjError, documentType, methods]);
 
   function onSubmit(data: NewBusinessFormValues) {
-    if (!business) {
-      methods.setError("root", { message: "Selecione um perfil responsável." });
-      return;
-    }
-
-    createBusiness(
-      {
-        ...data,
-        parentId: business.id,
-        type: childBusinessType(business.type, data.isReseller),
+    createBusiness(data, {
+      onSuccess: ({ id }) => {
+        selectBusiness(id);
+        void navigate({ to: "/credenciamento" });
       },
-      {
-        onSuccess: () => {
-          void navigate({ to: "/business-list" });
-        },
-        onError: (err) => {
-          methods.setError("root", { message: err.message });
-        },
+      onError: (err) => {
+        methods.setError("root", { message: err.message });
       },
-    );
+    });
   }
 
   async function goToContactStep() {
@@ -108,7 +95,7 @@ export function NewBusiness() {
   return (
     <FormProvider {...methods}>
       <MultiStepFormShell
-        breadcrumb={{ to: "/business-list", label: "Estabelecimentos" }}
+        breadcrumb={{ to: "/novo-ec", label: "Novo estabelecimento" }}
         currentLabel="Cadastro de EC"
         title="Novo Estabelecimento Comercial"
         subtitle="Preencha os dados iniciais para cadastrar o EC. Após salvar, você poderá completar o cadastro."
@@ -144,7 +131,7 @@ export function NewBusiness() {
             </Typography>
           )}
           <WizardActions
-            onCancel={() => void navigate({ to: "/business-list" })}
+            onCancel={() => void navigate({ to: "/sales" })}
             onBack={
               currentStep > 0
                 ? () => setCurrentStep((step) => step - 1)

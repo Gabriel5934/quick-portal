@@ -5,18 +5,14 @@ import TextField from "@mui/material/TextField";
 import { createLink } from "@tanstack/react-router";
 import { Controller, useFormContext } from "react-hook-form";
 import { NumericFormat, PatternFormat } from "react-number-format";
-import { useOwnPlansForSignup } from "#hooks/quickApi/useOwnPlans";
-import { useAllBusinesses } from "#hooks/quickApi/useBusinesses";
+import { useOwnPlans } from "#hooks/quickApi/useOwnPlans";
 import { FormFieldPaper } from "../../../components/multi-step-form";
 import type { OwnBusinessFormValues } from "./types";
 
 const RouterButton = createLink(Button);
 
 export function OwnRegistrationStep({ businessId }: { businessId: number }) {
-  const { data: plans = [] } = useOwnPlansForSignup(businessId);
-  const { data: businesses = [] } = useAllBusinesses();
-  const targetBusiness = businesses.find((business) => business.id === businessId);
-  const planOwnerId = targetBusiness?.parent ?? targetBusiness?.id;
+  const { data: plans = [] } = useOwnPlans(businessId);
   const {
     control,
     formState: { errors },
@@ -158,7 +154,6 @@ export function OwnRegistrationStep({ businessId }: { businessId: number }) {
         />
         <RouterButton
           to="/novo-plano"
-          search={{ business: planOwnerId ?? undefined }}
           variant="outlined"
           size="small"
           startIcon={<AddIcon />}

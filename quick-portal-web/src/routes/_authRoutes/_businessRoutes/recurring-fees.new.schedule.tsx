@@ -1,19 +1,19 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { AdminBusinessGuard } from "../../../layout/admin-business-guard";
 import {
-  RecurringFeeBusinessGuard,
   RecurringFeeWizardPage,
   ScheduleStep,
-} from "../../features/recurring-fees";
+} from "../../../features/recurring-fees";
 
 export const Route = createFileRoute(
-  "/_authRoutes/recurring-fees/new/schedule",
+  "/_authRoutes/_businessRoutes/recurring-fees/new/schedule",
 )({ component: RouteComponent });
 function RouteComponent() {
   return (
-    <RecurringFeeBusinessGuard>
+    <AdminBusinessGuard>
       <RecurringFeeWizardPage currentStep={2}>
         <ScheduleStep />
       </RecurringFeeWizardPage>
-    </RecurringFeeBusinessGuard>
+    </AdminBusinessGuard>
   );
 }
