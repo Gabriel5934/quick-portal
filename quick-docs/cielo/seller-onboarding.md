@@ -666,9 +666,10 @@ no tabs:
 Submission begins from the review step. The frontend handles the result as
 follows:
 
-| Result                                                                               | Persisted result        | Frontend behavior                                       |
-| ------------------------------------------------------------------------------------ | ----------------------- | ------------------------------------------------------- |
-| Quick validation, configuration, credentials, or backend failure before transmission | No Cielo seller record  | Remain on the review step and display an error message. |
-| Cielo `4xx`/`5xx`, service outage, timeout, connection failure, or missing response  | `FAILED`                | Redirect to `/credenciamento`.                          |
-| Malformed or locally unpersistable Cielo outcome                                     | `INTERVENTION_REQUIRED` | Redirect to `/credenciamento`.                          |
-| Valid Cielo `2xx`                                                                    | `SENT`                  | Redirect to `/credenciamento`.                          |
+| Result                                                                                       | Persisted result        | Frontend behavior                                       |
+| -------------------------------------------------------------------------------------------- | ----------------------- | ------------------------------------------------------- |
+| Quick validation, configuration, credentials, or classified pre-transmission failure         | No Cielo seller record  | Remain on the review step and display an error message. |
+| Unexpected backend error while submitting (the seller is kept so it cannot be sent twice)    | `INTERVENTION_REQUIRED` | Remain on the review step and display an error message. |
+| Cielo `4xx`/`5xx`, service outage, timeout, connection failure, or missing response          | `FAILED`                | Redirect to `/credenciamento`.                          |
+| Malformed or locally unpersistable Cielo outcome                                             | `INTERVENTION_REQUIRED` | Redirect to `/credenciamento`.                          |
+| Valid Cielo `2xx`                                                                            | `SENT`                  | Redirect to `/credenciamento`.                          |
