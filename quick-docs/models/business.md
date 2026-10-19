@@ -72,7 +72,35 @@ invariants explicitly and call `full_clean()` when model validation is needed.
 - `POST /api/businesses/` only creates stores without a parent; any other
   `type` or a `parent` returns `400`. Any authenticated user can create one, and
   the creator becomes its `ADMIN`.
+- `invites` holds pending `BusinessInvite` grants. See
+  [granting access](#granting-access).
 - `color_preferences` stores each user's display color for the business.
+
+## Granting access
+
+Admins of a business grant access by email from the **Acessos** page. Each
+grant is a `BusinessInvite` that is unique per business and (lowercased)
+email; the email does not need a registered user. The invitee sees it on the
+**Convites** page once signed in with that email, and accepting it replaces
+the invite with a `BusinessMembership` carrying the invite's role. Declining
+or revoking deletes the invite.
+
+All endpoints require a JWT. The business-scoped ones also require the
+`ADMIN` role on that business.
+
+| Endpoint | Purpose |
+| --- | --- |
+| `GET`, `POST /api/businesses/<id>/invites/` | List or create pending invites (`email`, `role`). Each invite reports `registered`. |
+| `PATCH`, `DELETE /api/businesses/<id>/invites/<pk>/` | Change the role of, or revoke, a pending invite. The email cannot change. |
+| `GET /api/businesses/<id>/invites/email-status/?email=` | Whether an email belongs to a registered user. |
+| `GET`, `PATCH`, `DELETE /api/businesses/<id>/memberships/[<pk>/]` | List accepted access, change its role, or revoke it. The final admin cannot be demoted or removed. |
+| `GET /api/invites/` | Invites sent to the authenticated user's email. |
+| `POST /api/invites/<pk>/accept/` | Accept an invite. An existing membership is kept unchanged. |
+| `DELETE /api/invites/<pk>/` | Decline an invite. |
+
+Emails that already have access or a pending invite on the business are
+rejected with `{"email": [...]}`. Invites are matched to users by email only,
+and sign-up does not verify email ownership.
 
 ## Example
 

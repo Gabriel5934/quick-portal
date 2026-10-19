@@ -157,7 +157,7 @@ describe("BusinessLayout business selector", () => {
 
     expect(
       screen.getAllByRole("listitem").map((item) => item.textContent),
-    ).toEqual(["Vendas", "Credenciamento", "Planos Cielo"]);
+    ).toEqual(["Vendas", "Credenciamento", "Planos Cielo", "Acessos"]);
   });
 
   it.each<BusinessRole | null>(["MANAGER", "VIEWER", null])(

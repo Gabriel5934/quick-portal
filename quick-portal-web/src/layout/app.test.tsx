@@ -27,6 +27,9 @@ vi.mock("@tanstack/react-router", () => ({
 
 vi.mock("#hooks/auth/useLogout", () => ({ useLogout: () => vi.fn() }));
 vi.mock("#hooks/storage", () => ({ getUserEmail: () => "user@example.com" }));
+vi.mock("#hooks/quickApi/useBusinessAccess", () => ({
+  useReceivedInvites: () => ({ data: [{ id: 1 }, { id: 2 }] }),
+}));
 
 function renderLayout() {
   render(
@@ -41,22 +44,26 @@ describe("AppLayout account drawer", () => {
     matchedRouteIds.current = [];
   });
 
-  it("lists Meus ECs before Novo estabelecimento", () => {
+  it("lists Meus ECs before Novo estabelecimento and Convites", () => {
     renderLayout();
 
     const links = screen.getAllByRole("link");
-    expect(links.map((link) => link.textContent)).toEqual([
-      "Meus ECs",
-      "Novo estabelecimento",
-    ]);
     expect(links.map((link) => link.getAttribute("href"))).toEqual([
       "/sales",
       "/novo-ec",
+      "/convites",
     ]);
+    expect(screen.getByRole("link", { name: /Convites/ })).toHaveTextContent(
+      "2",
+    );
   });
 
   it("marks Novo estabelecimento as current on the new business page", () => {
-    matchedRouteIds.current = ["__root__", "/_authRoutes", "/_authRoutes/novo-ec"];
+    matchedRouteIds.current = [
+      "__root__",
+      "/_authRoutes",
+      "/_authRoutes/novo-ec",
+    ];
     renderLayout();
 
     expect(

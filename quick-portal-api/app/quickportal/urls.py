@@ -3,10 +3,16 @@ from django.urls import path
 from quickportal.views import (
     BusinessDetailView,
     BusinessColorPreferenceView,
+    BusinessInviteDetailView,
+    BusinessInviteEmailStatusView,
+    BusinessInviteListCreateView,
     BusinessListCreateView,
     BusinessMembershipDetailView,
     BusinessMembershipListCreateView,
     EmailTokenObtainPairView,
+    ReceivedInviteAcceptView,
+    ReceivedInviteDetailView,
+    ReceivedInviteListView,
     RecurringFeeDetailView,
     RecurringFeeListCreateView,
     UserRegistrationView,
@@ -41,5 +47,31 @@ urlpatterns = [
         "api/businesses/<int:business_id>/memberships/<int:pk>/",
         BusinessMembershipDetailView.as_view(),
         name="business_membership_detail",
+    ),
+    path(
+        "api/businesses/<int:business_id>/invites/",
+        BusinessInviteListCreateView.as_view(),
+        name="business_invite_list_create",
+    ),
+    path(
+        "api/businesses/<int:business_id>/invites/email-status/",
+        BusinessInviteEmailStatusView.as_view(),
+        name="business_invite_email_status",
+    ),
+    path(
+        "api/businesses/<int:business_id>/invites/<int:pk>/",
+        BusinessInviteDetailView.as_view(),
+        name="business_invite_detail",
+    ),
+    path("api/invites/", ReceivedInviteListView.as_view(), name="received_invite_list"),
+    path(
+        "api/invites/<int:pk>/",
+        ReceivedInviteDetailView.as_view(),
+        name="received_invite_detail",
+    ),
+    path(
+        "api/invites/<int:pk>/accept/",
+        ReceivedInviteAcceptView.as_view(),
+        name="received_invite_accept",
     ),
 ]

@@ -2,12 +2,13 @@ import uuid
 from django.contrib.auth import authenticate
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError as DjangoValidationError
+from django.db.models.functions import Lower
 from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
 from quickportal.models import (
-    Business, BusinessColor, BusinessColorPreference, BusinessMembership, BusinessRole,
-    BusinessType, DocumentType, RecurringFee,
+    Business, BusinessColor, BusinessColorPreference, BusinessInvite,
+    BusinessMembership, BusinessRole, BusinessType, DocumentType, RecurringFee,
 )
 from quickportal.services.brasil_api import fetch_cnpj_info
 from quickportal.validators import validate_cnpj, validate_cpf
@@ -376,3 +377,74 @@ class BusinessMembershipWriteSerializer(serializers.ModelSerializer):
                     {"user": "This user already belongs to this business."}
                 )
         return attrs
+
+
+def registered_emails(emails):
+    """Return the lowercased subset of ``emails`` that belong to a user."""
+    lowered = {email.lower() for email in emails}
+    if not lowered:
+        return set()
+    return set(
+        User.objects.annotate(email_lower=Lower("email"))
+        .filter(email_lower__in=lowered)
+        .values_list("email_lower", flat=True)
+    )
+
+
+class BusinessInviteSerializer(serializers.ModelSerializer):
+    """Invite managed by an admin of the ``business`` in the context.
+
+    ``registered`` tells whether a user already signed up with the email. A
+    precomputed ``registered_emails`` context set avoids a query per invite.
+    """
+
+    registered = serializers.SerializerMethodField()
+
+    class Meta:
+        model = BusinessInvite
+        fields = ["id", "email", "role", "registered", "invited_by", "created_at"]
+        read_only_fields = ["id", "invited_by", "created_at"]
+
+    def get_registered(self, invite):
+        emails = self.context.get("registered_emails")
+        if emails is None:
+            emails = registered_emails([invite.email])
+        return invite.email.lower() in emails
+
+    def validate_email(self, value):
+        email = value.strip().lower()
+        if self.instance is not None:
+            if email != self.instance.email:
+                raise serializers.ValidationError(
+                    "O e-mail de um convite não pode ser alterado."
+                )
+            return email
+        business = self.context["business"]
+        if business.memberships.filter(user__email__iexact=email).exists():
+            raise serializers.ValidationError(
+                "Este e-mail já tem acesso a esta empresa."
+            )
+        if business.invites.filter(email=email).exists():
+            raise serializers.ValidationError(
+                "Já existe um convite para este e-mail."
+            )
+        return email
+
+
+class InviteBusinessSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Business
+        fields = ["id", "type", "name", "trade_name"]
+
+
+class ReceivedInviteSerializer(serializers.ModelSerializer):
+    """Invite as seen by the user it was sent to."""
+
+    business = InviteBusinessSerializer(read_only=True)
+    invited_by_email = serializers.EmailField(
+        source="invited_by.email", read_only=True, default=None
+    )
+
+    class Meta:
+        model = BusinessInvite
+        fields = ["id", "business", "role", "invited_by_email", "created_at"]
