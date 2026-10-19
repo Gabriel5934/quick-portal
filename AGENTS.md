@@ -140,7 +140,7 @@ than claiming they passed.
 The app has two main scopes: user and business. User scope is defined by which user is currently logged in, user-scoped UI include the outermost drawer on the left of the screen.
 Business scope is defined by which business is currently selected. Business-scoped UI includes the inner-most app bar that contains the business selector and the inner drawer with business related navigation.
 
-Some routes on the business-level drawer are only visible to certain types of businesses.
+Business-scoped routes live under `src/routes/_authRoutes/_businessRoutes/`, which renders the business layout. User-scoped pages, such as creating a new business (`/novo-ec`), live directly under `src/routes/_authRoutes/` and are linked from the outer drawer. Some routes on the business-level drawer are only visible to admins of the selected business.
 
 ## Cnae
 
@@ -194,7 +194,9 @@ Business can have three types: store, reseller and re-reseller. To understand ho
 **Hierarchy**
 Businesses can belong to one another, this is determined by `parent`. Only business of types reseller and re-reseller are allowed to have child businesses. A re-reseller business is the only business thats required to have a parent. A re-reseller can only be parent to store type businesses while resellers can be parents to any type.
 
-Users are related to businesses trough the `BusinessMembership` model. A user who is related to a business is considered related to all children of that business.
+Users are related to businesses trough the `BusinessMembership` model. Access is direct only: a user can access a business only through a membership on that business itself, never through its parent. New businesses are always stores without a parent, and any authenticated user can create one; the creator becomes its admin.
+
+Plans (OWN and Cielo), recurring fees, and OWN/Cielo signups belong to the business itself: a business signs up with its own plans and its recurring fees apply to itself. Any business type, stores included, can have them, and only admins of the business can create or change them.
 
 ## Fee
 

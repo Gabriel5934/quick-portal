@@ -1,4 +1,4 @@
-import { pricingSchema, scheduleSchema, targetsSchema } from "./schemas";
+import { pricingSchema, scheduleSchema } from "./schemas";
 
 describe("recurring fee schemas", () => {
   it("requires only the selected pricing branch", () => {
@@ -44,10 +44,5 @@ describe("recurring fee schemas", () => {
         endDate: "",
       }).success,
     ).toBe(false);
-  });
-
-  it("requires at least one target", () => {
-    expect(targetsSchema.safeParse({ targetIds: [] }).success).toBe(false);
-    expect(targetsSchema.safeParse({ targetIds: [1] }).success).toBe(true);
   });
 });

@@ -2,7 +2,7 @@ import Divider from "@mui/material/Divider";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { useBanks } from "#hooks/brasilApi/useBanks";
-import { useOwnPlansForSignup } from "#hooks/quickApi/useOwnPlans";
+import { useOwnPlans } from "#hooks/quickApi/useOwnPlans";
 import { FormFieldPaper } from "../../../components/multi-step-form";
 import type { OwnBusinessFormValues } from "./types";
 
@@ -27,7 +27,7 @@ function ReviewItem({
 
 export function OwnBusinessReviewStep({ businessId, values }: OwnBusinessReviewStepProps) {
   const { data: banks = [] } = useBanks();
-  const { data: plans = [] } = useOwnPlansForSignup(businessId);
+  const { data: plans = [] } = useOwnPlans(businessId);
   const bank = banks.find((item) => String(item.code) === values.bankCode);
   const plan = plans.find((item) => item.id === values.planId);
 

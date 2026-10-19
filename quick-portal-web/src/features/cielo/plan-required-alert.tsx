@@ -17,8 +17,8 @@ export function CieloPlanRequiredAlert({
 
   return (
     <Alert severity="info" sx={{ textAlign: "left" }}>
-      {name} não tem planos Cielo ativos. Crie um plano antes de credenciar um
-      estabelecimento na Cielo.{" "}
+      {name} não tem planos Cielo ativos. Crie um plano antes de credenciar a
+      empresa na Cielo.{" "}
       <RouterLink to="/planos-cielo/novo">Criar plano Cielo</RouterLink>
     </Alert>
   );

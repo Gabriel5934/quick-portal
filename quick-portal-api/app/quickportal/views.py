@@ -1,6 +1,7 @@
+from collections.abc import Mapping
+
 from django.db import IntegrityError, transaction
 from django.db.models.deletion import ProtectedError
-from django.db.models import Count, Q
 from rest_framework import status
 from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
 from rest_framework.pagination import PageNumberPagination
@@ -32,9 +33,7 @@ from quickportal.services.business_access import (
     accessible_businesses,
     get_accessible_business_or_404,
     has_business_role,
-    has_governing_ancestor_admin,
 )
-from own.models import OwnBusiness, OwnRegistrationStatus
 
 
 def _brasil_api_error_response(exc: BrasilApiError) -> Response:
@@ -64,13 +63,6 @@ def _require_business_role(user, business, allowed_roles):
         raise PermissionDenied()
 
 
-def _get_recurring_fee_owner(user, owner_id):
-    owner = get_accessible_business_or_404(user, owner_id)
-    if owner.type not in {BusinessType.RESELLER, BusinessType.RE_RESELLER}:
-        raise PermissionDenied("Recurring fees are only available to reseller businesses.")
-    return owner
-
-
 class UserRegistrationView(APIView):
     permission_classes = [AllowAny]
 
@@ -91,73 +83,20 @@ class BusinessPagination(PageNumberPagination):
     max_page_size = 100
 
 
-class BusinessSummaryView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    def get(self, request):
-        """Summarize registration statuses for accessible business descendants.
-
-        When ``parent`` is provided, only its direct children and grandchildren
-        are included. ``total`` counts those generic businesses. Generic
-        businesses without an OWN business count as not started, while each OWN
-        business contributes its registration status.
-        """
-        businesses = accessible_businesses(request.user)
-        parent = request.query_params.get("parent")
-        if parent is not None:
-            try:
-                parent_id = int(parent)
-            except (TypeError, ValueError) as exc:
-                raise ValidationError(
-                    {"parent": ["A valid integer is required."]}
-                ) from exc
-            businesses = businesses.filter(
-                Q(parent_id=parent_id) | Q(parent__parent_id=parent_id)
-            )
-
-        total = businesses.count()
-        not_started = businesses.filter(own_business__isnull=True).count()
-        own_counts = OwnBusiness.objects.filter(business__in=businesses).aggregate(
-            pending=Count(
-                "id",
-                filter=Q(registration_status=OwnRegistrationStatus.PENDING),
-            ),
-            completed=Count(
-                "id",
-                filter=Q(registration_status=OwnRegistrationStatus.REGISTERED),
-            ),
-            failed=Count(
-                "id",
-                filter=Q(
-                    registration_status__in=[
-                        OwnRegistrationStatus.API_REQUEST_FAILED,
-                        OwnRegistrationStatus.UNKNOWN,
-                    ]
-                ),
-            ),
-        )
-        summary = {"not_started": not_started, **own_counts}
-        return Response({"total": total, **summary})
-
-
 class BusinessListCreateView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
         """List businesses accessible to the authenticated user.
 
-        ``request`` may provide ``parent``, ``document``, and case-insensitive
-        ``name`` query parameters. ``parent`` includes both children and
-        grandchildren of that business. Results use ``BusinessPagination``
-        and return ``count``, ``next``, ``previous``, and ``results``.
+        Only businesses with a direct membership are listed. ``request`` may
+        provide ``document`` and case-insensitive ``name`` query parameters.
+        Results use ``BusinessPagination`` and return ``count``, ``next``,
+        ``previous``, and ``results``.
 
         Returns a DRF ``Response`` containing the paginated business data.
         """
         businesses = accessible_businesses(request.user).order_by("id")
-        if parent := request.query_params.get("parent"):
-            businesses = businesses.filter(
-                Q(parent_id=parent) | Q(parent__parent_id=parent)
-            )
         if document := request.query_params.get("document"):
             businesses = businesses.filter(document=document)
         if name := request.query_params.get("name"):
@@ -179,28 +118,32 @@ class BusinessListCreateView(APIView):
     def post(self, request):
         """Create a business from ``request.data``.
 
-        Root businesses require a superuser. Child businesses require the
-        authenticated user to have admin access to the requested parent.
-        BrasilAPI validation failures are translated to API errors. Returns a
-        DRF ``Response`` with the created business and HTTP 201.
+        Any authenticated user can create a business, which must be a store
+        without a parent; the creator becomes its admin. BrasilAPI validation
+        failures are translated to API errors. Returns a DRF ``Response`` with
+        the created business and HTTP 201.
         """
+        # Checked before validation so a rejected request skips BrasilAPI.
+        # Non-mapping bodies are left to the serializer, which rejects them.
+        data = request.data
+        if isinstance(data, Mapping) and (
+            data.get("type") != BusinessType.STORE
+            or data.get("parent") is not None
+        ):
+            raise ValidationError(
+                {"type": ["New businesses must be stores without a parent."]}
+            )
         serializer = BusinessWriteSerializer(data=request.data)
         try:
             serializer.is_valid(raise_exception=True)
-            parent = serializer.validated_data.get("parent")
-            if parent is None:
-                if not request.user.is_superuser:
-                    raise PermissionDenied()
-            else:
-                parent = get_accessible_business_or_404(request.user, parent.pk)
-                _require_business_role(
-                    request.user, parent, {BusinessRole.ADMIN}
-                )
             # A concurrent request can register the same document after
             # validation; report it like any other duplicate.
             try:
                 with transaction.atomic():
                     business = serializer.save()
+                    BusinessMembership.objects.create(
+                        user=request.user, business=business, role=BusinessRole.ADMIN
+                    )
             except IntegrityError:
                 document = serializer.validated_data["document"]
                 if not Business.objects.filter(document=document).exists():
@@ -330,33 +273,6 @@ class BusinessDetailView(APIView):
         )
 
 
-class BusinessChildrenListView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    def get(self, request, owner_id):
-        """Return accessible direct children of recurring-fee ``owner_id``.
-
-        The owner path parameter must identify an accessible reseller or
-        re-reseller. Results are ordered by name and use
-        ``BusinessPagination`` (including its ``page`` and ``page_size`` query
-        parameters). Returns the standard paginated DRF response.
-        """
-        owner = _get_recurring_fee_owner(request.user, owner_id)
-        children = accessible_businesses(request.user).filter(parent=owner).order_by("name")
-        paginator = BusinessPagination()
-        page = paginator.paginate_queryset(children, request)
-        return paginator.get_paginated_response(
-            BusinessReadSerializer(
-                page,
-                many=True,
-                context={
-                    "request": request,
-                    "business_ids": [item.id for item in page],
-                },
-            ).data
-        )
-
-
 class BusinessColorPreferenceView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -389,11 +305,10 @@ class RecurringFeeListCreateView(APIView):
         paginated DRF response; inaccessible or invalid owners raise the
         scoped not-found or permission exception.
         """
-        owner = _get_recurring_fee_owner(request.user, owner_id)
+        owner = get_accessible_business_or_404(request.user, owner_id)
         fees = (
             RecurringFee.objects.filter(owner=owner)
             .select_related("owner", "created_by")
-            .prefetch_related("targets")
         )
         paginator = BusinessPagination()
         page = paginator.paginate_queryset(fees, request)
@@ -410,8 +325,8 @@ class RecurringFeeListCreateView(APIView):
         validation error, while missing owners or insufficient write access
         raise the scoped not-found or permission exception.
         """
-        owner = _get_recurring_fee_owner(request.user, owner_id)
-        _require_business_role(request.user, owner, WRITE_ROLES)
+        owner = get_accessible_business_or_404(request.user, owner_id)
+        _require_business_role(request.user, owner, {BusinessRole.ADMIN})
         serializer = RecurringFeeSerializer(
             data=request.data, context={"request": request, "owner": owner}
         )
@@ -432,21 +347,19 @@ class RecurringFeeDetailView(APIView):
     def _get_object(owner, pk):
         """Return fee record ``pk`` belonging to recurring-fee ``owner``.
 
-        Related targets are prefetched. ``NotFound`` is raised when the record
-        does not belong to the supplied owner.
+        ``NotFound`` is raised when the record does not belong to the supplied
+        owner.
         """
         try:
-            return (
-                RecurringFee.objects.select_related("owner", "created_by")
-                .prefetch_related("targets")
-                .get(owner=owner, pk=pk)
+            return RecurringFee.objects.select_related("owner", "created_by").get(
+                owner=owner, pk=pk
             )
         except RecurringFee.DoesNotExist as exc:
             raise NotFound() from exc
 
     def get(self, request, owner_id, pk):
         """Return fee ``pk`` for accessible owner ``owner_id`` and ``request`` user."""
-        owner = _get_recurring_fee_owner(request.user, owner_id)
+        owner = get_accessible_business_or_404(request.user, owner_id)
         recurring_fee = self._get_object(owner, pk)
         return Response(
             RecurringFeeSerializer(
@@ -461,8 +374,8 @@ class RecurringFeeDetailView(APIView):
         invalid data, missing records, and insufficient access raise their
         standard DRF errors.
         """
-        owner = _get_recurring_fee_owner(request.user, owner_id)
-        _require_business_role(request.user, owner, WRITE_ROLES)
+        owner = get_accessible_business_or_404(request.user, owner_id)
+        _require_business_role(request.user, owner, {BusinessRole.ADMIN})
         recurring_fee = self._get_object(owner, pk)
         serializer = RecurringFeeSerializer(
             recurring_fee,
@@ -480,7 +393,7 @@ class RecurringFeeDetailView(APIView):
 
     def delete(self, request, owner_id, pk):
         """Delete fee ``pk`` for writable owner ``owner_id`` and return HTTP 204."""
-        owner = _get_recurring_fee_owner(request.user, owner_id)
+        owner = get_accessible_business_or_404(request.user, owner_id)
         _require_business_role(request.user, owner, {BusinessRole.ADMIN})
         self._get_object(owner, pk).delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
@@ -547,9 +460,7 @@ class BusinessMembershipDetailView(APIView):
     @staticmethod
     def _get_membership(business, pk):
         try:
-            return business.memberships.select_related(
-                "business__parent__parent", "user"
-            ).get(pk=pk)
+            return business.memberships.select_related("user").get(pk=pk)
         except BusinessMembership.DoesNotExist as exc:
             raise NotFound() from exc
 
@@ -564,9 +475,7 @@ class BusinessMembershipDetailView(APIView):
             item.pk != membership.pk and item.role == BusinessRole.ADMIN
             for item in memberships
         )
-        if not has_other_admin and not has_governing_ancestor_admin(
-            membership.business
-        ):
+        if not has_other_admin:
             raise ValidationError(
-                {"role": "The final governing admin cannot be removed or demoted."}
+                {"role": "The final admin cannot be removed or demoted."}
             )

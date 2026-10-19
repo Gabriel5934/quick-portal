@@ -5,14 +5,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { RegistrationStep } from "./registration-step";
 import type { NewBusinessFormValues } from "./types";
 
-vi.mock("../../../layout/business-context", () => ({
-  useBusinessScope: () => ({ business: null }),
-}));
-
 function Harness({ document }: { document: string }) {
   const methods = useForm<NewBusinessFormValues>({
     defaultValues: {
-      isReseller: false,
       documentType: "CNPJ",
       document,
       name: "",

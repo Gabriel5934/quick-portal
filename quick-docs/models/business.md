@@ -66,8 +66,12 @@ invariants explicitly and call `full_clean()` when model validation is needed.
 
 - `children` returns the business's direct child businesses.
 - `memberships` connects users to the business through `BusinessMembership`.
-- A membership grants access to its business and, according to the access
-  service, to businesses below it in the hierarchy.
+- A membership grants access to its own business only. Access does not cascade
+  through the hierarchy: a member of a reseller cannot see or act on its
+  children without a membership on each of them.
+- `POST /api/businesses/` only creates stores without a parent; any other
+  `type` or a `parent` returns `400`. Any authenticated user can create one, and
+  the creator becomes its `ADMIN`.
 - `color_preferences` stores each user's display color for the business.
 
 ## Example
