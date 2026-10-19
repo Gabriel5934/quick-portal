@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const inviteSchema = z.object({
+export const accessSchema = z.object({
   email: z
     .string()
     .trim()
@@ -9,4 +9,4 @@ export const inviteSchema = z.object({
   role: z.enum(["ADMIN", "MANAGER", "VIEWER"]),
 });
 
-export type InviteFormValues = z.infer<typeof inviteSchema>;
+export type AccessFormValues = z.infer<typeof accessSchema>;

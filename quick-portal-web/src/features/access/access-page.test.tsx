@@ -3,25 +3,24 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Business } from "#hooks/quickApi/useBusinesses";
 import {
-  useBusinessInvites,
-  useBusinessMemberships,
-  useCreateInvite,
+  AccessRequestError,
+  useBusinessAccess,
   useEmailStatus,
+  useGrantAccess,
   useRevokeAccess,
   useUpdateAccessRole,
 } from "#hooks/quickApi/useBusinessAccess";
 import { AccessPage } from "./access-page";
-import type { BusinessInvite, BusinessMembership } from "./types";
+import type { AccessRow } from "./types";
 
 vi.mock("#hooks/quickApi/useBusinessAccess", async (importOriginal) => {
   const original =
     await importOriginal<typeof import("#hooks/quickApi/useBusinessAccess")>();
   return {
     ...original,
-    useBusinessInvites: vi.fn(),
-    useBusinessMemberships: vi.fn(),
-    useCreateInvite: vi.fn(),
+    useBusinessAccess: vi.fn(),
     useEmailStatus: vi.fn(),
+    useGrantAccess: vi.fn(),
     useRevokeAccess: vi.fn(),
     useUpdateAccessRole: vi.fn(),
   };
@@ -33,24 +32,27 @@ vi.mock("../../layout/business-context", () => ({
   useBusinessScope: () => ({ business: store }),
 }));
 
-const memberships: BusinessMembership[] = [
-  { id: 1, user: 1, email: "admin@example.com", business: 7, role: "ADMIN" },
+const access: AccessRow[] = [
   {
-    id: 2,
-    user: 2,
-    email: "gerente@example.com",
-    business: 7,
-    role: "MANAGER",
+    kind: "membership",
+    id: 1,
+    email: "admin@example.com",
+    role: "ADMIN",
+    registered: true,
   },
-];
-const invites: BusinessInvite[] = [
   {
+    kind: "membership",
+    id: 2,
+    email: "gerente@example.com",
+    role: "MANAGER",
+    registered: true,
+  },
+  {
+    kind: "invite",
     id: 9,
     email: "novo@example.com",
     role: "VIEWER",
     registered: false,
-    invited_by: 1,
-    created_at: "2026-10-01T10:00:00Z",
   },
 ];
 
@@ -72,41 +74,38 @@ function rows() {
 describe("AccessPage", () => {
   let updateRole: ReturnType<typeof mutation>;
   let revoke: ReturnType<typeof mutation>;
-  let createInvite: ReturnType<typeof mutation>;
+  let grantAccess: ReturnType<typeof mutation>;
 
   beforeEach(() => {
     updateRole = mutation();
     revoke = mutation();
-    createInvite = mutation();
-    vi.mocked(useBusinessMemberships).mockReturnValue({
-      data: memberships,
-      isLoading: false,
-      error: null,
-    } as never);
-    vi.mocked(useBusinessInvites).mockReturnValue({
-      data: invites,
+    grantAccess = mutation();
+    vi.mocked(useBusinessAccess).mockReturnValue({
+      data: access,
       isLoading: false,
       error: null,
     } as never);
     vi.mocked(useUpdateAccessRole).mockReturnValue(updateRole as never);
     vi.mocked(useRevokeAccess).mockReturnValue(revoke as never);
-    vi.mocked(useCreateInvite).mockReturnValue(createInvite as never);
+    vi.mocked(useGrantAccess).mockReturnValue(grantAccess as never);
     vi.mocked(useEmailStatus).mockReturnValue({ data: undefined } as never);
   });
 
-  it("lists accepted access and pending invites with their status", () => {
+  it("lists everyone with access and flags unregistered emails", () => {
     render(<AccessPage />);
 
-    const [admin, manager, pending] = rows();
+    const [admin, manager, unregistered] = rows();
     expect(admin).toHaveTextContent("admin@example.com (você)");
     expect(within(admin).getByText("Ativo")).toBeInTheDocument();
     expect(manager).toHaveTextContent("gerente@example.com");
-    expect(within(pending).getByText("Convite pendente")).toBeInTheDocument();
-    expect(within(pending).getByText("Não cadastrado")).toBeInTheDocument();
-    expect(within(admin).queryByText("Não cadastrado")).not.toBeInTheDocument();
+    expect(within(manager).getByText("Ativo")).toBeInTheDocument();
+    expect(
+      within(unregistered).getByText("Não cadastrado"),
+    ).toBeInTheDocument();
+    expect(within(unregistered).queryByText("Ativo")).not.toBeInTheDocument();
   });
 
-  it("changes the role of a membership and of an invite", async () => {
+  it("changes the role of registered and unregistered access", async () => {
     const user = userEvent.setup();
     render(<AccessPage />);
 
@@ -150,18 +149,67 @@ describe("AccessPage", () => {
     );
   });
 
-  it("warns before revoking the user's own access", async () => {
-    const user = userEvent.setup();
+  it("hides revoking the user's own access", () => {
+    vi.mocked(useBusinessAccess).mockReturnValue({
+      data: [
+        ...access,
+        {
+          kind: "membership",
+          id: 4,
+          email: "outro.admin@example.com",
+          role: "ADMIN",
+          registered: true,
+        },
+      ],
+      isLoading: false,
+      error: null,
+    } as never);
     render(<AccessPage />);
 
-    await user.click(
-      screen.getByRole("button", {
-        name: "Revogar acesso de admin@example.com",
+    const [self, , , otherAdmin] = rows();
+    expect(within(self).queryByRole("button")).not.toBeInTheDocument();
+    expect(
+      within(self).getByRole("combobox", {
+        name: "Papel de admin@example.com",
       }),
-    );
-    expect(screen.getByRole("dialog")).toHaveTextContent(
-      "Você perderá o acesso a esta empresa.",
-    );
+    ).not.toHaveAttribute("aria-disabled");
+    expect(
+      within(otherAdmin).getByRole("button", {
+        name: "Revogar acesso de outro.admin@example.com",
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it("locks the final admin", () => {
+    vi.mocked(useBusinessAccess).mockReturnValue({
+      data: [
+        {
+          kind: "membership",
+          id: 1,
+          email: "unico.admin@example.com",
+          role: "ADMIN",
+          registered: true,
+        },
+        // An unregistered admin does not count until they sign up.
+        { ...access[2], role: "ADMIN" },
+      ],
+      isLoading: false,
+      error: null,
+    } as never);
+    render(<AccessPage />);
+
+    const [finalAdmin, unregistered] = rows();
+    expect(within(finalAdmin).queryByRole("button")).not.toBeInTheDocument();
+    expect(
+      within(finalAdmin).getByRole("combobox", {
+        name: "Papel de unico.admin@example.com",
+      }),
+    ).toHaveAttribute("aria-disabled", "true");
+    expect(
+      within(unregistered).getByRole("button", {
+        name: "Revogar acesso de novo@example.com",
+      }),
+    ).toBeInTheDocument();
   });
 
   it("shows API errors from role changes", () => {
@@ -177,7 +225,7 @@ describe("AccessPage", () => {
     );
   });
 
-  it("warns about unregistered emails while inviting and after creating", async () => {
+  it("warns about unregistered emails while granting and after granting", async () => {
     vi.mocked(useEmailStatus).mockImplementation(
       (_businessId, email) =>
         ({
@@ -203,21 +251,47 @@ describe("AccessPage", () => {
     await user.click(
       within(dialog).getByRole("button", { name: "Conceder acesso" }),
     );
-    await waitFor(() => expect(createInvite.mutate).toHaveBeenCalled());
-    const [values, options] = createInvite.mutate.mock.calls[0] as [
+    await waitFor(() => expect(grantAccess.mutate).toHaveBeenCalled());
+    const [values, options] = grantAccess.mutate.mock.calls[0] as [
       unknown,
-      { onSuccess: (invite: BusinessInvite) => void },
+      { onSuccess: (row: AccessRow) => void },
     ];
     expect(values).toEqual({ email: "Pessoa@Example.com", role: "VIEWER" });
 
-    options.onSuccess({ ...invites[0], email: "pessoa@example.com" });
+    options.onSuccess({ ...access[2], email: "pessoa@example.com" });
     expect(
-      await screen.findByText(/Convite enviado para pessoa@example.com/),
+      await screen.findByText(/Acesso concedido a pessoa@example.com/),
     ).toBeInTheDocument();
     expect(screen.getByText("E-mail não cadastrado")).toBeInTheDocument();
   });
 
-  it("shows field errors returned by the API in the invite form", async () => {
+  it("does not warn after granting access to a registered email", async () => {
+    const user = userEvent.setup();
+    render(<AccessPage />);
+
+    await user.click(screen.getByRole("button", { name: "Novo acesso" }));
+    const dialog = screen.getByRole("dialog", { name: "Novo acesso" });
+    await user.type(
+      within(dialog).getByLabelText("E-mail"),
+      "colega@example.com",
+    );
+    await user.click(
+      within(dialog).getByRole("button", { name: "Conceder acesso" }),
+    );
+    await waitFor(() => expect(grantAccess.mutate).toHaveBeenCalled());
+    const [, options] = grantAccess.mutate.mock.calls[0] as [
+      unknown,
+      { onSuccess: (row: AccessRow) => void },
+    ];
+
+    options.onSuccess({ ...access[1], id: 3, email: "colega@example.com" });
+    expect(
+      await screen.findByText(/Acesso concedido a colega@example.com/),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("E-mail não cadastrado")).not.toBeInTheDocument();
+  });
+
+  it("shows field errors returned by the API in the form", async () => {
     const user = userEvent.setup();
     render(<AccessPage />);
 
@@ -230,11 +304,9 @@ describe("AccessPage", () => {
     await user.click(
       within(dialog).getByRole("button", { name: "Conceder acesso" }),
     );
-    await waitFor(() => expect(createInvite.mutate).toHaveBeenCalled());
+    await waitFor(() => expect(grantAccess.mutate).toHaveBeenCalled());
 
-    const { AccessRequestError } =
-      await import("#hooks/quickApi/useBusinessAccess");
-    const [, options] = createInvite.mutate.mock.calls[0] as [
+    const [, options] = grantAccess.mutate.mock.calls[0] as [
       unknown,
       { onError: (error: Error) => void },
     ];

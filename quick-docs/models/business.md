@@ -78,29 +78,29 @@ invariants explicitly and call `full_clean()` when model validation is needed.
 
 ## Granting access
 
-Admins of a business grant access by email from the **Acessos** page. Each
-grant is a `BusinessInvite` that is unique per business and (lowercased)
-email; the email does not need a registered user. The invitee sees it on the
-**Convites** page once signed in with that email, and accepting it replaces
-the invite with a `BusinessMembership` carrying the invite's role. Declining
-or revoking deletes the invite.
+Admins of a business grant access by email from the **Acessos** page. Access
+is one way: the business simply shows up in the person's business selector,
+with nothing to accept.
 
-All endpoints require a JWT. The business-scoped ones also require the
-`ADMIN` role on that business.
+- A registered email gets a `BusinessMembership` immediately.
+- An unregistered email gets a `BusinessInvite`, unique per business and
+  lowercased email. When a user is saved with that email (normally at
+  sign-up), a `post_save` signal turns each of its invites into a membership
+  with the same role. An existing membership on the business is kept as is.
+
+All endpoints require a JWT and the `ADMIN` role on the business.
 
 | Endpoint | Purpose |
 | --- | --- |
-| `GET`, `POST /api/businesses/<id>/invites/` | List or create pending invites (`email`, `role`). Each invite reports `registered`. |
-| `PATCH`, `DELETE /api/businesses/<id>/invites/<pk>/` | Change the role of, or revoke, a pending invite. The email cannot change. |
-| `GET /api/businesses/<id>/invites/email-status/?email=` | Whether an email belongs to a registered user. |
-| `GET`, `PATCH`, `DELETE /api/businesses/<id>/memberships/[<pk>/]` | List accepted access, change its role, or revoke it. The final admin cannot be demoted or removed. |
-| `GET /api/invites/` | Invites sent to the authenticated user's email. |
-| `POST /api/invites/<pk>/accept/` | Accept an invite. An existing membership is kept unchanged. |
-| `DELETE /api/invites/<pk>/` | Decline an invite. |
+| `GET /api/businesses/<id>/access/` | Everyone with access: rows of `kind` (`membership` or `invite`), `id`, `email`, `role`, and `registered`. |
+| `POST /api/businesses/<id>/access/` | Grant `role` to `email`. Returns the new row with `201`. |
+| `GET /api/businesses/<id>/access/email-status/?email=` | Whether an email belongs to a registered user. |
+| `PATCH`, `DELETE /api/businesses/<id>/memberships/<pk>/` | Change the role of, or revoke, a registered user's access. The final admin cannot be demoted or removed, and nobody can revoke their own access. |
+| `PATCH`, `DELETE /api/businesses/<id>/invites/<pk>/` | Change the role of, or revoke, an unregistered email's access. The email cannot change. |
 
-Emails that already have access or a pending invite on the business are
-rejected with `{"email": [...]}`. Invites are matched to users by email only,
-and sign-up does not verify email ownership.
+Emails that already have access to the business are rejected with
+`{"email": [...]}`. Access is matched to users by email only, and sign-up does
+not verify email ownership.
 
 ## Example
 

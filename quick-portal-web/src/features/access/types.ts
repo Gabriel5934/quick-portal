@@ -1,54 +1,26 @@
-import type { BusinessRole, BusinessType } from "#hooks/quickApi/useBusinesses";
+import type { BusinessRole } from "#hooks/quickApi/useBusinesses";
 
-/** Accepted access is a membership; pending access is an invite. */
+/** Access of a registered user is a membership; access granted to an email
+ * nobody signed up with yet is an invite, which becomes a membership when
+ * someone signs up with it. */
 export type AccessKind = "membership" | "invite";
 
-export interface BusinessMembership {
-  id: number;
-  user: number;
-  email: string;
-  business: number;
-  role: BusinessRole;
-}
-
-export interface BusinessInvite {
+/** One person who can access a business. */
+export interface AccessRow {
+  kind: AccessKind;
   id: number;
   email: string;
   role: BusinessRole;
   /** Whether a user already signed up with `email`. */
   registered: boolean;
-  invited_by: number | null;
-  created_at: string;
 }
 
-export interface InviteCreateRequest {
+export interface AccessGrantRequest {
   email: string;
   role: BusinessRole;
 }
 
 export interface EmailStatus {
   email: string;
-  registered: boolean;
-}
-
-export interface ReceivedInvite {
-  id: number;
-  business: {
-    id: number;
-    type: BusinessType;
-    name: string;
-    trade_name: string;
-  };
-  role: BusinessRole;
-  invited_by_email: string | null;
-  created_at: string;
-}
-
-/** One row of the access table, either accepted or pending. */
-export interface AccessRow {
-  kind: AccessKind;
-  id: number;
-  email: string;
-  role: BusinessRole;
   registered: boolean;
 }

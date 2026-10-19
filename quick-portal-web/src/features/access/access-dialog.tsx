@@ -14,12 +14,12 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Controller, useForm, useWatch } from "react-hook-form";
 import {
   AccessRequestError,
-  useCreateInvite,
   useEmailStatus,
+  useGrantAccess,
 } from "#hooks/quickApi/useBusinessAccess";
 import { ROLE_LABELS, ROLES } from "./roles";
-import { inviteSchema, type InviteFormValues } from "./schemas";
-import type { BusinessInvite } from "./types";
+import { accessSchema, type AccessFormValues } from "./schemas";
+import type { AccessRow } from "./types";
 
 const EMAIL_CHECK_DELAY_MS = 400;
 
@@ -34,7 +34,7 @@ function useDebouncedValue<T>(value: T, delay: number): T {
 
 /** The email to check, or `null` while it is not a valid address. */
 function checkableEmail(email: string): string | null {
-  const result = inviteSchema.shape.email.safeParse(email);
+  const result = accessSchema.shape.email.safeParse(email);
   return result.success ? result.data.toLowerCase() : null;
 }
 
@@ -42,26 +42,26 @@ export function UnregisteredEmailAlert() {
   return (
     <Alert severity="warning">
       <AlertTitle>E-mail não cadastrado</AlertTitle>
-      Ninguém criou uma conta no Portal Quick com este e-mail ainda. O acesso
-      ficará pendente até a pessoa se cadastrar com ele e aceitar o convite.
+      Ninguém criou uma conta no Portal Quick com este e-mail ainda. A empresa
+      aparecerá para a pessoa assim que ela se cadastrar com ele.
     </Alert>
   );
 }
 
-interface InviteDialogProps {
+interface AccessDialogProps {
   businessId: number;
   open: boolean;
   onClose: () => void;
-  onCreated: (invite: BusinessInvite) => void;
+  onGranted: (access: AccessRow) => void;
 }
 
-export function InviteDialog({
+export function AccessDialog({
   businessId,
   open,
   onClose,
-  onCreated,
-}: InviteDialogProps) {
-  const createInvite = useCreateInvite(businessId);
+  onGranted,
+}: AccessDialogProps) {
+  const grantAccess = useGrantAccess(businessId);
   const {
     control,
     register,
@@ -69,8 +69,8 @@ export function InviteDialog({
     reset,
     setError,
     formState: { errors },
-  } = useForm<InviteFormValues>({
-    resolver: zodResolver(inviteSchema),
+  } = useForm<AccessFormValues>({
+    resolver: zodResolver(accessSchema),
     defaultValues: { email: "", role: "VIEWER" },
   });
   const email = useWatch({ control, name: "email" });
@@ -87,14 +87,14 @@ export function InviteDialog({
 
   const close = () => {
     reset();
-    createInvite.reset();
+    grantAccess.reset();
     onClose();
   };
 
   const submit = handleSubmit((values) => {
-    createInvite.mutate(values, {
-      onSuccess: (invite) => {
-        onCreated(invite);
+    grantAccess.mutate(values, {
+      onSuccess: (access) => {
+        onGranted(access);
         close();
       },
       onError: (error) => {
@@ -111,10 +111,10 @@ export function InviteDialog({
   });
 
   const fieldError =
-    createInvite.error instanceof AccessRequestError &&
-    createInvite.error.body !== null &&
-    typeof createInvite.error.body === "object" &&
-    ("email" in createInvite.error.body || "role" in createInvite.error.body);
+    grantAccess.error instanceof AccessRequestError &&
+    grantAccess.error.body !== null &&
+    typeof grantAccess.error.body === "object" &&
+    ("email" in grantAccess.error.body || "role" in grantAccess.error.body);
 
   return (
     <Dialog open={open} onClose={close} fullWidth maxWidth="sm">
@@ -135,7 +135,7 @@ export function InviteDialog({
               error={!!errors.email}
               helperText={
                 errors.email?.message ??
-                "A pessoa recebe o convite no menu Convites ao entrar no portal."
+                "A empresa aparecerá no seletor de perfil da pessoa."
               }
             />
             <Controller
@@ -159,8 +159,8 @@ export function InviteDialog({
               )}
             />
             {unregistered ? <UnregisteredEmailAlert /> : null}
-            {createInvite.error && !fieldError ? (
-              <Alert severity="error">{createInvite.error.message}</Alert>
+            {grantAccess.error && !fieldError ? (
+              <Alert severity="error">{grantAccess.error.message}</Alert>
             ) : null}
           </Stack>
         </DialogContent>
@@ -169,7 +169,7 @@ export function InviteDialog({
           <Button
             type="submit"
             variant="contained"
-            loading={createInvite.isPending}
+            loading={grantAccess.isPending}
           >
             Conceder acesso
           </Button>

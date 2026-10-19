@@ -25,71 +25,48 @@ import TextField from "@mui/material/TextField";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import {
-  useBusinessInvites,
-  useBusinessMemberships,
+  useBusinessAccess,
   useRevokeAccess,
   useUpdateAccessRole,
 } from "#hooks/quickApi/useBusinessAccess";
 import type { BusinessRole } from "#hooks/quickApi/useBusinesses";
 import { getUserEmail } from "#hooks/storage";
 import { useBusinessScope } from "../../layout/business-context";
-import { InviteDialog, UnregisteredEmailAlert } from "./invite-dialog";
+import { AccessDialog, UnregisteredEmailAlert } from "./access-dialog";
 import { ROLE_LABELS, ROLES } from "./roles";
-import type { AccessRow, BusinessInvite } from "./types";
+import type { AccessRow } from "./types";
 
 function AccessStatus({ row }: { row: AccessRow }) {
-  return (
-    <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", rowGap: 1 }}>
-      {row.kind === "membership" ? (
-        <Chip label="Ativo" color="success" size="small" />
-      ) : (
-        <Chip label="Convite pendente" color="warning" size="small" />
-      )}
-      {row.registered ? null : (
-        <Chip
-          label="Não cadastrado"
-          color="error"
-          variant="outlined"
-          size="small"
-        />
-      )}
-    </Stack>
+  return row.registered ? (
+    <Chip label="Ativo" color="success" size="small" />
+  ) : (
+    <Tooltip title="A empresa aparecerá para a pessoa quando ela se cadastrar com este e-mail.">
+      <Chip label="Não cadastrado" color="warning" size="small" />
+    </Tooltip>
   );
 }
 
 export function AccessPage() {
   const { business } = useBusinessScope();
   const businessId = business?.id;
-  const memberships = useBusinessMemberships(businessId);
-  const invites = useBusinessInvites(businessId);
+  const access = useBusinessAccess(businessId);
   const updateRole = useUpdateAccessRole(businessId);
   const revoke = useRevokeAccess(businessId);
-  const [inviteOpen, setInviteOpen] = useState(false);
-  const [created, setCreated] = useState<BusinessInvite | null>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [granted, setGranted] = useState<AccessRow | null>(null);
   const [revoking, setRevoking] = useState<AccessRow | null>(null);
   const currentEmail = getUserEmail();
 
-  const rows: AccessRow[] = [
-    ...(memberships.data ?? []).map((membership) => ({
-      kind: "membership" as const,
-      id: membership.id,
-      email: membership.email,
-      role: membership.role,
-      registered: true,
-    })),
-    ...(invites.data ?? []).map((invite) => ({
-      kind: "invite" as const,
-      id: invite.id,
-      email: invite.email,
-      role: invite.role,
-      registered: invite.registered,
-    })),
-  ];
-  const isLoading = memberships.isLoading || invites.isLoading;
-  const loadError = memberships.error ?? invites.error;
+  const rows = access.data ?? [];
   const mutationError = updateRole.error ?? revoke.error;
   const isSelf = (row: AccessRow) =>
     row.kind === "membership" && row.email.toLowerCase() === currentEmail;
+  const isAdmin = (row: AccessRow) =>
+    row.kind === "membership" && row.role === "ADMIN";
+  // The API refuses to demote or remove the final admin.
+  const isFinalAdmin = (row: AccessRow) =>
+    isAdmin(row) && rows.filter(isAdmin).length === 1;
+  const canRevoke = (row: AccessRow) => !isSelf(row) && !isFinalAdmin(row);
 
   const changeRole = (row: AccessRow, role: BusinessRole) => {
     revoke.reset();
@@ -132,7 +109,7 @@ export function AccessPage() {
           variant="contained"
           size="large"
           startIcon={<PersonAddAlt1Icon />}
-          onClick={() => setInviteOpen(true)}
+          onClick={() => setDialogOpen(true)}
           disabled={!businessId}
           sx={{ whiteSpace: "nowrap" }}
         >
@@ -141,24 +118,24 @@ export function AccessPage() {
       </Box>
 
       <Stack spacing={2} sx={{ mb: 3 }}>
-        {created ? (
-          <Alert severity="success" onClose={() => setCreated(null)}>
-            Convite enviado para {created.email} como{" "}
-            {ROLE_LABELS[created.role].toLowerCase()}.
+        {granted ? (
+          <Alert severity="success" onClose={() => setGranted(null)}>
+            Acesso concedido a {granted.email} como{" "}
+            {ROLE_LABELS[granted.role].toLowerCase()}.
           </Alert>
         ) : null}
-        {created && !created.registered ? <UnregisteredEmailAlert /> : null}
+        {granted && !granted.registered ? <UnregisteredEmailAlert /> : null}
         {mutationError ? (
           <Alert severity="error">{mutationError.message}</Alert>
         ) : null}
       </Stack>
 
       <Paper variant="outlined">
-        {loadError ? (
+        {access.error ? (
           <Typography color="error" sx={{ textAlign: "center", py: 6 }}>
-            {loadError.message}
+            {access.error.message}
           </Typography>
-        ) : isLoading ? (
+        ) : access.isLoading ? (
           <Box sx={{ display: "flex", justifyContent: "center", py: 6 }}>
             <CircularProgress aria-label="Carregando acessos" />
           </Box>
@@ -199,7 +176,7 @@ export function AccessPage() {
                           size="small"
                           fullWidth
                           value={row.role}
-                          disabled={updateRole.isPending}
+                          disabled={updateRole.isPending || isFinalAdmin(row)}
                           onChange={(event) =>
                             changeRole(row, event.target.value as BusinessRole)
                           }
@@ -220,14 +197,16 @@ export function AccessPage() {
                         <AccessStatus row={row} />
                       </TableCell>
                       <TableCell align="right">
-                        <Tooltip title="Revogar acesso">
-                          <IconButton
-                            aria-label={`Revogar acesso de ${row.email}`}
-                            onClick={() => setRevoking(row)}
-                          >
-                            <PersonRemoveOutlinedIcon />
-                          </IconButton>
-                        </Tooltip>
+                        {canRevoke(row) ? (
+                          <Tooltip title="Revogar acesso">
+                            <IconButton
+                              aria-label={`Revogar acesso de ${row.email}`}
+                              onClick={() => setRevoking(row)}
+                            >
+                              <PersonRemoveOutlinedIcon />
+                            </IconButton>
+                          </Tooltip>
+                        ) : null}
                       </TableCell>
                     </TableRow>
                   ))
@@ -247,14 +226,14 @@ export function AccessPage() {
       </Paper>
 
       {businessId ? (
-        <InviteDialog
+        <AccessDialog
           businessId={businessId}
-          open={inviteOpen}
-          onClose={() => setInviteOpen(false)}
-          onCreated={(invite) => {
+          open={dialogOpen}
+          onClose={() => setDialogOpen(false)}
+          onGranted={(row) => {
             updateRole.reset();
             revoke.reset();
-            setCreated(invite);
+            setGranted(row);
           }}
         />
       ) : null}
@@ -263,12 +242,9 @@ export function AccessPage() {
         <DialogTitle>Revogar acesso?</DialogTitle>
         <DialogContent>
           <DialogContentText>
-            {revoking?.kind === "invite"
-              ? `O convite para ${revoking.email} será cancelado.`
+            {revoking?.registered === false
+              ? `${revoking.email} não verá esta empresa ao se cadastrar.`
               : `${revoking?.email ?? ""} deixará de acessar esta empresa.`}
-            {revoking && isSelf(revoking)
-              ? " Você perderá o acesso a esta empresa."
-              : ""}
           </DialogContentText>
         </DialogContent>
         <DialogActions>

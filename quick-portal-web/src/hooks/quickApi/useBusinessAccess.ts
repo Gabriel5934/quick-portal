@@ -1,15 +1,12 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type {
+  AccessGrantRequest,
   AccessKind,
-  BusinessInvite,
-  BusinessMembership,
+  AccessRow,
   EmailStatus,
-  InviteCreateRequest,
-  ReceivedInvite,
 } from "#features/access/types";
 import { ApiError, useAuthQuery } from "#hooks/auth/useAuthQuery";
 import { useToken } from "#hooks/auth/useToken";
-import type { BusinessRole } from "./useBusinesses";
 
 /** A failed access request; `body` keeps the DRF field errors. */
 export class AccessRequestError extends ApiError {
@@ -65,45 +62,26 @@ const accessKey = (businessId: number | undefined) => [
   "business-access",
   businessId,
 ];
-const membershipsKey = (businessId: number | undefined) => [
+const rowsKey = (businessId: number | undefined) => [
   ...accessKey(businessId),
-  "memberships",
+  "rows",
 ];
-const invitesKey = (businessId: number | undefined) => [
-  ...accessKey(businessId),
-  "invites",
-];
-const RECEIVED_INVITES_KEY = ["received-invites"];
 
-function accessPath(businessId: number | undefined, kind: AccessKind) {
-  return `businesses/${businessId}/${kind === "membership" ? "memberships" : "invites"}/`;
+/** Path of membership or invite `id` on `businessId`. */
+function rowPath(businessId: number | undefined, kind: AccessKind, id: number) {
+  return `businesses/${businessId}/${kind === "membership" ? "memberships" : "invites"}/${id}/`;
 }
 
-/** Users who accepted an invite (or created) `businessId`. Admins only. */
-export function useBusinessMemberships(businessId: number | undefined) {
+/** Everyone who can access `businessId`. Admins only. */
+export function useBusinessAccess(businessId: number | undefined) {
   const { data: token } = useToken();
-  return useAuthQuery<BusinessMembership[]>({
-    queryKey: membershipsKey(businessId),
+  return useAuthQuery<AccessRow[]>({
+    queryKey: rowsKey(businessId),
     queryFn: () =>
       accessRequest(
-        accessPath(businessId, "membership"),
+        `businesses/${businessId}/access/`,
         token!,
         "Erro ao carregar os acessos.",
-      ),
-    enabled: !!token && !!businessId,
-  });
-}
-
-/** Pending invites of `businessId`. Admins only. */
-export function useBusinessInvites(businessId: number | undefined) {
-  const { data: token } = useToken();
-  return useAuthQuery<BusinessInvite[]>({
-    queryKey: invitesKey(businessId),
-    queryFn: () =>
-      accessRequest(
-        accessPath(businessId, "invite"),
-        token!,
-        "Erro ao carregar os convites.",
       ),
     enabled: !!token && !!businessId,
   });
@@ -119,7 +97,7 @@ export function useEmailStatus(
     queryKey: [...accessKey(businessId), "email-status", email],
     queryFn: () =>
       accessRequest(
-        `businesses/${businessId}/invites/email-status/?email=${encodeURIComponent(email!)}`,
+        `businesses/${businessId}/access/email-status/?email=${encodeURIComponent(email!)}`,
         token!,
         "Erro ao verificar o e-mail.",
       ),
@@ -128,19 +106,19 @@ export function useEmailStatus(
   });
 }
 
-export function useCreateInvite(businessId: number | undefined) {
+export function useGrantAccess(businessId: number | undefined) {
   const { data: token } = useToken();
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (payload: InviteCreateRequest) =>
-      accessRequest<BusinessInvite>(
-        accessPath(businessId, "invite"),
+    mutationFn: (payload: AccessGrantRequest) =>
+      accessRequest<AccessRow>(
+        `businesses/${businessId}/access/`,
         token!,
-        "Erro ao criar o acesso.",
+        "Erro ao conceder o acesso.",
         { method: "POST", body: JSON.stringify(payload) },
       ),
     onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: invitesKey(businessId) }),
+      queryClient.invalidateQueries({ queryKey: rowsKey(businessId) }),
   });
 }
 
@@ -151,11 +129,10 @@ function invalidateAfterChange(
   businessId: number | undefined,
   kind: AccessKind,
 ) {
-  if (kind === "invite") {
-    return queryClient.invalidateQueries({ queryKey: invitesKey(businessId) });
-  }
+  const rows = queryClient.invalidateQueries({ queryKey: rowsKey(businessId) });
+  if (kind === "invite") return rows;
   return Promise.all([
-    queryClient.invalidateQueries({ queryKey: membershipsKey(businessId) }),
+    rows,
     queryClient.invalidateQueries({ queryKey: ["businesses", "all"] }),
   ]);
 }
@@ -164,17 +141,9 @@ export function useUpdateAccessRole(businessId: number | undefined) {
   const { data: token } = useToken();
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({
-      kind,
-      id,
-      role,
-    }: {
-      kind: AccessKind;
-      id: number;
-      role: BusinessRole;
-    }) =>
+    mutationFn: ({ kind, id, role }: Pick<AccessRow, "kind" | "id" | "role">) =>
       accessRequest(
-        `${accessPath(businessId, kind)}${id}/`,
+        rowPath(businessId, kind, id),
         token!,
         "Erro ao alterar o papel.",
         { method: "PATCH", body: JSON.stringify({ role }) },
@@ -188,67 +157,14 @@ export function useRevokeAccess(businessId: number | undefined) {
   const { data: token } = useToken();
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ kind, id }: { kind: AccessKind; id: number }) =>
+    mutationFn: ({ kind, id }: Pick<AccessRow, "kind" | "id">) =>
       accessRequest<void>(
-        `${accessPath(businessId, kind)}${id}/`,
+        rowPath(businessId, kind, id),
         token!,
         "Erro ao revogar o acesso.",
         { method: "DELETE" },
       ),
     onSettled: (_data, _error, { kind }) =>
       invalidateAfterChange(queryClient, businessId, kind),
-  });
-}
-
-/** Pending invites sent to the authenticated user's email. */
-export function useReceivedInvites() {
-  const { data: token } = useToken();
-  return useAuthQuery<ReceivedInvite[]>({
-    queryKey: RECEIVED_INVITES_KEY,
-    queryFn: () =>
-      accessRequest("invites/", token!, "Erro ao carregar os convites."),
-    enabled: !!token,
-  });
-}
-
-export function useAcceptInvite() {
-  const { data: token } = useToken();
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (id: number) =>
-      accessRequest<BusinessMembership>(
-        `invites/${id}/accept/`,
-        token!,
-        "Erro ao aceitar o convite.",
-        { method: "POST" },
-      ),
-    // The business list refetches even while unmounted so the accepted
-    // business can be selected right away.
-    onSettled: () =>
-      Promise.all([
-        queryClient.invalidateQueries({ queryKey: RECEIVED_INVITES_KEY }),
-        queryClient.invalidateQueries({
-          queryKey: ["businesses", "all"],
-          refetchType: "all",
-        }),
-      ]),
-  });
-}
-
-export function useDeclineInvite() {
-  const { data: token } = useToken();
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (id: number) =>
-      accessRequest<void>(
-        `invites/${id}/`,
-        token!,
-        "Erro ao recusar o convite.",
-        {
-          method: "DELETE",
-        },
-      ),
-    onSettled: () =>
-      queryClient.invalidateQueries({ queryKey: RECEIVED_INVITES_KEY }),
   });
 }

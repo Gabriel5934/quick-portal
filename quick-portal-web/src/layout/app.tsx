@@ -1,7 +1,6 @@
 import { useState, type ReactNode } from "react";
 import AppBar from "@mui/material/AppBar";
 import Avatar from "@mui/material/Avatar";
-import Badge from "@mui/material/Badge";
 import Box from "@mui/material/Box";
 import Divider from "@mui/material/Divider";
 import Drawer from "@mui/material/Drawer";
@@ -15,7 +14,6 @@ import Toolbar from "@mui/material/Toolbar";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import AddBusinessIcon from "@mui/icons-material/AddBusiness";
-import MailOutlinedIcon from "@mui/icons-material/MailOutlined";
 import StorefrontIcon from "@mui/icons-material/Storefront";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import LogoutIcon from "@mui/icons-material/Logout";
@@ -23,7 +21,6 @@ import MenuIcon from "@mui/icons-material/Menu";
 import { useTheme } from "@mui/material/styles";
 import { Link, useRouterState } from "@tanstack/react-router";
 import { useLogout } from "#hooks/auth/useLogout";
-import { useReceivedInvites } from "#hooks/quickApi/useBusinessAccess";
 import { getUserEmail } from "#hooks/storage";
 
 const DRAWER_WIDTH = 240;
@@ -47,23 +44,14 @@ const navigation = [
     label: "Novo estabelecimento",
     icon: <AddBusinessIcon />,
   },
-  {
-    to: "/convites",
-    routeId: "/_authRoutes/convites",
-    label: "Convites",
-    icon: <MailOutlinedIcon />,
-  },
 ] as const;
 
 function NavigationItem({
   item,
   drawerOpen,
-  badge = 0,
 }: {
   item: (typeof navigation)[number];
   drawerOpen: boolean;
-  /** A count shown on the icon, hidden when zero. */
-  badge?: number;
 }) {
   const selected = useRouterState({
     select: (state) =>
@@ -74,11 +62,7 @@ function NavigationItem({
     <ListItem disablePadding>
       <Tooltip title={drawerOpen ? "" : item.label} placement="right">
         <ListItemButton component={Link} to={item.to} selected={selected}>
-          <ListItemIcon sx={{ minWidth: 40 }}>
-            <Badge badgeContent={badge} color="error">
-              {item.icon}
-            </Badge>
-          </ListItemIcon>
+          <ListItemIcon sx={{ minWidth: 40 }}>{item.icon}</ListItemIcon>
           <ListItemText
             primary={item.label}
             sx={{ opacity: drawerOpen ? 1 : 0 }}
@@ -101,7 +85,6 @@ export function AppLayout({ children }: AppLayoutProps) {
   const theme = useTheme();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const logout = useLogout();
-  const { data: invites } = useReceivedInvites();
   const drawerWidth = drawerOpen ? DRAWER_WIDTH : MINI_DRAWER_WIDTH;
   const email = getUserEmail() ?? "";
   const initials = email.slice(0, 2).toUpperCase() || "??";
@@ -184,7 +167,6 @@ export function AppLayout({ children }: AppLayoutProps) {
                 key={item.to}
                 item={item}
                 drawerOpen={drawerOpen}
-                badge={item.to === "/convites" ? (invites?.length ?? 0) : 0}
               />
             ))}
           </List>

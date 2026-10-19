@@ -150,10 +150,10 @@ class BusinessMembership(models.Model):
 
 
 class BusinessInvite(models.Model):
-    """A pending grant of ``role`` on ``business`` to whoever owns ``email``.
+    """Access to ``business`` granted to an email with no registered user.
 
-    The email does not need a registered user. Accepting the invite replaces
-    it with a ``BusinessMembership``.
+    When a user signs up with ``email``, the invite is replaced with a
+    ``BusinessMembership`` carrying ``role``.
     """
 
     business = models.ForeignKey(

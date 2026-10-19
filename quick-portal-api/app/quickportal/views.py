@@ -21,21 +21,22 @@ from quickportal.models import (
 )
 from quickportal.serializers import (
     BusinessReadSerializer,
+    BusinessAccessGrantSerializer,
     BusinessColorPreferenceSerializer,
     BusinessInviteSerializer,
     BusinessMembershipReadSerializer,
     BusinessMembershipWriteSerializer,
     BusinessWriteSerializer,
     EmailTokenObtainPairSerializer,
-    ReceivedInviteSerializer,
     RecurringFeeSerializer,
     UserCreateSerializer,
-    registered_emails,
 )
 from quickportal.services.brasil_api import BrasilApiError
 from quickportal.services.business_access import (
     accessible_businesses,
+    find_user_by_email,
     get_accessible_business_or_404,
+    grant_business_access,
     has_business_role,
 )
 
@@ -456,6 +457,8 @@ class BusinessMembershipDetailView(APIView):
             request.user, business_id
         )
         membership = self._get_membership(business, pk)
+        if membership.user_id == request.user.id:
+            raise PermissionDenied("Você não pode revogar o seu próprio acesso.")
         with transaction.atomic():
             self._protect_final_admin(membership, None)
             membership.delete()
@@ -485,69 +488,84 @@ class BusinessMembershipDetailView(APIView):
             )
 
 
-class BusinessInviteListCreateView(APIView):
+def _access_row(access):
+    """Serialize a membership or invite as one row of a business's access."""
+    if isinstance(access, BusinessMembership):
+        return {
+            "kind": "membership",
+            "id": access.id,
+            "email": access.user.email,
+            "role": access.role,
+            "registered": True,
+        }
+    return {
+        "kind": "invite",
+        "id": access.id,
+        "email": access.email,
+        "role": access.role,
+        "registered": False,
+    }
+
+
+class BusinessAccessView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, business_id):
-        """List the pending invites of ``business_id`` for one of its admins.
+        """List who can access ``business_id``, for one of its admins.
 
-        Each invite reports whether its email already belongs to a user.
+        Memberships come first, then emails still waiting for a user to sign
+        up with them (``registered`` is ``False``).
         """
         business = BusinessMembershipListCreateView._get_admin_business(
             request.user, business_id
         )
-        invites = list(business.invites.order_by("id"))
-        context = {
-            "business": business,
-            "registered_emails": registered_emails(item.email for item in invites),
-        }
-        return Response(BusinessInviteSerializer(invites, many=True, context=context).data)
+        memberships = business.memberships.select_related("user").order_by("id")
+        invites = business.invites.order_by("id")
+        return Response([_access_row(item) for item in [*memberships, *invites]])
 
     def post(self, request, business_id):
-        """Invite ``request.data.email`` to ``business_id`` with ``role``.
+        """Grant ``request.data.role`` on ``business_id`` to ``email``.
 
-        The email does not need to be registered. Emails that already have
-        access or a pending invite are rejected. Returns HTTP 201.
+        A registered email gets access immediately; an unregistered one gets
+        it when someone signs up with it. Emails that already have access are
+        rejected. Returns the new access row with HTTP 201.
         """
         business = BusinessMembershipListCreateView._get_admin_business(
             request.user, business_id
         )
-        serializer = BusinessInviteSerializer(
+        serializer = BusinessAccessGrantSerializer(
             data=request.data, context={"business": business}
         )
         serializer.is_valid(raise_exception=True)
-        # A concurrent request can invite the same email after validation.
+        # A concurrent request can grant the same email after validation.
         try:
             with transaction.atomic():
-                invite = serializer.save(business=business, invited_by=request.user)
+                access = grant_business_access(
+                    business, granted_by=request.user, **serializer.validated_data
+                )
         except IntegrityError as exc:
             raise ValidationError(
-                {"email": ["Já existe um convite para este e-mail."]}
+                {"email": ["Este e-mail já tem acesso a esta empresa."]}
             ) from exc
-        return Response(
-            BusinessInviteSerializer(invite, context={"business": business}).data,
-            status=status.HTTP_201_CREATED,
-        )
+        return Response(_access_row(access), status=status.HTTP_201_CREATED)
 
 
 class BusinessInviteDetailView(APIView):
     permission_classes = [IsAuthenticated]
 
     def patch(self, request, business_id, pk):
-        """Change the role of pending invite ``pk`` on ``business_id``."""
+        """Change the role granted by invite ``pk`` on ``business_id``."""
         business = BusinessMembershipListCreateView._get_admin_business(
             request.user, business_id
         )
         invite = self._get_invite(business, pk)
-        serializer = BusinessInviteSerializer(
-            invite, data=request.data, partial=True, context={"business": business}
-        )
+        serializer = BusinessInviteSerializer(invite, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(serializer.data)
 
     def delete(self, request, business_id, pk):
-        """Revoke pending invite ``pk`` on ``business_id`` and return HTTP 204."""
+        """Revoke invite ``pk`` on ``business_id`` and return HTTP 204."""
         business = BusinessMembershipListCreateView._get_admin_business(
             request.user, business_id
         )
@@ -562,14 +580,14 @@ class BusinessInviteDetailView(APIView):
             raise NotFound() from exc
 
 
-class BusinessInviteEmailStatusView(APIView):
+class BusinessAccessEmailStatusView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, business_id):
         """Report whether the ``email`` query parameter belongs to a user.
 
-        Only admins of ``business_id`` can check, so an invite form can warn
-        before inviting an unregistered email.
+        Only admins of ``business_id`` can check, so the access form can warn
+        before granting access to an unregistered email.
         """
         BusinessMembershipListCreateView._get_admin_business(request.user, business_id)
         field = serializers.EmailField()
@@ -578,67 +596,6 @@ class BusinessInviteEmailStatusView(APIView):
         except ValidationError as exc:
             raise ValidationError({"email": exc.detail}) from exc
         email = email.strip().lower()
-        return Response({"email": email, "registered": bool(registered_emails([email]))})
-
-
-def _received_invites(user):
-    """Return the invites sent to ``user``'s email address."""
-    email = (user.email or "").strip().lower()
-    if not email:
-        return BusinessInvite.objects.none()
-    return BusinessInvite.objects.filter(email=email)
-
-
-class ReceivedInviteListView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    def get(self, request):
-        """List the pending invites sent to the authenticated user's email."""
-        invites = (
-            _received_invites(request.user)
-            .select_related("business", "invited_by")
-            .order_by("id")
-        )
-        return Response(ReceivedInviteSerializer(invites, many=True).data)
-
-
-class ReceivedInviteDetailView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    def delete(self, request, pk):
-        """Decline invite ``pk`` sent to the authenticated user."""
-        _get_received_invite(request.user, pk).delete()
-        return Response(status=status.HTTP_204_NO_CONTENT)
-
-
-class ReceivedInviteAcceptView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    def post(self, request, pk):
-        """Accept invite ``pk``, replacing it with a business membership.
-
-        An existing membership on the business is kept as it is. Returns the
-        membership with HTTP 201.
-        """
-        with transaction.atomic():
-            invite = _get_received_invite(request.user, pk, lock=True)
-            membership, _ = BusinessMembership.objects.get_or_create(
-                user=request.user,
-                business=invite.business,
-                defaults={"role": invite.role},
-            )
-            invite.delete()
         return Response(
-            BusinessMembershipReadSerializer(membership).data,
-            status=status.HTTP_201_CREATED,
+            {"email": email, "registered": find_user_by_email(email) is not None}
         )
-
-
-def _get_received_invite(user, pk, *, lock=False):
-    invites = _received_invites(user).select_related("business")
-    if lock:
-        invites = invites.select_for_update()
-    try:
-        return invites.get(pk=pk)
-    except BusinessInvite.DoesNotExist as exc:
-        raise NotFound() from exc

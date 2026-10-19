@@ -607,10 +607,28 @@ class BusinessAuthorizationApiTests(APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
+        response = self.client.patch(
+            reverse("business_membership_detail", args=[self.reseller.id, admin.id]),
+            {"role": BusinessRole.VIEWER},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_admin_cannot_revoke_own_access(self):
+        admin = BusinessMembership.objects.create(
+            user=self.user, business=self.reseller, role=BusinessRole.ADMIN
+        )
+        other_admin = User.objects.create_user(username="other-admin")
+        BusinessMembership.objects.create(
+            user=other_admin, business=self.reseller, role=BusinessRole.ADMIN
+        )
+
         response = self.client.delete(
             reverse("business_membership_detail", args=[self.reseller.id, admin.id])
         )
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertTrue(BusinessMembership.objects.filter(pk=admin.pk).exists())
 
     def test_superuser_bypasses_scope_but_staff_does_not(self):
         superuser = User.objects.create_superuser(
