@@ -6,8 +6,8 @@ from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
 from quickportal.models import (
-    Business, BusinessColor, BusinessColorPreference, BusinessInvite,
-    BusinessMembership, BusinessRole, BusinessType, DocumentType, RecurringFee,
+    Business, BusinessColor, BusinessColorPreference, BusinessMembership, BusinessRole,
+    BusinessType, DocumentType, RecurringFee,
 )
 from quickportal.services.brasil_api import fetch_cnpj_info
 from quickportal.validators import validate_cnpj, validate_cpf
@@ -353,55 +353,37 @@ class BusinessMembershipReadSerializer(serializers.ModelSerializer):
 
 
 class BusinessMembershipWriteSerializer(serializers.ModelSerializer):
+    """Grants a role to the user registered with ``email``.
+
+    Only registered users can be granted access. The user of an existing
+    membership cannot change, so ``email`` is only used on creation.
+    """
+
+    email = serializers.EmailField(write_only=True, required=False)
+
     class Meta:
         model = BusinessMembership
-        fields = ["user", "role"]
+        fields = ["email", "role"]
 
     def validate(self, attrs):
-        user = attrs.get("user", getattr(self.instance, "user", None))
-        if (
-            self.instance is not None
-            and "user" in attrs
-            and user != self.instance.user
-        ):
+        email = attrs.pop("email", None)
+        if self.instance is not None:
+            if email is not None and email.lower() != self.instance.user.email.lower():
+                raise serializers.ValidationError(
+                    {"email": "O usuário de um acesso não pode ser alterado."}
+                )
+            return attrs
+        if email is None:
+            raise serializers.ValidationError({"email": "This field is required."})
+        user = User.objects.filter(email__iexact=email.strip()).first()
+        if user is None:
             raise serializers.ValidationError(
-                {"user": "The user on a membership cannot be changed."}
+                {"email": "Nenhum usuário cadastrado com este e-mail."}
             )
         business = self.context.get("business")
-        if self.instance is None and business is not None:
-            if BusinessMembership.objects.filter(
-                user=user, business=business
-            ).exists():
-                raise serializers.ValidationError(
-                    {"user": "This user already belongs to this business."}
-                )
+        if BusinessMembership.objects.filter(user=user, business=business).exists():
+            raise serializers.ValidationError(
+                {"email": "Este e-mail já tem acesso a esta empresa."}
+            )
+        attrs["user"] = user
         return attrs
-
-
-class BusinessAccessGrantSerializer(serializers.Serializer):
-    """Email and role an admin grants on the ``business`` in the context."""
-
-    email = serializers.EmailField()
-    role = serializers.ChoiceField(choices=BusinessRole.choices)
-
-    def validate_email(self, value):
-        email = value.strip().lower()
-        business = self.context["business"]
-        if business.memberships.filter(user__email__iexact=email).exists():
-            raise serializers.ValidationError(
-                "Este e-mail já tem acesso a esta empresa."
-            )
-        if business.invites.filter(email=email).exists():
-            raise serializers.ValidationError(
-                "Este e-mail já tem um acesso aguardando cadastro."
-            )
-        return email
-
-
-class BusinessInviteSerializer(serializers.ModelSerializer):
-    """Access granted to an email that has no registered user yet."""
-
-    class Meta:
-        model = BusinessInvite
-        fields = ["id", "email", "role", "invited_by", "created_at"]
-        read_only_fields = ["id", "email", "invited_by", "created_at"]

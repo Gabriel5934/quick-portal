@@ -2,10 +2,7 @@ from django.urls import path
 
 from quickportal.views import (
     BusinessDetailView,
-    BusinessAccessEmailStatusView,
-    BusinessAccessView,
     BusinessColorPreferenceView,
-    BusinessInviteDetailView,
     BusinessListCreateView,
     BusinessMembershipDetailView,
     BusinessMembershipListCreateView,
@@ -44,20 +41,5 @@ urlpatterns = [
         "api/businesses/<int:business_id>/memberships/<int:pk>/",
         BusinessMembershipDetailView.as_view(),
         name="business_membership_detail",
-    ),
-    path(
-        "api/businesses/<int:business_id>/access/",
-        BusinessAccessView.as_view(),
-        name="business_access",
-    ),
-    path(
-        "api/businesses/<int:business_id>/access/email-status/",
-        BusinessAccessEmailStatusView.as_view(),
-        name="business_access_email_status",
-    ),
-    path(
-        "api/businesses/<int:business_id>/invites/<int:pk>/",
-        BusinessInviteDetailView.as_view(),
-        name="business_invite_detail",
     ),
 ]

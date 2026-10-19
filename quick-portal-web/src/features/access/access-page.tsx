@@ -4,7 +4,6 @@ import PersonRemoveOutlinedIcon from "@mui/icons-material/PersonRemoveOutlined";
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
-import Chip from "@mui/material/Chip";
 import CircularProgress from "@mui/material/CircularProgress";
 import Dialog from "@mui/material/Dialog";
 import DialogActions from "@mui/material/DialogActions";
@@ -25,61 +24,48 @@ import TextField from "@mui/material/TextField";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import {
-  useBusinessAccess,
-  useRevokeAccess,
-  useUpdateAccessRole,
+  useBusinessMemberships,
+  useRevokeMembership,
+  useUpdateMembershipRole,
 } from "#hooks/quickApi/useBusinessAccess";
 import type { BusinessRole } from "#hooks/quickApi/useBusinesses";
 import { getUserEmail } from "#hooks/storage";
 import { useBusinessScope } from "../../layout/business-context";
-import { AccessDialog, UnregisteredEmailAlert } from "./access-dialog";
+import { AccessDialog } from "./access-dialog";
 import { ROLE_LABELS, ROLES } from "./roles";
-import type { AccessRow } from "./types";
-
-function AccessStatus({ row }: { row: AccessRow }) {
-  return row.registered ? (
-    <Chip label="Ativo" color="success" size="small" />
-  ) : (
-    <Tooltip title="A empresa aparecerá para a pessoa quando ela se cadastrar com este e-mail.">
-      <Chip label="Não cadastrado" color="warning" size="small" />
-    </Tooltip>
-  );
-}
+import type { BusinessMembership } from "./types";
 
 export function AccessPage() {
   const { business } = useBusinessScope();
   const businessId = business?.id;
-  const access = useBusinessAccess(businessId);
-  const updateRole = useUpdateAccessRole(businessId);
-  const revoke = useRevokeAccess(businessId);
+  const memberships = useBusinessMemberships(businessId);
+  const updateRole = useUpdateMembershipRole(businessId);
+  const revoke = useRevokeMembership(businessId);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [granted, setGranted] = useState<AccessRow | null>(null);
-  const [revoking, setRevoking] = useState<AccessRow | null>(null);
+  const [granted, setGranted] = useState<BusinessMembership | null>(null);
+  const [revoking, setRevoking] = useState<BusinessMembership | null>(null);
   const currentEmail = getUserEmail();
 
-  const rows = access.data ?? [];
+  const rows = memberships.data ?? [];
   const mutationError = updateRole.error ?? revoke.error;
-  const isSelf = (row: AccessRow) =>
-    row.kind === "membership" && row.email.toLowerCase() === currentEmail;
-  const isAdmin = (row: AccessRow) =>
-    row.kind === "membership" && row.role === "ADMIN";
+  const isSelf = (row: BusinessMembership) =>
+    row.email.toLowerCase() === currentEmail;
+  const isAdmin = (row: BusinessMembership) => row.role === "ADMIN";
   // The API refuses to demote or remove the final admin.
-  const isFinalAdmin = (row: AccessRow) =>
+  const isFinalAdmin = (row: BusinessMembership) =>
     isAdmin(row) && rows.filter(isAdmin).length === 1;
-  const canRevoke = (row: AccessRow) => !isSelf(row) && !isFinalAdmin(row);
+  const canRevoke = (row: BusinessMembership) =>
+    !isSelf(row) && !isFinalAdmin(row);
 
-  const changeRole = (row: AccessRow, role: BusinessRole) => {
+  const changeRole = (row: BusinessMembership, role: BusinessRole) => {
     revoke.reset();
-    updateRole.mutate({ kind: row.kind, id: row.id, role });
+    updateRole.mutate({ id: row.id, role });
   };
 
   const confirmRevoke = () => {
     if (!revoking) return;
     updateRole.reset();
-    revoke.mutate(
-      { kind: revoking.kind, id: revoking.id },
-      { onSettled: () => setRevoking(null) },
-    );
+    revoke.mutate(revoking.id, { onSettled: () => setRevoking(null) });
   };
 
   return (
@@ -124,18 +110,17 @@ export function AccessPage() {
             {ROLE_LABELS[granted.role].toLowerCase()}.
           </Alert>
         ) : null}
-        {granted && !granted.registered ? <UnregisteredEmailAlert /> : null}
         {mutationError ? (
           <Alert severity="error">{mutationError.message}</Alert>
         ) : null}
       </Stack>
 
       <Paper variant="outlined">
-        {access.error ? (
+        {memberships.error ? (
           <Typography color="error" sx={{ textAlign: "center", py: 6 }}>
-            {access.error.message}
+            {memberships.error.message}
           </Typography>
-        ) : access.isLoading ? (
+        ) : memberships.isLoading ? (
           <Box sx={{ display: "flex", justifyContent: "center", py: 6 }}>
             <CircularProgress aria-label="Carregando acessos" />
           </Box>
@@ -146,7 +131,6 @@ export function AccessPage() {
                 <TableRow>
                   <TableCell>E-mail</TableCell>
                   <TableCell sx={{ width: 200 }}>Papel</TableCell>
-                  <TableCell sx={{ width: 260 }}>Situação</TableCell>
                   <TableCell align="right" sx={{ width: 64 }}>
                     Ações
                   </TableCell>
@@ -155,7 +139,7 @@ export function AccessPage() {
               <TableBody>
                 {rows.length ? (
                   rows.map((row) => (
-                    <TableRow key={`${row.kind}-${row.id}`} hover>
+                    <TableRow key={row.id} hover>
                       <TableCell sx={{ wordBreak: "break-all" }}>
                         {row.email}
                         {isSelf(row) ? (
@@ -193,9 +177,6 @@ export function AccessPage() {
                           ))}
                         </TextField>
                       </TableCell>
-                      <TableCell>
-                        <AccessStatus row={row} />
-                      </TableCell>
                       <TableCell align="right">
                         {canRevoke(row) ? (
                           <Tooltip title="Revogar acesso">
@@ -212,7 +193,7 @@ export function AccessPage() {
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={4} align="center" sx={{ py: 6 }}>
+                    <TableCell colSpan={3} align="center" sx={{ py: 6 }}>
                       <Typography color="text.secondary">
                         Nenhum acesso concedido
                       </Typography>
@@ -242,9 +223,7 @@ export function AccessPage() {
         <DialogTitle>Revogar acesso?</DialogTitle>
         <DialogContent>
           <DialogContentText>
-            {revoking?.registered === false
-              ? `${revoking.email} não verá esta empresa ao se cadastrar.`
-              : `${revoking?.email ?? ""} deixará de acessar esta empresa.`}
+            {`${revoking?.email ?? ""} deixará de acessar esta empresa.`}
           </DialogContentText>
         </DialogContent>
         <DialogActions>

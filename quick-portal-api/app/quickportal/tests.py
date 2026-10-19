@@ -595,14 +595,14 @@ class BusinessAuthorizationApiTests(APITestCase):
         )
         response = self.client.post(
             reverse("business_membership_list_create", args=[self.reseller.id]),
-            {"user": new_user.id, "role": BusinessRole.VIEWER},
+            {"email": new_user.email, "role": BusinessRole.VIEWER},
             format="json",
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
         response = self.client.post(
             reverse("business_membership_list_create", args=[self.direct_store.id]),
-            {"user": new_user.id, "role": BusinessRole.VIEWER},
+            {"email": new_user.email, "role": BusinessRole.VIEWER},
             format="json",
         )
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)

@@ -4,25 +4,23 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Business } from "#hooks/quickApi/useBusinesses";
 import {
   AccessRequestError,
-  useBusinessAccess,
-  useEmailStatus,
+  useBusinessMemberships,
   useGrantAccess,
-  useRevokeAccess,
-  useUpdateAccessRole,
+  useRevokeMembership,
+  useUpdateMembershipRole,
 } from "#hooks/quickApi/useBusinessAccess";
 import { AccessPage } from "./access-page";
-import type { AccessRow } from "./types";
+import type { BusinessMembership } from "./types";
 
 vi.mock("#hooks/quickApi/useBusinessAccess", async (importOriginal) => {
   const original =
     await importOriginal<typeof import("#hooks/quickApi/useBusinessAccess")>();
   return {
     ...original,
-    useBusinessAccess: vi.fn(),
-    useEmailStatus: vi.fn(),
+    useBusinessMemberships: vi.fn(),
     useGrantAccess: vi.fn(),
-    useRevokeAccess: vi.fn(),
-    useUpdateAccessRole: vi.fn(),
+    useRevokeMembership: vi.fn(),
+    useUpdateMembershipRole: vi.fn(),
   };
 });
 vi.mock("#hooks/storage", () => ({ getUserEmail: () => "admin@example.com" }));
@@ -32,28 +30,17 @@ vi.mock("../../layout/business-context", () => ({
   useBusinessScope: () => ({ business: store }),
 }));
 
-const access: AccessRow[] = [
-  {
-    kind: "membership",
-    id: 1,
-    email: "admin@example.com",
-    role: "ADMIN",
-    registered: true,
-  },
-  {
-    kind: "membership",
-    id: 2,
-    email: "gerente@example.com",
-    role: "MANAGER",
-    registered: true,
-  },
-  {
-    kind: "invite",
-    id: 9,
-    email: "novo@example.com",
-    role: "VIEWER",
-    registered: false,
-  },
+function membership(
+  id: number,
+  email: string,
+  role: BusinessMembership["role"],
+): BusinessMembership {
+  return { id, user: id, email, business: 7, role };
+}
+
+const memberships = [
+  membership(1, "admin@example.com", "ADMIN"),
+  membership(2, "gerente@example.com", "MANAGER"),
 ];
 
 function mutation(overrides: Record<string, unknown> = {}) {
@@ -66,9 +53,28 @@ function mutation(overrides: Record<string, unknown> = {}) {
   };
 }
 
+function mockMemberships(data: BusinessMembership[]) {
+  vi.mocked(useBusinessMemberships).mockReturnValue({
+    data,
+    isLoading: false,
+    error: null,
+  } as never);
+}
+
 function rows() {
   const table = screen.getByRole("table", { name: "Acessos" });
   return within(table).getAllByRole("row").slice(1);
+}
+
+async function submitGrant(email: string) {
+  const user = userEvent.setup();
+  await user.click(screen.getByRole("button", { name: "Novo acesso" }));
+  const dialog = screen.getByRole("dialog", { name: "Novo acesso" });
+  await user.type(within(dialog).getByLabelText("E-mail"), email);
+  await user.click(
+    within(dialog).getByRole("button", { name: "Conceder acesso" }),
+  );
+  return dialog;
 }
 
 describe("AccessPage", () => {
@@ -80,32 +86,21 @@ describe("AccessPage", () => {
     updateRole = mutation();
     revoke = mutation();
     grantAccess = mutation();
-    vi.mocked(useBusinessAccess).mockReturnValue({
-      data: access,
-      isLoading: false,
-      error: null,
-    } as never);
-    vi.mocked(useUpdateAccessRole).mockReturnValue(updateRole as never);
-    vi.mocked(useRevokeAccess).mockReturnValue(revoke as never);
+    mockMemberships(memberships);
+    vi.mocked(useUpdateMembershipRole).mockReturnValue(updateRole as never);
+    vi.mocked(useRevokeMembership).mockReturnValue(revoke as never);
     vi.mocked(useGrantAccess).mockReturnValue(grantAccess as never);
-    vi.mocked(useEmailStatus).mockReturnValue({ data: undefined } as never);
   });
 
-  it("lists everyone with access and flags unregistered emails", () => {
+  it("lists everyone with access", () => {
     render(<AccessPage />);
 
-    const [admin, manager, unregistered] = rows();
+    const [admin, manager] = rows();
     expect(admin).toHaveTextContent("admin@example.com (você)");
-    expect(within(admin).getByText("Ativo")).toBeInTheDocument();
     expect(manager).toHaveTextContent("gerente@example.com");
-    expect(within(manager).getByText("Ativo")).toBeInTheDocument();
-    expect(
-      within(unregistered).getByText("Não cadastrado"),
-    ).toBeInTheDocument();
-    expect(within(unregistered).queryByText("Ativo")).not.toBeInTheDocument();
   });
 
-  it("changes the role of registered and unregistered access", async () => {
+  it("changes a member's role", async () => {
     const user = userEvent.setup();
     render(<AccessPage />);
 
@@ -113,21 +108,8 @@ describe("AccessPage", () => {
       screen.getByRole("combobox", { name: "Papel de gerente@example.com" }),
     );
     await user.click(screen.getByRole("option", { name: "Visualizador" }));
-    expect(updateRole.mutate).toHaveBeenCalledWith({
-      kind: "membership",
-      id: 2,
-      role: "VIEWER",
-    });
 
-    await user.click(
-      screen.getByRole("combobox", { name: "Papel de novo@example.com" }),
-    );
-    await user.click(screen.getByRole("option", { name: "Gerente" }));
-    expect(updateRole.mutate).toHaveBeenCalledWith({
-      kind: "invite",
-      id: 9,
-      role: "MANAGER",
-    });
+    expect(updateRole.mutate).toHaveBeenCalledWith({ id: 2, role: "VIEWER" });
   });
 
   it("revokes access after confirmation", async () => {
@@ -143,30 +125,17 @@ describe("AccessPage", () => {
     expect(dialog).toHaveTextContent("gerente@example.com deixará de acessar");
     await user.click(within(dialog).getByRole("button", { name: "Revogar" }));
 
-    expect(revoke.mutate).toHaveBeenCalledWith(
-      { kind: "membership", id: 2 },
-      expect.anything(),
-    );
+    expect(revoke.mutate).toHaveBeenCalledWith(2, expect.anything());
   });
 
   it("hides revoking the user's own access", () => {
-    vi.mocked(useBusinessAccess).mockReturnValue({
-      data: [
-        ...access,
-        {
-          kind: "membership",
-          id: 4,
-          email: "outro.admin@example.com",
-          role: "ADMIN",
-          registered: true,
-        },
-      ],
-      isLoading: false,
-      error: null,
-    } as never);
+    mockMemberships([
+      ...memberships,
+      membership(4, "outro.admin@example.com", "ADMIN"),
+    ]);
     render(<AccessPage />);
 
-    const [self, , , otherAdmin] = rows();
+    const [self, , otherAdmin] = rows();
     expect(within(self).queryByRole("button")).not.toBeInTheDocument();
     expect(
       within(self).getByRole("combobox", {
@@ -181,39 +150,24 @@ describe("AccessPage", () => {
   });
 
   it("locks the final admin", () => {
-    vi.mocked(useBusinessAccess).mockReturnValue({
-      data: [
-        {
-          kind: "membership",
-          id: 1,
-          email: "unico.admin@example.com",
-          role: "ADMIN",
-          registered: true,
-        },
-        // An unregistered admin does not count until they sign up.
-        { ...access[2], role: "ADMIN" },
-      ],
-      isLoading: false,
-      error: null,
-    } as never);
+    mockMemberships([
+      membership(1, "unico.admin@example.com", "ADMIN"),
+      membership(2, "gerente@example.com", "MANAGER"),
+    ]);
     render(<AccessPage />);
 
-    const [finalAdmin, unregistered] = rows();
+    const [finalAdmin, manager] = rows();
     expect(within(finalAdmin).queryByRole("button")).not.toBeInTheDocument();
     expect(
       within(finalAdmin).getByRole("combobox", {
         name: "Papel de unico.admin@example.com",
       }),
     ).toHaveAttribute("aria-disabled", "true");
-    expect(
-      within(unregistered).getByRole("button", {
-        name: "Revogar acesso de novo@example.com",
-      }),
-    ).toBeInTheDocument();
+    expect(within(manager).getByRole("button")).toBeInTheDocument();
   });
 
   it("shows API errors from role changes", () => {
-    vi.mocked(useUpdateAccessRole).mockReturnValue(
+    vi.mocked(useUpdateMembershipRole).mockReturnValue(
       mutation({
         error: new Error("The final admin cannot be removed or demoted."),
       }) as never,
@@ -225,99 +179,45 @@ describe("AccessPage", () => {
     );
   });
 
-  it("warns about unregistered emails while granting and after granting", async () => {
-    vi.mocked(useEmailStatus).mockImplementation(
-      (_businessId, email) =>
-        ({
-          data: email ? { email, registered: false } : undefined,
-        }) as never,
-    );
-    const user = userEvent.setup();
+  it("grants access and confirms it", async () => {
     render(<AccessPage />);
 
-    await user.click(screen.getByRole("button", { name: "Novo acesso" }));
-    const dialog = screen.getByRole("dialog", { name: "Novo acesso" });
-    await user.type(
-      within(dialog).getByLabelText("E-mail"),
-      "Pessoa@Example.com",
-    );
-    await waitFor(() =>
-      expect(
-        within(dialog).getByText("E-mail não cadastrado"),
-      ).toBeInTheDocument(),
-    );
-    expect(useEmailStatus).toHaveBeenLastCalledWith(7, "pessoa@example.com");
-
-    await user.click(
-      within(dialog).getByRole("button", { name: "Conceder acesso" }),
-    );
+    await submitGrant("Colega@Example.com");
     await waitFor(() => expect(grantAccess.mutate).toHaveBeenCalled());
     const [values, options] = grantAccess.mutate.mock.calls[0] as [
       unknown,
-      { onSuccess: (row: AccessRow) => void },
+      { onSuccess: (membership: BusinessMembership) => void },
     ];
-    expect(values).toEqual({ email: "Pessoa@Example.com", role: "VIEWER" });
+    expect(values).toEqual({ email: "Colega@Example.com", role: "VIEWER" });
 
-    options.onSuccess({ ...access[2], email: "pessoa@example.com" });
-    expect(
-      await screen.findByText(/Acesso concedido a pessoa@example.com/),
-    ).toBeInTheDocument();
-    expect(screen.getByText("E-mail não cadastrado")).toBeInTheDocument();
-  });
-
-  it("does not warn after granting access to a registered email", async () => {
-    const user = userEvent.setup();
-    render(<AccessPage />);
-
-    await user.click(screen.getByRole("button", { name: "Novo acesso" }));
-    const dialog = screen.getByRole("dialog", { name: "Novo acesso" });
-    await user.type(
-      within(dialog).getByLabelText("E-mail"),
-      "colega@example.com",
-    );
-    await user.click(
-      within(dialog).getByRole("button", { name: "Conceder acesso" }),
-    );
-    await waitFor(() => expect(grantAccess.mutate).toHaveBeenCalled());
-    const [, options] = grantAccess.mutate.mock.calls[0] as [
-      unknown,
-      { onSuccess: (row: AccessRow) => void },
-    ];
-
-    options.onSuccess({ ...access[1], id: 3, email: "colega@example.com" });
+    options.onSuccess(membership(3, "colega@example.com", "VIEWER"));
     expect(
       await screen.findByText(/Acesso concedido a colega@example.com/),
     ).toBeInTheDocument();
-    expect(screen.queryByText("E-mail não cadastrado")).not.toBeInTheDocument();
   });
 
-  it("shows field errors returned by the API in the form", async () => {
-    const user = userEvent.setup();
+  it("shows on the email field that it is not registered", async () => {
     render(<AccessPage />);
 
-    await user.click(screen.getByRole("button", { name: "Novo acesso" }));
-    const dialog = screen.getByRole("dialog", { name: "Novo acesso" });
-    await user.type(
-      within(dialog).getByLabelText("E-mail"),
-      "gerente@example.com",
-    );
-    await user.click(
-      within(dialog).getByRole("button", { name: "Conceder acesso" }),
-    );
+    const dialog = await submitGrant("ninguem@example.com");
     await waitFor(() => expect(grantAccess.mutate).toHaveBeenCalled());
-
     const [, options] = grantAccess.mutate.mock.calls[0] as [
       unknown,
       { onError: (error: Error) => void },
     ];
     options.onError(
-      new AccessRequestError(400, "Este e-mail já tem acesso a esta empresa.", {
-        email: ["Este e-mail já tem acesso a esta empresa."],
-      }),
+      new AccessRequestError(
+        400,
+        "Nenhum usuário cadastrado com este e-mail.",
+        {
+          email: ["Nenhum usuário cadastrado com este e-mail."],
+        },
+      ),
     );
+
     expect(
       await within(dialog).findByText(
-        "Este e-mail já tem acesso a esta empresa.",
+        "Nenhum usuário cadastrado com este e-mail.",
       ),
     ).toBeInTheDocument();
   });

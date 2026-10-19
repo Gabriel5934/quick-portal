@@ -149,46 +149,6 @@ class BusinessMembership(models.Model):
         return f"{self.user_id} / {self.business_id} / {self.role}"
 
 
-class BusinessInvite(models.Model):
-    """Access to ``business`` granted to an email with no registered user.
-
-    When a user signs up with ``email``, the invite is replaced with a
-    ``BusinessMembership`` carrying ``role``.
-    """
-
-    business = models.ForeignKey(
-        Business,
-        on_delete=models.CASCADE,
-        related_name="invites",
-    )
-    email = models.EmailField()
-    role = models.CharField(max_length=20, choices=BusinessRole.choices)
-    invited_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.SET_NULL,
-        related_name="sent_business_invites",
-        null=True,
-        blank=True,
-    )
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        db_table = "business_invite"
-        constraints = [
-            models.UniqueConstraint(
-                fields=["business", "email"],
-                name="unique_business_invite_email",
-            )
-        ]
-
-    def save(self, *args, **kwargs):
-        self.email = self.email.strip().lower()
-        return super().save(*args, **kwargs)
-
-    def __str__(self):
-        return f"{self.email} / {self.business_id} / {self.role}"
-
-
 class BusinessColorPreference(models.Model):
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,

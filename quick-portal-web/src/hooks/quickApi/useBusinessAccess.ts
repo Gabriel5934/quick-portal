@@ -1,9 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type {
   AccessGrantRequest,
-  AccessKind,
-  AccessRow,
-  EmailStatus,
+  BusinessMembership,
 } from "#features/access/types";
 import { ApiError, useAuthQuery } from "#hooks/auth/useAuthQuery";
 import { useToken } from "#hooks/auth/useToken";
@@ -58,28 +56,23 @@ async function accessRequest<T>(
   return body as T;
 }
 
-const accessKey = (businessId: number | undefined) => [
-  "business-access",
+const membershipsKey = (businessId: number | undefined) => [
+  "business-memberships",
   businessId,
 ];
-const rowsKey = (businessId: number | undefined) => [
-  ...accessKey(businessId),
-  "rows",
-];
 
-/** Path of membership or invite `id` on `businessId`. */
-function rowPath(businessId: number | undefined, kind: AccessKind, id: number) {
-  return `businesses/${businessId}/${kind === "membership" ? "memberships" : "invites"}/${id}/`;
+function membershipsPath(businessId: number | undefined, id?: number) {
+  return `businesses/${businessId}/memberships/${id === undefined ? "" : `${id}/`}`;
 }
 
-/** Everyone who can access `businessId`. Admins only. */
-export function useBusinessAccess(businessId: number | undefined) {
+/** Users who can access `businessId`. Admins only. */
+export function useBusinessMemberships(businessId: number | undefined) {
   const { data: token } = useToken();
-  return useAuthQuery<AccessRow[]>({
-    queryKey: rowsKey(businessId),
+  return useAuthQuery<BusinessMembership[]>({
+    queryKey: membershipsKey(businessId),
     queryFn: () =>
       accessRequest(
-        `businesses/${businessId}/access/`,
+        membershipsPath(businessId),
         token!,
         "Erro ao carregar os acessos.",
       ),
@@ -87,84 +80,61 @@ export function useBusinessAccess(businessId: number | undefined) {
   });
 }
 
-/** Whether `email` already belongs to a user; disabled until it is set. */
-export function useEmailStatus(
-  businessId: number | undefined,
-  email: string | null,
-) {
-  const { data: token } = useToken();
-  return useAuthQuery<EmailStatus>({
-    queryKey: [...accessKey(businessId), "email-status", email],
-    queryFn: () =>
-      accessRequest(
-        `businesses/${businessId}/access/email-status/?email=${encodeURIComponent(email!)}`,
-        token!,
-        "Erro ao verificar o e-mail.",
-      ),
-    enabled: !!token && !!businessId && !!email,
-    staleTime: 60 * 1000,
-  });
-}
-
+/** Grants a role on `businessId` to the user registered with an email. */
 export function useGrantAccess(businessId: number | undefined) {
   const { data: token } = useToken();
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (payload: AccessGrantRequest) =>
-      accessRequest<AccessRow>(
-        `businesses/${businessId}/access/`,
+      accessRequest<BusinessMembership>(
+        membershipsPath(businessId),
         token!,
         "Erro ao conceder o acesso.",
         { method: "POST", body: JSON.stringify(payload) },
       ),
     onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: rowsKey(businessId) }),
+      queryClient.invalidateQueries({ queryKey: membershipsKey(businessId) }),
   });
 }
 
-// Changing or revoking a membership can change the requesting user's own
-// role, so the businesses list is refreshed too.
+// Changing a membership can change the requesting user's own role, so the
+// businesses list is refreshed too.
 function invalidateAfterChange(
   queryClient: ReturnType<typeof useQueryClient>,
   businessId: number | undefined,
-  kind: AccessKind,
 ) {
-  const rows = queryClient.invalidateQueries({ queryKey: rowsKey(businessId) });
-  if (kind === "invite") return rows;
   return Promise.all([
-    rows,
+    queryClient.invalidateQueries({ queryKey: membershipsKey(businessId) }),
     queryClient.invalidateQueries({ queryKey: ["businesses", "all"] }),
   ]);
 }
 
-export function useUpdateAccessRole(businessId: number | undefined) {
+export function useUpdateMembershipRole(businessId: number | undefined) {
   const { data: token } = useToken();
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ kind, id, role }: Pick<AccessRow, "kind" | "id" | "role">) =>
-      accessRequest(
-        rowPath(businessId, kind, id),
+    mutationFn: ({ id, role }: Pick<BusinessMembership, "id" | "role">) =>
+      accessRequest<BusinessMembership>(
+        membershipsPath(businessId, id),
         token!,
         "Erro ao alterar o papel.",
         { method: "PATCH", body: JSON.stringify({ role }) },
       ),
-    onSettled: (_data, _error, { kind }) =>
-      invalidateAfterChange(queryClient, businessId, kind),
+    onSettled: () => invalidateAfterChange(queryClient, businessId),
   });
 }
 
-export function useRevokeAccess(businessId: number | undefined) {
+export function useRevokeMembership(businessId: number | undefined) {
   const { data: token } = useToken();
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ kind, id }: Pick<AccessRow, "kind" | "id">) =>
+    mutationFn: (id: number) =>
       accessRequest<void>(
-        rowPath(businessId, kind, id),
+        membershipsPath(businessId, id),
         token!,
         "Erro ao revogar o acesso.",
         { method: "DELETE" },
       ),
-    onSettled: (_data, _error, { kind }) =>
-      invalidateAfterChange(queryClient, businessId, kind),
+    onSettled: () => invalidateAfterChange(queryClient, businessId),
   });
 }

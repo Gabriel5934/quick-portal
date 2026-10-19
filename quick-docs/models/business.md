@@ -72,35 +72,26 @@ invariants explicitly and call `full_clean()` when model validation is needed.
 - `POST /api/businesses/` only creates stores without a parent; any other
   `type` or a `parent` returns `400`. Any authenticated user can create one, and
   the creator becomes its `ADMIN`.
-- `invites` holds pending `BusinessInvite` grants. See
-  [granting access](#granting-access).
 - `color_preferences` stores each user's display color for the business.
 
 ## Granting access
 
-Admins of a business grant access by email from the **Acessos** page. Access
-is one way: the business simply shows up in the person's business selector,
-with nothing to accept.
-
-- A registered email gets a `BusinessMembership` immediately.
-- An unregistered email gets a `BusinessInvite`, unique per business and
-  lowercased email. When a user is saved with that email (normally at
-  sign-up), a `post_save` signal turns each of its invites into a membership
-  with the same role. An existing membership on the business is kept as is.
+Admins of a business grant access from the **Acessos** page by entering the
+email of a registered user and a role. This creates a `BusinessMembership`
+right away, and the business shows up in that user's business selector.
+Emails without a registered user are rejected.
 
 All endpoints require a JWT and the `ADMIN` role on the business.
 
 | Endpoint | Purpose |
 | --- | --- |
-| `GET /api/businesses/<id>/access/` | Everyone with access: rows of `kind` (`membership` or `invite`), `id`, `email`, `role`, and `registered`. |
-| `POST /api/businesses/<id>/access/` | Grant `role` to `email`. Returns the new row with `201`. |
-| `GET /api/businesses/<id>/access/email-status/?email=` | Whether an email belongs to a registered user. |
-| `PATCH`, `DELETE /api/businesses/<id>/memberships/<pk>/` | Change the role of, or revoke, a registered user's access. The final admin cannot be demoted or removed, and nobody can revoke their own access. |
-| `PATCH`, `DELETE /api/businesses/<id>/invites/<pk>/` | Change the role of, or revoke, an unregistered email's access. The email cannot change. |
+| `GET /api/businesses/<id>/memberships/` | List everyone with access, with their `email` and `role`. |
+| `POST /api/businesses/<id>/memberships/` | Grant `role` to the user registered with `email`. Returns the membership with `201`. |
+| `PATCH`, `DELETE /api/businesses/<id>/memberships/<pk>/` | Change the role of, or revoke, a membership. The user cannot change. |
 
-Emails that already have access to the business are rejected with
-`{"email": [...]}`. Access is matched to users by email only, and sign-up does
-not verify email ownership.
+`POST` returns `{"email": [...]}` when no user is registered with the email or
+when that user already has access. The final admin cannot be demoted or
+removed, and nobody can revoke their own access.
 
 ## Example
 

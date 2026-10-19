@@ -1,6 +1,5 @@
-import { useEffect, useState, type FormEvent } from "react";
+import type { FormEvent } from "react";
 import Alert from "@mui/material/Alert";
-import AlertTitle from "@mui/material/AlertTitle";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Dialog from "@mui/material/Dialog";
@@ -11,48 +10,31 @@ import MenuItem from "@mui/material/MenuItem";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Controller, useForm, useWatch } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import {
   AccessRequestError,
-  useEmailStatus,
   useGrantAccess,
 } from "#hooks/quickApi/useBusinessAccess";
 import { ROLE_LABELS, ROLES } from "./roles";
 import { accessSchema, type AccessFormValues } from "./schemas";
-import type { AccessRow } from "./types";
+import type { BusinessMembership } from "./types";
 
-const EMAIL_CHECK_DELAY_MS = 400;
+const FIELDS = ["email", "role"] as const;
+type FieldErrors = Partial<Record<(typeof FIELDS)[number], string[]>>;
 
-function useDebouncedValue<T>(value: T, delay: number): T {
-  const [debounced, setDebounced] = useState(value);
-  useEffect(() => {
-    const timeout = setTimeout(() => setDebounced(value), delay);
-    return () => clearTimeout(timeout);
-  }, [value, delay]);
-  return debounced;
-}
-
-/** The email to check, or `null` while it is not a valid address. */
-function checkableEmail(email: string): string | null {
-  const result = accessSchema.shape.email.safeParse(email);
-  return result.success ? result.data.toLowerCase() : null;
-}
-
-export function UnregisteredEmailAlert() {
-  return (
-    <Alert severity="warning">
-      <AlertTitle>E-mail não cadastrado</AlertTitle>
-      Ninguém criou uma conta no Portal Quick com este e-mail ainda. A empresa
-      aparecerá para a pessoa assim que ela se cadastrar com ele.
-    </Alert>
-  );
+/** DRF field errors in `error`, or `null` when it carries none. */
+function fieldErrors(error: Error | null): FieldErrors | null {
+  if (!(error instanceof AccessRequestError)) return null;
+  const body = error.body;
+  if (!body || typeof body !== "object") return null;
+  return FIELDS.some((field) => field in body) ? body : null;
 }
 
 interface AccessDialogProps {
   businessId: number;
   open: boolean;
   onClose: () => void;
-  onGranted: (access: AccessRow) => void;
+  onGranted: (membership: BusinessMembership) => void;
 }
 
 export function AccessDialog({
@@ -73,17 +55,6 @@ export function AccessDialog({
     resolver: zodResolver(accessSchema),
     defaultValues: { email: "", role: "VIEWER" },
   });
-  const email = useWatch({ control, name: "email" });
-  const debouncedEmail = useDebouncedValue(
-    checkableEmail(email),
-    EMAIL_CHECK_DELAY_MS,
-  );
-  // Only trust the status of the email currently typed.
-  const emailStatus = useEmailStatus(businessId, debouncedEmail);
-  const unregistered =
-    emailStatus.data !== undefined &&
-    emailStatus.data.email === checkableEmail(email) &&
-    !emailStatus.data.registered;
 
   const close = () => {
     reset();
@@ -93,28 +64,19 @@ export function AccessDialog({
 
   const submit = handleSubmit((values) => {
     grantAccess.mutate(values, {
-      onSuccess: (access) => {
-        onGranted(access);
+      onSuccess: (membership) => {
+        onGranted(membership);
         close();
       },
       onError: (error) => {
-        const body = error instanceof AccessRequestError ? error.body : null;
-        const fieldErrors = body as Partial<
-          Record<"email" | "role", string[]>
-        > | null;
-        for (const field of ["email", "role"] as const) {
-          const message = fieldErrors?.[field]?.[0];
+        const apiErrors = fieldErrors(error);
+        for (const field of FIELDS) {
+          const message = apiErrors?.[field]?.[0];
           if (message) setError(field, { message });
         }
       },
     });
   });
-
-  const fieldError =
-    grantAccess.error instanceof AccessRequestError &&
-    grantAccess.error.body !== null &&
-    typeof grantAccess.error.body === "object" &&
-    ("email" in grantAccess.error.body || "role" in grantAccess.error.body);
 
   return (
     <Dialog open={open} onClose={close} fullWidth maxWidth="sm">
@@ -135,7 +97,7 @@ export function AccessDialog({
               error={!!errors.email}
               helperText={
                 errors.email?.message ??
-                "A empresa aparecerá no seletor de perfil da pessoa."
+                "Use o e-mail com que a pessoa se cadastrou no Portal Quick."
               }
             />
             <Controller
@@ -158,8 +120,7 @@ export function AccessDialog({
                 </TextField>
               )}
             />
-            {unregistered ? <UnregisteredEmailAlert /> : null}
-            {grantAccess.error && !fieldError ? (
+            {grantAccess.error && !fieldErrors(grantAccess.error) ? (
               <Alert severity="error">{grantAccess.error.message}</Alert>
             ) : null}
           </Stack>

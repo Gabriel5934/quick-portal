@@ -2,7 +2,7 @@ from collections.abc import Mapping
 
 from django.db import IntegrityError, transaction
 from django.db.models.deletion import ProtectedError
-from rest_framework import serializers, status
+from rest_framework import status
 from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -13,7 +13,6 @@ from rest_framework_simplejwt.views import TokenObtainPairView
 from quickportal.models import (
     Business,
     BusinessColorPreference,
-    BusinessInvite,
     BusinessMembership,
     BusinessRole,
     BusinessType,
@@ -21,9 +20,7 @@ from quickportal.models import (
 )
 from quickportal.serializers import (
     BusinessReadSerializer,
-    BusinessAccessGrantSerializer,
     BusinessColorPreferenceSerializer,
-    BusinessInviteSerializer,
     BusinessMembershipReadSerializer,
     BusinessMembershipWriteSerializer,
     BusinessWriteSerializer,
@@ -34,9 +31,7 @@ from quickportal.serializers import (
 from quickportal.services.brasil_api import BrasilApiError
 from quickportal.services.business_access import (
     accessible_businesses,
-    find_user_by_email,
     get_accessible_business_or_404,
-    grant_business_access,
     has_business_role,
 )
 
@@ -413,6 +408,8 @@ class BusinessMembershipListCreateView(APIView):
         return Response(BusinessMembershipReadSerializer(memberships, many=True).data)
 
     def post(self, request, business_id):
+        """Grant ``request.data.role`` on ``business_id`` to the user registered
+        with ``request.data.email``. Returns the membership with HTTP 201."""
         business = self._get_admin_business(request.user, business_id)
         serializer = BusinessMembershipWriteSerializer(
             data=request.data, context={"business": business}
@@ -486,116 +483,3 @@ class BusinessMembershipDetailView(APIView):
             raise ValidationError(
                 {"role": "The final admin cannot be removed or demoted."}
             )
-
-
-def _access_row(access):
-    """Serialize a membership or invite as one row of a business's access."""
-    if isinstance(access, BusinessMembership):
-        return {
-            "kind": "membership",
-            "id": access.id,
-            "email": access.user.email,
-            "role": access.role,
-            "registered": True,
-        }
-    return {
-        "kind": "invite",
-        "id": access.id,
-        "email": access.email,
-        "role": access.role,
-        "registered": False,
-    }
-
-
-class BusinessAccessView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    def get(self, request, business_id):
-        """List who can access ``business_id``, for one of its admins.
-
-        Memberships come first, then emails still waiting for a user to sign
-        up with them (``registered`` is ``False``).
-        """
-        business = BusinessMembershipListCreateView._get_admin_business(
-            request.user, business_id
-        )
-        memberships = business.memberships.select_related("user").order_by("id")
-        invites = business.invites.order_by("id")
-        return Response([_access_row(item) for item in [*memberships, *invites]])
-
-    def post(self, request, business_id):
-        """Grant ``request.data.role`` on ``business_id`` to ``email``.
-
-        A registered email gets access immediately; an unregistered one gets
-        it when someone signs up with it. Emails that already have access are
-        rejected. Returns the new access row with HTTP 201.
-        """
-        business = BusinessMembershipListCreateView._get_admin_business(
-            request.user, business_id
-        )
-        serializer = BusinessAccessGrantSerializer(
-            data=request.data, context={"business": business}
-        )
-        serializer.is_valid(raise_exception=True)
-        # A concurrent request can grant the same email after validation.
-        try:
-            with transaction.atomic():
-                access = grant_business_access(
-                    business, granted_by=request.user, **serializer.validated_data
-                )
-        except IntegrityError as exc:
-            raise ValidationError(
-                {"email": ["Este e-mail já tem acesso a esta empresa."]}
-            ) from exc
-        return Response(_access_row(access), status=status.HTTP_201_CREATED)
-
-
-class BusinessInviteDetailView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    def patch(self, request, business_id, pk):
-        """Change the role granted by invite ``pk`` on ``business_id``."""
-        business = BusinessMembershipListCreateView._get_admin_business(
-            request.user, business_id
-        )
-        invite = self._get_invite(business, pk)
-        serializer = BusinessInviteSerializer(invite, data=request.data, partial=True)
-        serializer.is_valid(raise_exception=True)
-        serializer.save()
-        return Response(serializer.data)
-
-    def delete(self, request, business_id, pk):
-        """Revoke invite ``pk`` on ``business_id`` and return HTTP 204."""
-        business = BusinessMembershipListCreateView._get_admin_business(
-            request.user, business_id
-        )
-        self._get_invite(business, pk).delete()
-        return Response(status=status.HTTP_204_NO_CONTENT)
-
-    @staticmethod
-    def _get_invite(business, pk):
-        try:
-            return business.invites.get(pk=pk)
-        except BusinessInvite.DoesNotExist as exc:
-            raise NotFound() from exc
-
-
-class BusinessAccessEmailStatusView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    def get(self, request, business_id):
-        """Report whether the ``email`` query parameter belongs to a user.
-
-        Only admins of ``business_id`` can check, so the access form can warn
-        before granting access to an unregistered email.
-        """
-        BusinessMembershipListCreateView._get_admin_business(request.user, business_id)
-        field = serializers.EmailField()
-        try:
-            email = field.run_validation(request.query_params.get("email", ""))
-        except ValidationError as exc:
-            raise ValidationError({"email": exc.detail}) from exc
-        email = email.strip().lower()
-        return Response(
-            {"email": email, "registered": find_user_by_email(email) is not None}
-        )
