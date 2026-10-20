@@ -11,7 +11,35 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
 import os
+import sys
 from pathlib import Path
+
+import sentry_sdk
+
+RUNNING_TESTS = sys.argv[1:2] == ["test"] or "pytest" in sys.argv[0]
+
+
+def _drop_health_check_transactions(event, hint):
+    # Docker health checks hit /health/ every few seconds; tracing them is noise.
+    if event.get("transaction") == "/health/":
+        return None
+    return event
+
+
+# Sentry stays disabled when SENTRY_DSN is unset and during test runs.
+sentry_sdk.init(
+    # An empty DSN disables the SDK; None would fall back to SENTRY_DSN.
+    dsn="" if RUNNING_TESTS else os.environ.get("SENTRY_DSN"),
+    environment=os.environ.get(
+        "SENTRY_ENVIRONMENT",
+        "development" if os.environ.get("DEBUG", "0") == "1" else "production",
+    ),
+    release=os.environ.get("SENTRY_RELEASE"),
+    send_default_pii=False,
+    traces_sample_rate=float(os.environ.get("SENTRY_TRACES_SAMPLE_RATE", "1.0")),
+    before_send_transaction=_drop_health_check_transactions,
+    enable_logs=True,
+)
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -171,6 +199,9 @@ CORS_ALLOW_HEADERS = [
     "content-type",
     "accept",
     "origin",
+    # Sentry distributed tracing headers sent by the frontend SDK.
+    "sentry-trace",
+    "baggage",
 ]
 
 CACHES = {
@@ -188,9 +219,12 @@ OWN_CLIENT_ID = os.environ.get("OWN_CLIENT_ID", "")
 OWN_CLIENT_SECRET = os.environ.get("OWN_CLIENT_SECRET", "")
 OWN_SCOPE = os.environ.get("OWN_SCOPE", "")
 OWN_BASE_URL = os.environ.get("OWN_BASE_URL", "https://acquirer-qa.own.financial")
-OWN_DEBUG_FORCE_HTTP_400 = os.environ.get(
-    "OWN_DEBUG_FORCE_HTTP_400", "0"
-).lower() in {"1", "true", "yes", "on"}
+OWN_DEBUG_FORCE_HTTP_400 = os.environ.get("OWN_DEBUG_FORCE_HTTP_400", "0").lower() in {
+    "1",
+    "true",
+    "yes",
+    "on",
+}
 OWN_REGISTRATION_TRACE_ENABLED = os.environ.get(
     "OWN_REGISTRATION_TRACE_ENABLED", "0"
 ).lower() in {"1", "true", "yes", "on"}

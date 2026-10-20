@@ -7,3 +7,4 @@ requests==2.32.3
 ruff==0.14.0
 pytest==8.3.5
 uvicorn==0.51.0
+sentry-sdk[django]==2.72.0
