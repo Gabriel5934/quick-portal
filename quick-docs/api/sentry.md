@@ -2,8 +2,6 @@
 
 Sentry is setup to monitor both the Django and React apps.
 
-`send_default_pii` is hardcoded to false to prevent logs from the Django app to leak information protected under LGPD.
-
 ## TODO
 
 Deploy:

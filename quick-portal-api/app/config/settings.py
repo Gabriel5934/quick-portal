@@ -35,7 +35,7 @@ sentry_sdk.init(
         "development" if os.environ.get("DEBUG", "0") == "1" else "production",
     ),
     release=os.environ.get("SENTRY_RELEASE"),
-    send_default_pii=False,
+    send_default_pii=True,
     traces_sample_rate=float(os.environ.get("SENTRY_TRACES_SAMPLE_RATE", "1.0")),
     before_send_transaction=_drop_health_check_transactions,
     enable_logs=True,
