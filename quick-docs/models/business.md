@@ -74,6 +74,25 @@ invariants explicitly and call `full_clean()` when model validation is needed.
   the creator becomes its `ADMIN`.
 - `color_preferences` stores each user's display color for the business.
 
+## Granting access
+
+Admins of a business grant access from the **Acessos** page by entering the
+email of a registered user and a role. This creates a `BusinessMembership`
+right away, and the business shows up in that user's business selector.
+Emails without a registered user are rejected.
+
+All endpoints require a JWT and the `ADMIN` role on the business.
+
+| Endpoint | Purpose |
+| --- | --- |
+| `GET /api/businesses/<id>/memberships/` | List everyone with access, with their `email` and `role`. |
+| `POST /api/businesses/<id>/memberships/` | Grant `role` to the user registered with `email`. Returns the membership with `201`. |
+| `PATCH`, `DELETE /api/businesses/<id>/memberships/<pk>/` | Change the role of, or revoke, a membership. The user cannot change. |
+
+`POST` returns `{"email": [...]}` when no user is registered with the email or
+when that user already has access. The final admin cannot be demoted or
+removed, and nobody can revoke their own access.
+
 ## Example
 
 ```python

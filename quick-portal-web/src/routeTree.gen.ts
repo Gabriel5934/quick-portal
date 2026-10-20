@@ -20,6 +20,7 @@ import { Route as AuthRoutesBusinessRoutesPlanosETaxasRouteImport } from './rout
 import { Route as AuthRoutesBusinessRoutesPlanosCieloRouteImport } from './routes/_authRoutes/_businessRoutes/planos-cielo'
 import { Route as AuthRoutesBusinessRoutesNovoPlanoRouteImport } from './routes/_authRoutes/_businessRoutes/novo-plano'
 import { Route as AuthRoutesBusinessRoutesCredenciamentoRouteImport } from './routes/_authRoutes/_businessRoutes/credenciamento'
+import { Route as AuthRoutesBusinessRoutesAcessosRouteImport } from './routes/_authRoutes/_businessRoutes/acessos'
 import { Route as AuthRoutesBusinessRoutesRecurringFeesIndexRouteImport } from './routes/_authRoutes/_businessRoutes/recurring-fees.index'
 import { Route as AuthRoutesBusinessRoutesPlanosCieloNovoRouteImport } from './routes/_authRoutes/_businessRoutes/planos-cielo_.novo'
 import { Route as AuthRoutesBusinessRoutesPlanosCieloIdRouteImport } from './routes/_authRoutes/_businessRoutes/planos-cielo_.$id'
@@ -90,6 +91,12 @@ const AuthRoutesBusinessRoutesCredenciamentoRoute =
     path: '/credenciamento',
     getParentRoute: () => AuthRoutesBusinessRoutesRouteRoute,
   } as any)
+const AuthRoutesBusinessRoutesAcessosRoute =
+  AuthRoutesBusinessRoutesAcessosRouteImport.update({
+    id: '/acessos',
+    path: '/acessos',
+    getParentRoute: () => AuthRoutesBusinessRoutesRouteRoute,
+  } as any)
 const AuthRoutesBusinessRoutesRecurringFeesIndexRoute =
   AuthRoutesBusinessRoutesRecurringFeesIndexRouteImport.update({
     id: '/',
@@ -149,6 +156,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/signup': typeof SignupRoute
   '/novo-ec': typeof AuthRoutesNovoEcRoute
+  '/acessos': typeof AuthRoutesBusinessRoutesAcessosRoute
   '/credenciamento': typeof AuthRoutesBusinessRoutesCredenciamentoRoute
   '/novo-plano': typeof AuthRoutesBusinessRoutesNovoPlanoRoute
   '/planos-cielo': typeof AuthRoutesBusinessRoutesPlanosCieloRoute
@@ -169,6 +177,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/signup': typeof SignupRoute
   '/novo-ec': typeof AuthRoutesNovoEcRoute
+  '/acessos': typeof AuthRoutesBusinessRoutesAcessosRoute
   '/credenciamento': typeof AuthRoutesBusinessRoutesCredenciamentoRoute
   '/novo-plano': typeof AuthRoutesBusinessRoutesNovoPlanoRoute
   '/planos-cielo': typeof AuthRoutesBusinessRoutesPlanosCieloRoute
@@ -191,6 +200,7 @@ export interface FileRoutesById {
   '/signup': typeof SignupRoute
   '/_authRoutes/_businessRoutes': typeof AuthRoutesBusinessRoutesRouteRouteWithChildren
   '/_authRoutes/novo-ec': typeof AuthRoutesNovoEcRoute
+  '/_authRoutes/_businessRoutes/acessos': typeof AuthRoutesBusinessRoutesAcessosRoute
   '/_authRoutes/_businessRoutes/credenciamento': typeof AuthRoutesBusinessRoutesCredenciamentoRoute
   '/_authRoutes/_businessRoutes/novo-plano': typeof AuthRoutesBusinessRoutesNovoPlanoRoute
   '/_authRoutes/_businessRoutes/planos-cielo': typeof AuthRoutesBusinessRoutesPlanosCieloRoute
@@ -213,6 +223,7 @@ export interface FileRouteTypes {
     | '/'
     | '/signup'
     | '/novo-ec'
+    | '/acessos'
     | '/credenciamento'
     | '/novo-plano'
     | '/planos-cielo'
@@ -233,6 +244,7 @@ export interface FileRouteTypes {
     | '/'
     | '/signup'
     | '/novo-ec'
+    | '/acessos'
     | '/credenciamento'
     | '/novo-plano'
     | '/planos-cielo'
@@ -254,6 +266,7 @@ export interface FileRouteTypes {
     | '/signup'
     | '/_authRoutes/_businessRoutes'
     | '/_authRoutes/novo-ec'
+    | '/_authRoutes/_businessRoutes/acessos'
     | '/_authRoutes/_businessRoutes/credenciamento'
     | '/_authRoutes/_businessRoutes/novo-plano'
     | '/_authRoutes/_businessRoutes/planos-cielo'
@@ -356,6 +369,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthRoutesBusinessRoutesCredenciamentoRouteImport
       parentRoute: typeof AuthRoutesBusinessRoutesRouteRoute
     }
+    '/_authRoutes/_businessRoutes/acessos': {
+      id: '/_authRoutes/_businessRoutes/acessos'
+      path: '/acessos'
+      fullPath: '/acessos'
+      preLoaderRoute: typeof AuthRoutesBusinessRoutesAcessosRouteImport
+      parentRoute: typeof AuthRoutesBusinessRoutesRouteRoute
+    }
     '/_authRoutes/_businessRoutes/recurring-fees/': {
       id: '/_authRoutes/_businessRoutes/recurring-fees/'
       path: '/'
@@ -450,6 +470,7 @@ const AuthRoutesBusinessRoutesRecurringFeesRouteWithChildren =
   )
 
 interface AuthRoutesBusinessRoutesRouteRouteChildren {
+  AuthRoutesBusinessRoutesAcessosRoute: typeof AuthRoutesBusinessRoutesAcessosRoute
   AuthRoutesBusinessRoutesCredenciamentoRoute: typeof AuthRoutesBusinessRoutesCredenciamentoRoute
   AuthRoutesBusinessRoutesNovoPlanoRoute: typeof AuthRoutesBusinessRoutesNovoPlanoRoute
   AuthRoutesBusinessRoutesPlanosCieloRoute: typeof AuthRoutesBusinessRoutesPlanosCieloRoute
@@ -464,6 +485,7 @@ interface AuthRoutesBusinessRoutesRouteRouteChildren {
 
 const AuthRoutesBusinessRoutesRouteRouteChildren: AuthRoutesBusinessRoutesRouteRouteChildren =
   {
+    AuthRoutesBusinessRoutesAcessosRoute: AuthRoutesBusinessRoutesAcessosRoute,
     AuthRoutesBusinessRoutesCredenciamentoRoute:
       AuthRoutesBusinessRoutesCredenciamentoRoute,
     AuthRoutesBusinessRoutesNovoPlanoRoute:

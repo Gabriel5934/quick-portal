@@ -353,26 +353,44 @@ class BusinessMembershipReadSerializer(serializers.ModelSerializer):
 
 
 class BusinessMembershipWriteSerializer(serializers.ModelSerializer):
+    """Grants a role to the user registered with ``email``.
+
+    Only registered users can be granted access. The user of an existing
+    membership cannot change, so ``email`` is only used on creation.
+    """
+
+    email = serializers.EmailField(write_only=True, required=False)
+
     class Meta:
         model = BusinessMembership
-        fields = ["user", "role"]
+        fields = ["email", "role"]
 
     def validate(self, attrs):
-        user = attrs.get("user", getattr(self.instance, "user", None))
-        if (
-            self.instance is not None
-            and "user" in attrs
-            and user != self.instance.user
-        ):
-            raise serializers.ValidationError(
-                {"user": "The user on a membership cannot be changed."}
-            )
-        business = self.context.get("business")
-        if self.instance is None and business is not None:
-            if BusinessMembership.objects.filter(
-                user=user, business=business
-            ).exists():
+        email = attrs.pop("email", None)
+        if self.instance is not None:
+            if email is not None and email.lower() != self.instance.user.email.lower():
                 raise serializers.ValidationError(
-                    {"user": "This user already belongs to this business."}
+                    {"email": "O usuário de um acesso não pode ser alterado."}
                 )
+            return attrs
+        if email is None:
+            raise serializers.ValidationError({"email": "This field is required."})
+        # Emails are not unique in the database, so refuse to guess between
+        # accounts that differ only by case.
+        users = list(User.objects.filter(email__iexact=email.strip())[:2])
+        if not users:
+            raise serializers.ValidationError(
+                {"email": "Nenhum usuário cadastrado com este e-mail."}
+            )
+        if len(users) > 1:
+            raise serializers.ValidationError(
+                {"email": "Mais de um usuário está cadastrado com este e-mail."}
+            )
+        user = users[0]
+        business = self.context.get("business")
+        if BusinessMembership.objects.filter(user=user, business=business).exists():
+            raise serializers.ValidationError(
+                {"email": "Este e-mail já tem acesso a esta empresa."}
+            )
+        attrs["user"] = user
         return attrs

@@ -408,12 +408,21 @@ class BusinessMembershipListCreateView(APIView):
         return Response(BusinessMembershipReadSerializer(memberships, many=True).data)
 
     def post(self, request, business_id):
+        """Grant ``request.data.role`` on ``business_id`` to the user registered
+        with ``request.data.email``. Returns the membership with HTTP 201."""
         business = self._get_admin_business(request.user, business_id)
         serializer = BusinessMembershipWriteSerializer(
             data=request.data, context={"business": business}
         )
         serializer.is_valid(raise_exception=True)
-        membership = serializer.save(business=business)
+        # A concurrent request can grant the same user after validation.
+        try:
+            with transaction.atomic():
+                membership = serializer.save(business=business)
+        except IntegrityError as exc:
+            raise ValidationError(
+                {"email": ["Este e-mail já tem acesso a esta empresa."]}
+            ) from exc
         return Response(
             BusinessMembershipReadSerializer(membership).data,
             status=status.HTTP_201_CREATED,
@@ -452,6 +461,8 @@ class BusinessMembershipDetailView(APIView):
             request.user, business_id
         )
         membership = self._get_membership(business, pk)
+        if membership.user_id == request.user.id:
+            raise PermissionDenied("Você não pode revogar o seu próprio acesso.")
         with transaction.atomic():
             self._protect_final_admin(membership, None)
             membership.delete()

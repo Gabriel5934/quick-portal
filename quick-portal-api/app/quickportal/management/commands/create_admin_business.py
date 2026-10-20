@@ -19,7 +19,13 @@ from cielo.models import (
     CieloSubmissionStatus,
     cielo_plan_rate_keys,
 )
-from quickportal.models import Business, BusinessType, DocumentType
+from quickportal.models import (
+    Business,
+    BusinessMembership,
+    BusinessRole,
+    BusinessType,
+    DocumentType,
+)
 
 
 # Keep in sync with cielo-mock/src/scripts/seed-admin-business.ts.
@@ -75,8 +81,8 @@ ADMIN_NOTIFICATIONS = (
 
 class Command(BaseCommand):
     help = (
-        "Create the Quick Digital admin reseller with an approved Cielo seller and "
-        "its Quick Plan, overwriting any existing Quick Digital business, Quick "
+        "Create the Quick Digital admin reseller with an approved Cielo seller, "
+        "its Quick Plan, and an admin membership for --user, overwriting any existing Quick Digital business, Quick "
         "Plan, or Cielo seller that conflicts with them"
     )
 
@@ -84,7 +90,7 @@ class Command(BaseCommand):
         parser.add_argument(
             "--user",
             default="root@email.com",
-            help="Email of the user recorded as the plan's creator",
+            help="Email of the user made Quick Digital's admin and its plan's creator",
         )
 
     @transaction.atomic
@@ -108,6 +114,9 @@ class Command(BaseCommand):
             setattr(business, field, value)
         business.full_clean()
         business.save()
+        BusinessMembership.objects.update_or_create(
+            user=user, business=business, defaults={"role": BusinessRole.ADMIN}
+        )
 
         plan = CieloPlan.objects.filter(
             owner_business=business, name=ADMIN_PLAN_NAME

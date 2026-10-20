@@ -17,7 +17,7 @@ from cielo.models import (
     CieloSubmissionStatus,
     cielo_plan_rate_keys,
 )
-from quickportal.models import Business, BusinessType
+from quickportal.models import Business, BusinessMembership, BusinessRole, BusinessType
 
 
 class CreateBusinessCommandTests(TestCase):
@@ -77,6 +77,23 @@ class CreateAdminBusinessCommandTests(TestCase):
         self.assertEqual(plan.created_by, self.user)
         self.assertEqual(plan.rates.count(), len(cielo_plan_rate_keys()))
         self.assertFalse(plan.rates.exclude(mdr=0, fixed_fee=0).exists())
+
+        self.assertEqual(
+            BusinessMembership.objects.get(user=self.user, business=business).role,
+            BusinessRole.ADMIN,
+        )
+
+    def test_rerun_restores_the_admin_membership(self):
+        self.run_command()
+        BusinessMembership.objects.filter(user=self.user).update(
+            role=BusinessRole.VIEWER
+        )
+
+        self.run_command()
+
+        self.assertEqual(
+            BusinessMembership.objects.get(user=self.user).role, BusinessRole.ADMIN
+        )
 
     def test_rerun_overwrites_conflicting_records(self):
         self.run_command()

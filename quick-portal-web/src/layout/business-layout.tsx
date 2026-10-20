@@ -17,6 +17,7 @@ import { createTheme, ThemeProvider, useTheme } from "@mui/material/styles";
 import StoreIcon from "@mui/icons-material/Store";
 import PointOfSaleIcon from "@mui/icons-material/PointOfSale";
 import CreditCardIcon from "@mui/icons-material/CreditCard";
+import GroupIcon from "@mui/icons-material/Group";
 import {
   useAllBusinesses,
   useBusinessColor,
@@ -64,6 +65,13 @@ const navigation = [
     activePaths: ["/planos-cielo"],
     label: "Planos Cielo",
     icon: <CreditCardIcon />,
+    adminOnly: true,
+  },
+  {
+    to: "/acessos",
+    activePaths: ["/acessos"],
+    label: "Acessos",
+    icon: <GroupIcon />,
     adminOnly: true,
   },
 ] as const;
