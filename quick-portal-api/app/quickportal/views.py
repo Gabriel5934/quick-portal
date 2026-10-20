@@ -415,7 +415,14 @@ class BusinessMembershipListCreateView(APIView):
             data=request.data, context={"business": business}
         )
         serializer.is_valid(raise_exception=True)
-        membership = serializer.save(business=business)
+        # A concurrent request can grant the same user after validation.
+        try:
+            with transaction.atomic():
+                membership = serializer.save(business=business)
+        except IntegrityError as exc:
+            raise ValidationError(
+                {"email": ["Este e-mail já tem acesso a esta empresa."]}
+            ) from exc
         return Response(
             BusinessMembershipReadSerializer(membership).data,
             status=status.HTTP_201_CREATED,

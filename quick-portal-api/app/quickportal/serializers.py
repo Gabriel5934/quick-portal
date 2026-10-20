@@ -375,11 +375,18 @@ class BusinessMembershipWriteSerializer(serializers.ModelSerializer):
             return attrs
         if email is None:
             raise serializers.ValidationError({"email": "This field is required."})
-        user = User.objects.filter(email__iexact=email.strip()).first()
-        if user is None:
+        # Emails are not unique in the database, so refuse to guess between
+        # accounts that differ only by case.
+        users = list(User.objects.filter(email__iexact=email.strip())[:2])
+        if not users:
             raise serializers.ValidationError(
                 {"email": "Nenhum usuário cadastrado com este e-mail."}
             )
+        if len(users) > 1:
+            raise serializers.ValidationError(
+                {"email": "Mais de um usuário está cadastrado com este e-mail."}
+            )
+        user = users[0]
         business = self.context.get("business")
         if BusinessMembership.objects.filter(user=user, business=business).exists():
             raise serializers.ValidationError(

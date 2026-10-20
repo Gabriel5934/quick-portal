@@ -1,9 +1,12 @@
+from unittest.mock import patch
+
 from django.contrib.auth.models import User
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
 
 from quickportal.models import Business, BusinessMembership, BusinessRole, BusinessType
+from quickportal.serializers import BusinessMembershipWriteSerializer
 
 
 class BusinessMembershipGrantTests(APITestCase):
@@ -55,6 +58,47 @@ class BusinessMembershipGrantTests(APITestCase):
             self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
             self.assertEqual(response.data, {"email": [message]})
         self.assertEqual(BusinessMembership.objects.count(), 1)
+
+    def test_rejects_emails_shared_by_several_users(self):
+        User.objects.create_user(username="lower", email="dup@example.com")
+        User.objects.create_user(username="upper", email="DUP@example.com")
+
+        response = self.client.post(
+            self.url, {"email": "dup@example.com", "role": BusinessRole.VIEWER}, format="json"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(
+            response.data,
+            {"email": ["Mais de um usuário está cadastrado com este e-mail."]},
+        )
+        self.assertEqual(BusinessMembership.objects.count(), 1)
+
+    def test_concurrent_duplicate_grant_returns_validation_error(self):
+        known = User.objects.create_user(username="known", email="known@example.com")
+        BusinessMembership.objects.create(
+            user=known, business=self.business, role=BusinessRole.VIEWER
+        )
+
+        # Simulate a grant that passed validation before the other one saved.
+        def validate_without_duplicate_check(serializer, attrs):
+            attrs.pop("email")
+            return {**attrs, "user": known}
+
+        with patch.object(
+            BusinessMembershipWriteSerializer, "validate", validate_without_duplicate_check
+        ):
+            response = self.client.post(
+                self.url, {"email": "known@example.com", "role": BusinessRole.MANAGER}, format="json"
+            )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(
+            response.data, {"email": ["Este e-mail já tem acesso a esta empresa."]}
+        )
+        self.assertEqual(
+            BusinessMembership.objects.get(user=known).role, BusinessRole.VIEWER
+        )
 
     def test_only_admins_grant_access(self):
         manager = User.objects.create_user(username="manager", email="manager@example.com")
