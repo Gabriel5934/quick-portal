@@ -19,11 +19,22 @@ import sentry_sdk
 RUNNING_TESTS = sys.argv[1:2] == ["test"] or "pytest" in sys.argv[0]
 
 
+# Docker health checks hit /health/ every few seconds; sending them is noise.
 def _drop_health_check_transactions(event, hint):
-    # Docker health checks hit /health/ every few seconds; tracing them is noise.
     if event.get("transaction") == "/health/":
         return None
     return event
+
+
+# Access loggers of runserver (dev) and uvicorn (prod).
+ACCESS_LOGGERS = {"django.server", "uvicorn.access"}
+
+
+def _drop_health_check_logs(log, hint):
+    logger_name = log["attributes"].get("logger.name")
+    if logger_name in ACCESS_LOGGERS and "/health/" in log["body"]:
+        return None
+    return log
 
 
 # Sentry stays disabled when SENTRY_DSN is unset and during test runs.
@@ -39,6 +50,7 @@ sentry_sdk.init(
     traces_sample_rate=float(os.environ.get("SENTRY_TRACES_SAMPLE_RATE", "1.0")),
     before_send_transaction=_drop_health_check_transactions,
     enable_logs=True,
+    before_send_log=_drop_health_check_logs,
 )
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
