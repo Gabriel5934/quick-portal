@@ -32,10 +32,10 @@ Tests use Vitest. Run `npm test` along with lint and build for relevant changes.
 
 - `/` → `routes/index.tsx` — login page; redirects to `/home` if token exists
 - `/signup` → `routes/signup.tsx`
-- `/_authRoutes/` — layout route that guards all authenticated pages; checks `localStorage.getItem("token")` in `beforeLoad` and redirects to `/` if absent
+- `/_authRoutes/` — layout route that guards all authenticated pages; its `beforeLoad` waits for the boot refresh (`requireSession` in `src/hooks/auth/session.ts`) and redirects to `/` when there is no session
 - `/_authRoutes/home` → `routes/_authRoutes/home.tsx`
 
-**Auth flow:** Token is stored in `localStorage` under the key `"token"`. Login calls `POST /api/token/` (Django JWT endpoint), signup calls `POST /users/register/`. Both are wrapped as TanStack Query mutations in `src/hooks/useToken.ts` and `src/hooks/useRegister.ts`. API base is `http://localhost:8080`.
+**Auth flow:** The access token is kept in memory only, in the TanStack Query cache under `["access_token"]` (`useToken` in `src/hooks/auth/useToken.ts`). The refresh token is an HttpOnly cookie set by the API; `POST /api/token/refresh/` rotates it and returns a new access token, serialized across tabs with the `quick-portal-refresh` Web Lock. Logout takes the same lock (so it waits for an in-flight refresh and blacklists the latest cookie), discards refresh results that complete after it started, and notifies other tabs over the `quick-portal-session` BroadcastChannel (`src/hooks/auth/session.ts`). The lock is not reentrant: never refresh while holding it. Login calls `POST /api/token/`, logout calls `POST /api/token/logout/`, and signup calls `POST /users/register/`. Token requests send `credentials: "include"` and `X-Requested-With: quick-portal`. Only the user email is stored in `localStorage`. API base is `VITE_API_BASE_URL` (`http://localhost:8080` in development).
 
 **Feature modules** live in `src/features/<domain>/` with an `index.ts` barrel. Each feature owns its page components, form components, Zod schemas (`schemas.ts`), and TypeScript types (`types.ts`).
 

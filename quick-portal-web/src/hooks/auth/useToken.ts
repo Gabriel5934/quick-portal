@@ -1,11 +1,11 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
-import {
-  getRefreshToken,
-  setTokens,
-  setRefreshToken,
-  setUserEmail,
-} from "#hooks/storage";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { setUserEmail } from "#hooks/storage";
 import type { ValidationErrors } from "#hooks/types";
+import {
+  ACCESS_TOKEN_QUERY_KEY,
+  AUTH_REQUEST_HEADERS,
+  accessTokenQueryOptions,
+} from "./session";
 
 type LoginRequest = {
   email: string;
@@ -14,18 +14,19 @@ type LoginRequest = {
 
 type LoginResponse = {
   access: string;
-  token: string;
 };
 
 async function fetchLogin(payload: LoginRequest): Promise<LoginResponse> {
+  // The refresh token comes back as an HttpOnly cookie, never in the body.
   const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/token/`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    headers: { "Content-Type": "application/json", ...AUTH_REQUEST_HEADERS },
     body: JSON.stringify(payload),
   });
 
   const data = (await res.json().catch(() => null)) as
-    | (Partial<LoginResponse> & { refresh?: string; detail?: string })
+    | (Partial<LoginResponse> & { detail?: string })
     | null;
 
   if (!res.ok) {
@@ -35,48 +36,30 @@ async function fetchLogin(payload: LoginRequest): Promise<LoginResponse> {
   }
 
   const access = data?.access;
-  const token = data?.token ?? data?.refresh;
 
-  if (!access || !token) {
+  if (!access) {
     throw new Error("Invalid token response from server.");
   }
 
-  return { access, token };
+  return { access };
 }
 
 export function useLogin() {
+  const queryClient = useQueryClient();
+
   return useMutation({
     mutationFn: fetchLogin,
     onSuccess(data, variables) {
-      setTokens(data.access, data.token);
+      // Drop anything cached for a previous session before storing the token.
+      queryClient.removeQueries();
+      queryClient.setQueryData(ACCESS_TOKEN_QUERY_KEY, data.access);
       setUserEmail(variables.email);
     },
   });
 }
 
+/** The in-memory access token; `null` once the session is gone. */
 export function useToken() {
-  return useQuery({
-    queryKey: ["access_token"],
-    queryFn: async () => {
-      const refresh = getRefreshToken()!;
-      const res = await fetch(
-        `${import.meta.env.VITE_API_BASE_URL}/api/token/refresh/`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ refresh }),
-        },
-      );
-
-      if (!res.ok) throw new Error("Failed to refresh access token.");
-
-      const data = (await res.json()) as { access: string };
-      setRefreshToken(refresh);
-      localStorage.setItem("token", data.access);
-      return data.access;
-    },
-    staleTime: 4 * 60 * 1000, // 1 min less than the actual token expiration
-    retry: false,
-    enabled: !!getRefreshToken(),
-  });
+  const queryClient = useQueryClient();
+  return useQuery(accessTokenQueryOptions(queryClient));
 }

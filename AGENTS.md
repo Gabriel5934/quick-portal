@@ -71,7 +71,13 @@ Important conventions:
 - API mutations belong in `src/hooks/`.
 - Use Material UI components and its default breakpoints: `xs` for phones,
   `sm`/`md` for tablets, and `lg`/`xl` for desktops.
-- Authentication uses a JWT stored in `localStorage` under the key `token`.
+- Authentication keeps the JWT access token in memory only (the TanStack Query
+  cache under `["access_token"]`); it is never written to `localStorage`. The
+  rotating refresh token lives in an HttpOnly, Secure, `SameSite=None` cookie
+  scoped to `/api/token/`, and the app restores the session on load with
+  `POST /api/token/refresh/`. Only the user email is kept in `localStorage`.
+  Login, refresh, and logout require an allowed `Origin` and the
+  `X-Requested-With: quick-portal` header, and must use `credentials: "include"`.
 
 ## Backend: `quick-portal-api/`
 

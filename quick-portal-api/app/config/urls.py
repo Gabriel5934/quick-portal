@@ -1,6 +1,5 @@
 from django.contrib import admin
 from django.urls import path, include
-from rest_framework_simplejwt.views import TokenRefreshView, TokenBlacklistView
 
 from .views import health
 
@@ -10,6 +9,4 @@ urlpatterns = [
     path("", include("quickportal.urls")),
     path("own/", include("own.urls")),
     path("cielo/", include("cielo.urls")),
-    path("api/token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
-    path("api/token/blacklist/", TokenBlacklistView.as_view(), name="token_blacklist"),
 ]

@@ -6,6 +6,8 @@ from quickportal.views import (
     BusinessListCreateView,
     BusinessMembershipDetailView,
     BusinessMembershipListCreateView,
+    CookieTokenLogoutView,
+    CookieTokenRefreshView,
     EmailTokenObtainPairView,
     RecurringFeeDetailView,
     RecurringFeeListCreateView,
@@ -15,6 +17,8 @@ from quickportal.views import (
 urlpatterns = [
     path("users/register/", UserRegistrationView.as_view()),
     path("api/token/", EmailTokenObtainPairView.as_view(), name="token_obtain_pair"),
+    path("api/token/refresh/", CookieTokenRefreshView.as_view(), name="token_refresh"),
+    path("api/token/logout/", CookieTokenLogoutView.as_view(), name="token_logout"),
     path("api/businesses/", BusinessListCreateView.as_view(), name="business_list_create"),
     path("api/businesses/<int:pk>/", BusinessDetailView.as_view(), name="business_detail"),
     path(
