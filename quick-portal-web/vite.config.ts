@@ -12,7 +12,8 @@ export default defineConfig({
   },
   build: {
     // Source maps are uploaded to Sentry, then deleted so they are not served.
-    sourcemap: "hidden",
+    // Without a token there is no upload, so they are not generated at all.
+    sourcemap: process.env.SENTRY_AUTH_TOKEN ? "hidden" : false,
   },
   plugins: [
     tanstackRouter({

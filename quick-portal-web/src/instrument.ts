@@ -10,10 +10,11 @@ Sentry.init({
   // The release is injected by the Sentry Vite plugin from SENTRY_RELEASE.
 
   // Personal data covered by LGPD must not reach Sentry: no user IP, cookies,
-  // request/response bodies or stack frame variables.
+  // query parameters, request/response bodies or stack frame variables.
   dataCollection: {
     userInfo: false,
     cookies: false,
+    urlQueryParams: false,
     httpBodies: [],
     stackFrameVariables: false,
   },

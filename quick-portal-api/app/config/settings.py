@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -28,11 +29,14 @@ def _drop_health_check_transactions(event, hint):
 
 # Access loggers of runserver (dev) and uvicorn (prod).
 ACCESS_LOGGERS = {"django.server", "uvicorn.access"}
+# Both log the request line, e.g. "GET /health/ HTTP/1.1"; matching it whole
+# keeps other paths and query strings that mention /health/.
+HEALTH_CHECK_REQUEST = re.compile(r'"[A-Z]+ /health/ HTTP/')
 
 
 def _drop_health_check_logs(log, hint):
     logger_name = log["attributes"].get("logger.name")
-    if logger_name in ACCESS_LOGGERS and "/health/" in log["body"]:
+    if logger_name in ACCESS_LOGGERS and HEALTH_CHECK_REQUEST.search(log["body"]):
         return None
     return log
 
@@ -60,7 +64,7 @@ sentry_sdk.init(
         # Drop client IP and forwarding headers; sensitive auth headers are
         # always filtered by the SDK.
         "http_headers": {"request": {"mode": "denylist", "terms": IP_HEADER_TERMS}},
-        "url_query_params": {"mode": "denylist", "terms": IP_HEADER_TERMS},
+        "url_query_params": {"mode": "off"},
         "http_bodies": [],
         "stack_frame_variables": False,
         "database_query_data": False,
