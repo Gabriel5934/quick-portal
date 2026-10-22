@@ -1,12 +1,15 @@
 import base64
 import hashlib
-from collections.abc import Mapping
+import time
+from collections.abc import Iterator, Mapping
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime
 from urllib.parse import urlparse
 from uuid import UUID
 
 import requests
+import sentry_sdk
 from django.conf import settings
 from django.core.cache import cache
 from django.utils import timezone
@@ -118,6 +121,33 @@ def _token_cache_key(configuration: CieloConfiguration) -> str:
     return f"cielo_access_token:{hashlib.sha256(identity).hexdigest()}"
 
 
+@contextmanager
+def _log_cielo_call(operation: str) -> Iterator[dict[str, object]]:
+    """Emit one Sentry log per Cielo request. Callers may only add the status
+    code and outcome: payloads, tokens and IDs carry personal data or secrets."""
+    attributes: dict[str, object] = {"cielo.operation": operation}
+    started = time.perf_counter()
+    failed = False
+    try:
+        yield attributes
+    except Exception as exc:
+        failed = True
+        attributes["cielo.error"] = type(exc).__name__
+        raise
+    finally:
+        attributes["cielo.duration_ms"] = round((time.perf_counter() - started) * 1000)
+        if failed:
+            log = sentry_sdk.logger.error
+        elif (
+            attributes.get("http.response.status_code", 0) >= 400
+            or attributes.get("cielo.outcome") == CieloSubmissionStatus.FAILED
+        ):
+            log = sentry_sdk.logger.warning
+        else:
+            log = sentry_sdk.logger.info
+        log("Cielo call finished", attributes=attributes)
+
+
 def _response_json(response) -> Mapping | None:
     try:
         data = response.json()
@@ -134,43 +164,47 @@ def get_cielo_token(configuration: CieloConfiguration) -> str:
 
     credentials = f"{configuration.merchant_id}:{configuration.client_secret}".encode()
     authorization = base64.b64encode(credentials).decode("ascii")
-    try:
-        response = requests.post(
-            f"{configuration.auth_base_url}/oauth2/token",
-            data={"grant_type": "client_credentials"},
-            headers={
-                "Authorization": f"Basic {authorization}",
-                "Content-Type": "application/x-www-form-urlencoded",
-                "Accept": "application/json",
-            },
-            timeout=15,
-        )
-    except requests.RequestException as exc:
-        raise CieloRemoteError("A autenticação da Cielo está indisponível.") from exc
+    with _log_cielo_call("auth") as log_attributes:
+        try:
+            response = requests.post(
+                f"{configuration.auth_base_url}/oauth2/token",
+                data={"grant_type": "client_credentials"},
+                headers={
+                    "Authorization": f"Basic {authorization}",
+                    "Content-Type": "application/x-www-form-urlencoded",
+                    "Accept": "application/json",
+                },
+                timeout=15,
+            )
+        except requests.RequestException as exc:
+            raise CieloRemoteError(
+                "A autenticação da Cielo está indisponível."
+            ) from exc
 
-    data = _response_json(response)
-    if data and data.get("error") == "invalid_client":
-        raise CieloQuickCredentialsError(
-            "As credenciais configuradas para a Cielo foram rejeitadas."
-        )
-    if response.status_code != 200:
-        raise CieloRemoteError("A autenticação da Cielo está indisponível.")
+        log_attributes["http.response.status_code"] = response.status_code
+        data = _response_json(response)
+        if data and data.get("error") == "invalid_client":
+            raise CieloQuickCredentialsError(
+                "As credenciais configuradas para a Cielo foram rejeitadas."
+            )
+        if response.status_code != 200:
+            raise CieloRemoteError("A autenticação da Cielo está indisponível.")
 
-    access_token = data.get("access_token") if data else None
-    expires_in = data.get("expires_in") if data else None
-    if (
-        not isinstance(access_token, str)
-        or not access_token
-        or isinstance(expires_in, bool)
-        or not isinstance(expires_in, (int, float))
-        or expires_in <= 0
-    ):
-        raise CieloRemoteError(
-            "A autenticação da Cielo retornou uma resposta inválida."
-        )
+        access_token = data.get("access_token") if data else None
+        expires_in = data.get("expires_in") if data else None
+        if (
+            not isinstance(access_token, str)
+            or not access_token
+            or isinstance(expires_in, bool)
+            or not isinstance(expires_in, (int, float))
+            or expires_in <= 0
+        ):
+            raise CieloRemoteError(
+                "A autenticação da Cielo retornou uma resposta inválida."
+            )
 
-    cache.set(cache_key, access_token, timeout=max(int(expires_in) - 10, 1))
-    return access_token
+        cache.set(cache_key, access_token, timeout=max(int(expires_in) - 10, 1))
+        return access_token
 
 
 def build_cielo_payload(seller, merchant_id: str) -> dict:
@@ -255,56 +289,68 @@ def submit_cielo_seller(seller) -> CieloSubmissionOutcome:
             "Falha interna antes do envio à Cielo."
         ) from exc
 
-    submitted_at = timezone.now()
-    try:
-        response = requests.post(
-            f"{configuration.onboarding_base_url}/api/merchants",
-            json=payload,
-            headers={
-                "Authorization": f"Bearer {token}",
-                "Content-Type": "application/json",
-                "Accept": "application/json",
-            },
-            timeout=30,
-        )
-    except requests.ConnectTimeout:
-        return CieloSubmissionOutcome(status=CieloSubmissionStatus.FAILED)
-    except requests.ReadTimeout:
-        return CieloSubmissionOutcome(
-            status=CieloSubmissionStatus.FAILED,
-            submitted_at=submitted_at,
-        )
-    except requests.ConnectionError as exc:
-        return CieloSubmissionOutcome(
-            status=CieloSubmissionStatus.FAILED,
-            submitted_at=submitted_at if _contains_connection_reset(exc) else None,
-        )
-    except requests.RequestException:
-        return CieloSubmissionOutcome(status=CieloSubmissionStatus.FAILED)
+    with _log_cielo_call("submit_seller") as log_attributes:
+        submitted_at = timezone.now()
+        try:
+            response = requests.post(
+                f"{configuration.onboarding_base_url}/api/merchants",
+                json=payload,
+                headers={
+                    "Authorization": f"Bearer {token}",
+                    "Content-Type": "application/json",
+                    "Accept": "application/json",
+                },
+                timeout=30,
+            )
+        except requests.ConnectTimeout:
+            log_attributes["cielo.outcome"] = CieloSubmissionStatus.FAILED
+            return CieloSubmissionOutcome(status=CieloSubmissionStatus.FAILED)
+        except requests.ReadTimeout:
+            log_attributes["cielo.outcome"] = CieloSubmissionStatus.FAILED
+            return CieloSubmissionOutcome(
+                status=CieloSubmissionStatus.FAILED,
+                submitted_at=submitted_at,
+            )
+        except requests.ConnectionError as exc:
+            log_attributes["cielo.outcome"] = CieloSubmissionStatus.FAILED
+            return CieloSubmissionOutcome(
+                status=CieloSubmissionStatus.FAILED,
+                submitted_at=submitted_at if _contains_connection_reset(exc) else None,
+            )
+        except requests.RequestException:
+            log_attributes["cielo.outcome"] = CieloSubmissionStatus.FAILED
+            return CieloSubmissionOutcome(status=CieloSubmissionStatus.FAILED)
 
-    if response is None:
-        return CieloSubmissionOutcome(
-            status=CieloSubmissionStatus.FAILED,
-            submitted_at=submitted_at,
-        )
-    if not 200 <= response.status_code < 300:
-        return CieloSubmissionOutcome(
-            status=CieloSubmissionStatus.FAILED,
-            submitted_at=submitted_at,
-        )
+        if response is None:
+            log_attributes["cielo.outcome"] = CieloSubmissionStatus.FAILED
+            return CieloSubmissionOutcome(
+                status=CieloSubmissionStatus.FAILED,
+                submitted_at=submitted_at,
+            )
+        log_attributes["http.response.status_code"] = response.status_code
+        if not 200 <= response.status_code < 300:
+            log_attributes["cielo.outcome"] = CieloSubmissionStatus.FAILED
+            return CieloSubmissionOutcome(
+                status=CieloSubmissionStatus.FAILED,
+                submitted_at=submitted_at,
+            )
 
-    data = _response_json(response)
-    merchant_id = data.get("MerchantId") if data else None
-    if not is_cielo_uuid(merchant_id):
+        data = _response_json(response)
+        merchant_id = data.get("MerchantId") if data else None
+        if not is_cielo_uuid(merchant_id):
+            log_attributes["cielo.outcome"] = (
+                CieloSubmissionStatus.INTERVENTION_REQUIRED
+            )
+            return CieloSubmissionOutcome(
+                status=CieloSubmissionStatus.INTERVENTION_REQUIRED,
+                submitted_at=submitted_at,
+            )
+        log_attributes["cielo.outcome"] = CieloSubmissionStatus.SENT
         return CieloSubmissionOutcome(
-            status=CieloSubmissionStatus.INTERVENTION_REQUIRED,
+            status=CieloSubmissionStatus.SENT,
+            merchant_id=merchant_id,
             submitted_at=submitted_at,
         )
-    return CieloSubmissionOutcome(
-        status=CieloSubmissionStatus.SENT,
-        merchant_id=merchant_id,
-        submitted_at=submitted_at,
-    )
 
 
 def lookup_cielo_transaction(payment_id: str) -> Mapping:
@@ -324,25 +370,27 @@ def lookup_cielo_transaction(payment_id: str) -> Mapping:
     except CieloRemoteError as exc:
         raise CieloLookupError("Authentication unavailable") from exc
 
-    try:
-        # The lookup runs inside Cielo's webhook request while holding the
-        # transaction's row lock, so it must never wait indefinitely.
-        response = requests.get(
-            f"{configuration.query_base_url}/1/sales/{payment_id}",
-            headers={
-                "Authorization": f"Bearer {token}",
-                "Accept": "application/json",
-            },
-            timeout=10,
-        )
-    except requests.Timeout as exc:
-        raise CieloLookupError("Timeout") from exc
-    except requests.RequestException as exc:
-        raise CieloLookupError("Connection error") from exc
+    with _log_cielo_call("lookup_transaction") as log_attributes:
+        try:
+            # The lookup runs inside Cielo's webhook request while holding the
+            # transaction's row lock, so it must never wait indefinitely.
+            response = requests.get(
+                f"{configuration.query_base_url}/1/sales/{payment_id}",
+                headers={
+                    "Authorization": f"Bearer {token}",
+                    "Accept": "application/json",
+                },
+                timeout=10,
+            )
+        except requests.Timeout as exc:
+            raise CieloLookupError("Timeout") from exc
+        except requests.RequestException as exc:
+            raise CieloLookupError("Connection error") from exc
 
-    if response.status_code != 200:
-        raise CieloLookupError(f"HTTP {response.status_code}")
-    data = _response_json(response)
-    if data is None:
-        raise CieloLookupError("Invalid JSON")
-    return data
+        log_attributes["http.response.status_code"] = response.status_code
+        if response.status_code != 200:
+            raise CieloLookupError(f"HTTP {response.status_code}")
+        data = _response_json(response)
+        if data is None:
+            raise CieloLookupError("Invalid JSON")
+        return data

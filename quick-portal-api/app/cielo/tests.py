@@ -32,11 +32,15 @@ from cielo.models import (
     cielo_plan_rate_keys,
 )
 from cielo.services.cielo_api import (
+    CieloLookupError,
     CieloQuickConfigurationError,
     CieloQuickCredentialsError,
     CieloQuickPreTransmissionError,
+    CieloRemoteError,
     CieloSubmissionOutcome,
     get_cielo_configuration,
+    get_cielo_token,
+    lookup_cielo_transaction,
     submit_cielo_seller,
 )
 from cielo.validators import is_valid_cnpj, is_valid_cpf
@@ -444,6 +448,39 @@ class CieloRetryCooldownTests(APITestCase):
         self.assertIsNone(seller.last_submitted_at)
 
 
+def transmission_seller():
+    return SimpleNamespace(
+        business=SimpleNamespace(
+            document_type="CNPJ",
+            document="12ABC34501DE35",
+            name="Seller Ltda",
+            email="seller@example.com",
+            phone="11987654321",
+        ),
+        contact_name="Seller Contact",
+        website="https://example.com",
+        corporate_name="Seller Corporate Ltda",
+        fancy_name="Seller",
+        birthday_date=None,
+        business_activity_id=None,
+        bank="001",
+        bank_account_type="CheckingAccount",
+        bank_account_number="1234567890",
+        bank_account_verifier_digit="1",
+        bank_agency_number="1234",
+        bank_agency_digit="",
+        bank_document_type="CPF",
+        bank_document_number="52998224725",
+        address_number="123",
+        address_complement="",
+        address_zip_code="01001000",
+        address_street="Praça da Sé",
+        address_neighborhood="Sé",
+        address_city="São Paulo",
+        address_state="SP",
+    )
+
+
 @override_settings(
     CIELO_AUTH_BASE_URL="https://auth.cielo.test",
     CIELO_ONBOARDING_BASE_URL="https://onboarding.cielo.test",
@@ -455,36 +492,7 @@ class CieloTransmissionClassificationTests(APITestCase):
     def setUp(self):
         cache.clear()
         self.configuration = get_cielo_configuration()
-        self.seller = SimpleNamespace(
-            business=SimpleNamespace(
-                document_type="CNPJ",
-                document="12ABC34501DE35",
-                name="Seller Ltda",
-                email="seller@example.com",
-                phone="11987654321",
-            ),
-            contact_name="Seller Contact",
-            website="https://example.com",
-            corporate_name="Seller Corporate Ltda",
-            fancy_name="Seller",
-            birthday_date=None,
-            business_activity_id=None,
-            bank="001",
-            bank_account_type="CheckingAccount",
-            bank_account_number="1234567890",
-            bank_account_verifier_digit="1",
-            bank_agency_number="1234",
-            bank_agency_digit="",
-            bank_document_type="CPF",
-            bank_document_number="52998224725",
-            address_number="123",
-            address_complement="",
-            address_zip_code="01001000",
-            address_street="Praça da Sé",
-            address_neighborhood="Sé",
-            address_city="São Paulo",
-            address_state="SP",
-        )
+        self.seller = transmission_seller()
 
     @staticmethod
     def auth_response():
@@ -564,6 +572,179 @@ class CieloTransmissionClassificationTests(APITestCase):
                 ):
                     outcome = submit_cielo_seller(self.seller)
                 self.assertIsNotNone(outcome.submitted_at)
+
+
+ACCESS_TOKEN = "cielo-access-token-value"
+LOGGED_ATTRIBUTES = {
+    "cielo.operation",
+    "http.response.status_code",
+    "cielo.duration_ms",
+    "cielo.error",
+    "cielo.outcome",
+}
+
+
+@override_settings(
+    CIELO_AUTH_BASE_URL="https://auth.cielo.test",
+    CIELO_ONBOARDING_BASE_URL="https://onboarding.cielo.test",
+    CIELO_QUERY_BASE_URL="https://query.cielo.test",
+    CIELO_MERCHANT_ID=VALID_MERCHANT_ID,
+    CIELO_CLIENT_SECRET="secret",
+)
+class CieloCallLoggingTests(TestCase):
+    def setUp(self):
+        cache.clear()
+        self.configuration = get_cielo_configuration()
+        logger_patcher = patch("cielo.services.cielo_api.sentry_sdk.logger")
+        self.logger = logger_patcher.start()
+        self.addCleanup(logger_patcher.stop)
+
+    @staticmethod
+    def auth_response():
+        return http_response(
+            body={"access_token": ACCESS_TOKEN, "expires_in": 3600}
+        )
+
+    def logs(self):
+        """The emitted logs as ``(level, attributes)`` pairs."""
+        return [
+            (level, call.kwargs["attributes"])
+            for level in ("info", "warning", "error")
+            for call in getattr(self.logger, level).call_args_list
+        ]
+
+    def test_successful_calls_log_info_with_the_status_code(self):
+        onboarding_response = http_response(
+            status_code=201, body={"MerchantId": SELLER_MERCHANT_ID}
+        )
+        with patch(
+            "cielo.services.cielo_api.requests.post",
+            side_effect=[self.auth_response(), onboarding_response],
+        ):
+            submit_cielo_seller(transmission_seller())
+
+        (auth_level, auth), (submit_level, submit) = self.logs()
+        self.assertEqual(auth_level, "info")
+        self.assertEqual(auth["cielo.operation"], "auth")
+        self.assertEqual(auth["http.response.status_code"], 200)
+        self.assertEqual(submit_level, "info")
+        self.assertEqual(submit["cielo.operation"], "submit_seller")
+        self.assertEqual(submit["http.response.status_code"], 201)
+        self.assertEqual(submit["cielo.outcome"], CieloSubmissionStatus.SENT)
+        self.assertIsInstance(submit["cielo.duration_ms"], int)
+        self.logger.info.assert_called_with(
+            "Cielo call finished", attributes=submit
+        )
+
+    def test_client_error_response_logs_warning(self):
+        with patch(
+            "cielo.services.cielo_api.requests.post",
+            side_effect=[self.auth_response(), http_response(status_code=400)],
+        ):
+            submit_cielo_seller(transmission_seller())
+
+        level, attributes = self.logs()[-1]
+        self.assertEqual(level, "warning")
+        self.assertEqual(attributes["http.response.status_code"], 400)
+        self.assertEqual(attributes["cielo.outcome"], CieloSubmissionStatus.FAILED)
+
+    def test_failed_submission_without_response_logs_warning(self):
+        with patch(
+            "cielo.services.cielo_api.requests.post",
+            side_effect=[self.auth_response(), requests.ReadTimeout("read timeout")],
+        ):
+            submit_cielo_seller(transmission_seller())
+
+        level, attributes = self.logs()[-1]
+        self.assertEqual(level, "warning")
+        self.assertNotIn("http.response.status_code", attributes)
+        self.assertEqual(attributes["cielo.outcome"], CieloSubmissionStatus.FAILED)
+
+    def test_raised_remote_error_logs_its_class_name(self):
+        with patch(
+            "cielo.services.cielo_api.requests.post",
+            side_effect=requests.ConnectionError("dns failure"),
+        ):
+            with self.assertRaises(CieloRemoteError):
+                get_cielo_token(self.configuration)
+
+        [(level, attributes)] = self.logs()
+        self.assertEqual(level, "error")
+        self.assertEqual(attributes["cielo.operation"], "auth")
+        self.assertEqual(attributes["cielo.error"], "CieloRemoteError")
+
+    def test_failed_lookup_logs_error_with_the_status_code(self):
+        with (
+            patch(
+                "cielo.services.cielo_api.requests.post",
+                return_value=self.auth_response(),
+            ),
+            patch(
+                "cielo.services.cielo_api.requests.get",
+                return_value=http_response(status_code=404),
+            ),
+        ):
+            with self.assertRaises(CieloLookupError):
+                lookup_cielo_transaction(PAYMENT_ID)
+
+        level, attributes = self.logs()[-1]
+        self.assertEqual(level, "error")
+        self.assertEqual(attributes["cielo.operation"], "lookup_transaction")
+        self.assertEqual(attributes["http.response.status_code"], 404)
+        self.assertEqual(attributes["cielo.error"], "CieloLookupError")
+
+    def test_cached_token_is_not_logged(self):
+        with patch(
+            "cielo.services.cielo_api.requests.post",
+            return_value=self.auth_response(),
+        ) as post:
+            get_cielo_token(self.configuration)
+            self.assertEqual(len(self.logs()), 1)
+
+            self.assertEqual(get_cielo_token(self.configuration), ACCESS_TOKEN)
+
+        post.assert_called_once()
+        self.assertEqual(len(self.logs()), 1)
+
+    def test_logs_carry_no_secrets_or_personal_data(self):
+        seller = transmission_seller()
+        with (
+            patch(
+                "cielo.services.cielo_api.requests.post",
+                side_effect=[
+                    self.auth_response(),
+                    http_response(
+                        status_code=201, body={"MerchantId": SELLER_MERCHANT_ID}
+                    ),
+                ],
+            ),
+            patch(
+                "cielo.services.cielo_api.requests.get",
+                return_value=http_response(body=lookup_response()),
+            ),
+        ):
+            submit_cielo_seller(seller)
+            lookup_cielo_transaction(PAYMENT_ID)
+
+        forbidden = [
+            ACCESS_TOKEN,
+            "secret",
+            VALID_MERCHANT_ID,
+            SELLER_MERCHANT_ID,
+            PAYMENT_ID,
+            seller.business.document,
+            seller.business.email,
+            seller.business.phone,
+            seller.bank_account_number,
+            seller.bank_document_number,
+        ]
+        logs = self.logs()
+        self.assertEqual(len(logs), 3)
+        for _, attributes in logs:
+            self.assertLessEqual(set(attributes), LOGGED_ATTRIBUTES)
+            logged = " ".join(str(value) for value in attributes.values())
+            for value in forbidden:
+                self.assertNotIn(value, logged)
 
 
 @override_settings(CIELO_RETRY_COOLDOWN_SECONDS=300)
