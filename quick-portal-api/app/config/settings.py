@@ -11,11 +11,14 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
 import os
-import re
 import sys
 from pathlib import Path
 
 import sentry_sdk
+from sentry_sdk.integrations.logging import (
+    ignore_logger,
+    ignore_logger_for_sentry_logs,
+)
 
 RUNNING_TESTS = sys.argv[1:2] == ["test"] or "pytest" in sys.argv[0]
 
@@ -27,18 +30,14 @@ def _drop_health_check_transactions(event, hint):
     return event
 
 
-# Access loggers of runserver (dev) and uvicorn (prod).
+# Access loggers of runserver (dev) and uvicorn (prod). Their lines carry the
+# client address and the full path with its query string, which
+# data_collection does not filter, and tracing already records each request.
 ACCESS_LOGGERS = {"django.server", "uvicorn.access"}
-# Both log the request line, e.g. "GET /health/ HTTP/1.1"; matching it whole
-# keeps other paths and query strings that mention /health/.
-HEALTH_CHECK_REQUEST = re.compile(r'"[A-Z]+ /health/ HTTP/')
-
-
-def _drop_health_check_logs(log, hint):
-    logger_name = log["attributes"].get("logger.name")
-    if logger_name in ACCESS_LOGGERS and HEALTH_CHECK_REQUEST.search(log["body"]):
-        return None
-    return log
+for access_logger in ACCESS_LOGGERS:
+    # Error events and breadcrumbs, then Sentry Logs: separate capture paths.
+    ignore_logger(access_logger)
+    ignore_logger_for_sentry_logs(access_logger)
 
 
 # Same terms the SDK filters when send_default_pii is off.
@@ -72,7 +71,6 @@ sentry_sdk.init(
     traces_sample_rate=float(os.environ.get("SENTRY_TRACES_SAMPLE_RATE", "1.0")),
     before_send_transaction=_drop_health_check_transactions,
     enable_logs=True,
-    before_send_log=_drop_health_check_logs,
 )
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
