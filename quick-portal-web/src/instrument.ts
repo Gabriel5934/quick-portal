@@ -9,6 +9,15 @@ Sentry.init({
   environment: import.meta.env.VITE_SENTRY_ENVIRONMENT || import.meta.env.MODE,
   // The release is injected by the Sentry Vite plugin from SENTRY_RELEASE.
 
+  // Personal data covered by LGPD must not reach Sentry: no user IP, cookies,
+  // request/response bodies or stack frame variables.
+  dataCollection: {
+    userInfo: false,
+    cookies: false,
+    httpBodies: [],
+    stackFrameVariables: false,
+  },
+
   integrations: [
     Sentry.tanstackRouterBrowserTracingIntegration(router),
     Sentry.replayIntegration({

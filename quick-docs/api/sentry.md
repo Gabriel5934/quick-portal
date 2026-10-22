@@ -2,6 +2,15 @@
 
 Sentry is setup to monitor both the Django and React apps.
 
+## Personal data
+
+No personal data protected under LGPD is sent to Sentry. Both SDKs set
+`data_collection` (`dataCollection` in React) explicitly, because
+`send_default_pii=False` alone still sends request bodies and stack frame
+variables. Events carry no user, IP address, cookies, request or response
+bodies, stack frame variables or SQL query parameters. Session replays mask all
+text and block media.
+
 ## TODO
 
 Deploy:

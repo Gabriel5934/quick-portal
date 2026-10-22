@@ -37,6 +37,10 @@ def _drop_health_check_logs(log, hint):
     return log
 
 
+# Same terms the SDK filters when send_default_pii is off.
+IP_HEADER_TERMS = ["forwarded", "-ip", "remote-", "via", "-user"]
+
+
 # Sentry stays disabled when SENTRY_DSN is unset and during test runs.
 sentry_sdk.init(
     # An empty DSN disables the SDK; None would fall back to SENTRY_DSN.
@@ -46,7 +50,21 @@ sentry_sdk.init(
         "development" if os.environ.get("DEBUG", "0") == "1" else "production",
     ),
     release=os.environ.get("SENTRY_RELEASE"),
-    send_default_pii=True,
+    # Personal data covered by LGPD (users, CPF/CNPJ, contacts) must not reach
+    # Sentry. send_default_pii=False alone still sends request bodies and stack
+    # frame variables, so data_collection turns those off explicitly.
+    send_default_pii=False,
+    data_collection={
+        "user_info": False,
+        "cookies": {"mode": "off"},
+        # Drop client IP and forwarding headers; sensitive auth headers are
+        # always filtered by the SDK.
+        "http_headers": {"request": {"mode": "denylist", "terms": IP_HEADER_TERMS}},
+        "url_query_params": {"mode": "denylist", "terms": IP_HEADER_TERMS},
+        "http_bodies": [],
+        "stack_frame_variables": False,
+        "database_query_data": False,
+    },
     traces_sample_rate=float(os.environ.get("SENTRY_TRACES_SAMPLE_RATE", "1.0")),
     before_send_transaction=_drop_health_check_transactions,
     enable_logs=True,
