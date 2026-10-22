@@ -11,7 +11,67 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
 import os
+import sys
 from pathlib import Path
+
+import sentry_sdk
+from sentry_sdk.integrations.logging import (
+    ignore_logger,
+    ignore_logger_for_sentry_logs,
+)
+
+RUNNING_TESTS = sys.argv[1:2] == ["test"] or "pytest" in sys.argv[0]
+
+
+# Docker health checks hit /health/ every few seconds; sending them is noise.
+def _drop_health_check_transactions(event, hint):
+    if event.get("transaction") == "/health/":
+        return None
+    return event
+
+
+# Access loggers of runserver (dev) and uvicorn (prod). Their lines carry the
+# client address and the full path with its query string, which
+# data_collection does not filter, and tracing already records each request.
+ACCESS_LOGGERS = {"django.server", "uvicorn.access"}
+for access_logger in ACCESS_LOGGERS:
+    # Error events and breadcrumbs, then Sentry Logs: separate capture paths.
+    ignore_logger(access_logger)
+    ignore_logger_for_sentry_logs(access_logger)
+
+
+# Same terms the SDK filters when send_default_pii is off.
+IP_HEADER_TERMS = ["forwarded", "-ip", "remote-", "via", "-user"]
+
+
+# Sentry stays disabled when SENTRY_DSN is unset and during test runs.
+sentry_sdk.init(
+    # An empty DSN disables the SDK; None would fall back to SENTRY_DSN.
+    dsn="" if RUNNING_TESTS else os.environ.get("SENTRY_DSN"),
+    environment=os.environ.get(
+        "SENTRY_ENVIRONMENT",
+        "development" if os.environ.get("DEBUG", "0") == "1" else "production",
+    ),
+    release=os.environ.get("SENTRY_RELEASE"),
+    # Personal data covered by LGPD (users, CPF/CNPJ, contacts) must not reach
+    # Sentry. send_default_pii=False alone still sends request bodies and stack
+    # frame variables, so data_collection turns those off explicitly.
+    send_default_pii=False,
+    data_collection={
+        "user_info": False,
+        "cookies": {"mode": "off"},
+        # Drop client IP and forwarding headers; sensitive auth headers are
+        # always filtered by the SDK.
+        "http_headers": {"request": {"mode": "denylist", "terms": IP_HEADER_TERMS}},
+        "url_query_params": {"mode": "off"},
+        "http_bodies": [],
+        "stack_frame_variables": False,
+        "database_query_data": False,
+    },
+    traces_sample_rate=float(os.environ.get("SENTRY_TRACES_SAMPLE_RATE", "1.0")),
+    before_send_transaction=_drop_health_check_transactions,
+    enable_logs=True,
+)
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -171,6 +231,9 @@ CORS_ALLOW_HEADERS = [
     "content-type",
     "accept",
     "origin",
+    # Sentry distributed tracing headers sent by the frontend SDK.
+    "sentry-trace",
+    "baggage",
 ]
 
 CACHES = {
@@ -188,9 +251,12 @@ OWN_CLIENT_ID = os.environ.get("OWN_CLIENT_ID", "")
 OWN_CLIENT_SECRET = os.environ.get("OWN_CLIENT_SECRET", "")
 OWN_SCOPE = os.environ.get("OWN_SCOPE", "")
 OWN_BASE_URL = os.environ.get("OWN_BASE_URL", "https://acquirer-qa.own.financial")
-OWN_DEBUG_FORCE_HTTP_400 = os.environ.get(
-    "OWN_DEBUG_FORCE_HTTP_400", "0"
-).lower() in {"1", "true", "yes", "on"}
+OWN_DEBUG_FORCE_HTTP_400 = os.environ.get("OWN_DEBUG_FORCE_HTTP_400", "0").lower() in {
+    "1",
+    "true",
+    "yes",
+    "on",
+}
 OWN_REGISTRATION_TRACE_ENABLED = os.environ.get(
     "OWN_REGISTRATION_TRACE_ENABLED", "0"
 ).lower() in {"1", "true", "yes", "on"}

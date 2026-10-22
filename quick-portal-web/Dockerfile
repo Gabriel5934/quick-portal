@@ -14,8 +14,16 @@ COPY . .
 # changed by setting an environment variable on the nginx container at runtime.
 ARG VITE_API_BASE_URL
 ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
+ARG VITE_SENTRY_DSN
+ENV VITE_SENTRY_DSN=$VITE_SENTRY_DSN
+ARG VITE_SENTRY_ENVIRONMENT
+ENV VITE_SENTRY_ENVIRONMENT=$VITE_SENTRY_ENVIRONMENT
+ARG SENTRY_RELEASE
+ENV SENTRY_RELEASE=$SENTRY_RELEASE
 
-RUN npm run build
+# The Sentry auth token is a build secret so it never lands in an image layer.
+# Without it the build still succeeds but skips the source map upload.
+RUN --mount=type=secret,id=sentry_auth_token,env=SENTRY_AUTH_TOKEN npm run build
 
 # ---- Production stage ----
 FROM nginx:alpine AS production
