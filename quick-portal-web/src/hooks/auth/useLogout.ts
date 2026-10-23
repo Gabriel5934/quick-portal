@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { getSessionGeneration } from "#hooks/storage";
 import { ApiError } from "#hooks/types";
+import { fetchWithTimeout } from "./fetchWithTimeout";
 import {
   ACCESS_TOKEN_QUERY_KEY,
   AUTH_REQUEST_HEADERS,
@@ -27,33 +28,22 @@ type LogoutVariables = {
 };
 
 async function requestLogout(): Promise<void> {
-  // An AbortController with a timer instead of `AbortSignal.timeout`, whose
-  // timer the test environment's fake timers cannot drive.
-  const controller = new AbortController();
-  const timeout = setTimeout(() => {
-    controller.abort(
-      new DOMException("Logout request timed out.", "TimeoutError"),
-    );
-  }, LOGOUT_TIMEOUT_MS);
-  try {
-    // Blacklists the refresh cookie and clears it. `keepalive` lets the
-    // request finish after logout navigates away or the tab closes.
-    const res = await fetch(
-      `${import.meta.env.VITE_API_BASE_URL}/api/token/logout/`,
-      {
-        method: "POST",
-        credentials: "include",
-        headers: AUTH_REQUEST_HEADERS,
-        keepalive: true,
-        signal: controller.signal,
-      },
-    );
-    // Throwing makes the mutation retry: while the cookie is not blacklisted,
-    // a reload can restore the session from it.
-    if (!res.ok) throw new ApiError(res.status, "Failed to log out.");
-  } finally {
-    clearTimeout(timeout);
-  }
+  // Blacklists the refresh cookie and clears it. `keepalive` lets the request
+  // finish after logout navigates away or the tab closes. No body is read, so
+  // the timer is cleared as soon as the response arrives.
+  const res = await fetchWithTimeout(
+    `${import.meta.env.VITE_API_BASE_URL}/api/token/logout/`,
+    {
+      method: "POST",
+      credentials: "include",
+      headers: AUTH_REQUEST_HEADERS,
+      keepalive: true,
+    },
+    LOGOUT_TIMEOUT_MS,
+  );
+  // Throwing makes the mutation retry: while the cookie is not blacklisted,
+  // a reload can restore the session from it.
+  if (!res.ok) throw new ApiError(res.status, "Failed to log out.");
 }
 
 export function useLogout() {

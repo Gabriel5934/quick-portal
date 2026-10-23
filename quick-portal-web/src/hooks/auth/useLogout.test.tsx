@@ -20,7 +20,7 @@ import {
   refreshAccessToken,
 } from "./session";
 import { LOGOUT_RETRIES, LOGOUT_TIMEOUT_MS, useLogout } from "./useLogout";
-import { useLogin } from "./useToken";
+import { LOGIN_TIMEOUT_MS, useLogin } from "./useToken";
 
 const navigate = vi.hoisted(() => vi.fn());
 
@@ -125,6 +125,20 @@ function neverAnswers(init?: RequestInit) {
       reject(init.signal?.reason as Error),
     );
   });
+}
+
+/** Headers arrive, the body never ends; the read fails when aborted. */
+function stalledBody(init?: RequestInit) {
+  return new Response(
+    new ReadableStream({
+      start(controller) {
+        init?.signal?.addEventListener("abort", () =>
+          controller.error(init.signal?.reason),
+        );
+      },
+    }),
+    { status: 200 },
+  );
 }
 
 function loggedInClient() {
@@ -578,5 +592,187 @@ describe("login and logout race", () => {
     expect(logoutFailureLogs(consoleError)).toHaveLength(0);
     // Only the marker stopped it: this tab's cache has no token.
     expect(queryClient.getQueryData(ACCESS_TOKEN_QUERY_KEY)).toBeNull();
+  });
+});
+
+describe("login timeout", () => {
+  let consoleError: MockInstance<typeof console.error>;
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    navigate.mockReset();
+    fetchMock.mockReset();
+    vi.stubGlobal("fetch", fetchMock);
+    consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    localStorage.clear();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    consoleError.mockRestore();
+    Reflect.deleteProperty(navigator, "locks");
+    localStorage.clear();
+  });
+
+  /** Starts a login; the returned state settles with its value or error. */
+  function startLogin(login: ReturnType<typeof useLogin>) {
+    const state: { settled: boolean; value?: unknown; error?: unknown } = {
+      settled: false,
+    };
+    act(() => {
+      login
+        .mutateAsync({ email: "user@example.com", password: "secret" })
+        .then(
+          (value) => Object.assign(state, { settled: true, value }),
+          (error: unknown) => Object.assign(state, { settled: true, error }),
+        );
+    });
+    return state;
+  }
+
+  function loginSignal() {
+    return loginCalls()[0][1]!.signal!;
+  }
+
+  it("aborts a login whose response never arrives and releases the lock", async () => {
+    const request = installLocks();
+    fetchMock.mockImplementation((_url, init) => neverAnswers(init));
+    const queryClient = new QueryClient();
+    const { result } = renderLoginAndLogout(queryClient);
+
+    const login = startLogin(result.current.login);
+    await act(() => vi.advanceTimersByTimeAsync(LOGIN_TIMEOUT_MS - 1));
+    expect(loginCalls()).toHaveLength(1);
+    expect(loginSignal().aborted).toBe(false);
+    expect(login.settled).toBe(false);
+
+    await act(() => vi.advanceTimersByTimeAsync(1));
+    expect(login.settled).toBe(true);
+    expect(login.error).toBeInstanceOf(DOMException);
+    expect(login.error).toMatchObject({ name: "TimeoutError" });
+    expect(loginSignal().aborted).toBe(true);
+    // No new refresh cookie was confirmed, so pending logouts still run.
+    expect(sessionGeneration()).toBeNull();
+    expect(queryClient.getQueryData(ACCESS_TOKEN_QUERY_KEY)).toBeUndefined();
+    expect(request).toHaveBeenCalledTimes(1);
+    // The lock was released.
+    await expect(otherTabLogin()).resolves.toBeUndefined();
+  });
+
+  it("aborts a login whose response body never finishes and releases the lock", async () => {
+    installLocks();
+    fetchMock.mockImplementation((_url, init) =>
+      Promise.resolve(stalledBody(init)),
+    );
+    const queryClient = new QueryClient();
+    const { result } = renderLoginAndLogout(queryClient);
+
+    const login = startLogin(result.current.login);
+    await act(() => vi.advanceTimersByTimeAsync(LOGIN_TIMEOUT_MS - 1));
+    // The headers arrived, but the timer still covers reading the body.
+    expect(loginCalls()).toHaveLength(1);
+    expect(login.settled).toBe(false);
+
+    await act(() => vi.advanceTimersByTimeAsync(1));
+    expect(login.settled).toBe(true);
+    expect(login.error).toMatchObject({ name: "TimeoutError" });
+    expect(sessionGeneration()).toBeNull();
+    expect(queryClient.getQueryData(ACCESS_TOKEN_QUERY_KEY)).toBeUndefined();
+    await expect(otherTabLogin()).resolves.toBeUndefined();
+  });
+
+  it("completes a fast login, bumps the generation and clears its timer", async () => {
+    installLocks();
+    fetchMock.mockResolvedValue(loginOk("new-access"));
+    // No garbage-collection timers, so only the request timer could remain.
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { gcTime: Infinity },
+        mutations: { gcTime: Infinity },
+      },
+    });
+    const { result } = renderLoginAndLogout(queryClient);
+
+    const login = startLogin(result.current.login);
+    await act(() => vi.advanceTimersByTimeAsync(0));
+
+    expect(login).toEqual({ settled: true, value: { access: "new-access" } });
+    expect(sessionGeneration()).toBe("1");
+    expect(queryClient.getQueryData(ACCESS_TOKEN_QUERY_KEY)).toBe("new-access");
+    expect(vi.getTimerCount()).toBe(0);
+    await act(() => vi.advanceTimersByTimeAsync(LOGIN_TIMEOUT_MS * 2));
+    expect(loginSignal().aborted).toBe(false);
+  });
+
+  it("lets another tab's queued logout run once a stalled login times out", async () => {
+    installLocks();
+    fetchMock.mockImplementation((url, init) =>
+      isLoginCall([url]) ? neverAnswers(init) : Promise.resolve(noContent()),
+    );
+    const loginTab = renderLoginAndLogout(new QueryClient());
+    const logoutTabClient = loggedInClient();
+    const logoutTab = renderLogout(logoutTabClient);
+
+    const login = startLogin(loginTab.result.current.login);
+    await act(() => vi.advanceTimersByTimeAsync(0));
+    expect(loginCalls()).toHaveLength(1);
+
+    // The other tab's logout queues behind the login that holds the lock.
+    await act(() => logoutTab.result.current());
+    await act(() => vi.advanceTimersByTimeAsync(LOGIN_TIMEOUT_MS - 1));
+    expect(logoutCalls()).toHaveLength(0);
+    expect(logoutMutationStatus(logoutTabClient)).toBe("pending");
+
+    await act(() => vi.advanceTimersByTimeAsync(1));
+    expect(login.error).toMatchObject({ name: "TimeoutError" });
+    await act(() => vi.advanceTimersByTimeAsync(0));
+
+    // The login never confirmed a new cookie, so the logout is not skipped.
+    expect(logoutCalls()).toHaveLength(1);
+    expect(logoutMutationStatus(logoutTabClient)).toBe("success");
+    expect(logoutFailureLogs(consoleError)).toHaveLength(0);
+    expect(sessionGeneration()).toBeNull();
+  });
+});
+
+describe("logout body", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    navigate.mockReset();
+    fetchMock.mockReset();
+    vi.stubGlobal("fetch", fetchMock);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    localStorage.clear();
+  });
+
+  it("does not wait for or time out on a response body it never reads", async () => {
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+    try {
+      fetchMock.mockImplementation((_url, init) =>
+        Promise.resolve(stalledBody(init)),
+      );
+      const queryClient = loggedInClient();
+      const { result } = renderLogout(queryClient);
+
+      await act(() => result.current());
+      await act(() => vi.advanceTimersByTimeAsync(0));
+      expect(logoutMutationStatus(queryClient)).toBe("success");
+
+      await act(() => vi.advanceTimersByTimeAsync(LOGOUT_TIMEOUT_MS * 2));
+      // The timer was cleared when the headers arrived: nothing was aborted
+      // or retried.
+      expect(logoutCalls()).toHaveLength(1);
+      expect(logoutCalls()[0][1]!.signal!.aborted).toBe(false);
+      expect(logoutFailureLogs(consoleError)).toHaveLength(0);
+    } finally {
+      consoleError.mockRestore();
+    }
   });
 });
