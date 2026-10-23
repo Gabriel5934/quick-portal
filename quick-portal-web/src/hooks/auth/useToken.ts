@@ -1,10 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { setUserEmail } from "#hooks/storage";
+import { bumpSessionGeneration, setUserEmail } from "#hooks/storage";
 import type { ValidationErrors } from "#hooks/types";
 import {
   ACCESS_TOKEN_QUERY_KEY,
   AUTH_REQUEST_HEADERS,
   accessTokenQueryOptions,
+  withRefreshLock,
 } from "./session";
 
 type LoginRequest = {
@@ -16,7 +17,17 @@ type LoginResponse = {
   access: string;
 };
 
-async function fetchLogin(payload: LoginRequest): Promise<LoginResponse> {
+/**
+ * Logs in while holding the refresh lock, so the new refresh cookie is set
+ * only after any logout or refresh in flight in any tab has finished, and no
+ * late logout response or retry can blacklist or clear it. Must not refresh or
+ * log out itself: the lock is not reentrant.
+ */
+function fetchLogin(payload: LoginRequest): Promise<LoginResponse> {
+  return withRefreshLock(() => requestLogin(payload));
+}
+
+async function requestLogin(payload: LoginRequest): Promise<LoginResponse> {
   // The refresh token comes back as an HttpOnly cookie, never in the body.
   const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/token/`, {
     method: "POST",
@@ -34,6 +45,10 @@ async function fetchLogin(payload: LoginRequest): Promise<LoginResponse> {
     const keys = Object.keys(errors);
     throw new Error(errors[keys[0]][0]);
   }
+
+  // A successful response has set the new refresh cookie: tell every tab's
+  // pending logout, before the lock is released, not to send it.
+  bumpSessionGeneration();
 
   const access = data?.access;
 

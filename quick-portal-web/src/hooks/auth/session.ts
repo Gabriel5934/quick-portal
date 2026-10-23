@@ -7,8 +7,8 @@ import { ApiError } from "#hooks/types";
 export const ACCESS_TOKEN_QUERY_KEY = ["access_token"] as const;
 
 /**
- * Web Lock that serializes refreshes and logouts across tabs of the same
- * origin. Web Locks are not reentrant: code that holds it must never call
+ * Web Lock that serializes logins, refreshes and logouts across tabs of the
+ * same origin. Web Locks are not reentrant: code that holds it must never call
  * `refreshAccessToken` or `withRefreshLock` again, or it waits forever.
  */
 export const REFRESH_LOCK_NAME = "quick-portal-refresh";

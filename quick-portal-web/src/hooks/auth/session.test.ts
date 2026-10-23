@@ -1,11 +1,13 @@
 import { QueryClient } from "@tanstack/react-query";
 import { isRedirect } from "@tanstack/react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { bumpSessionGeneration, getSessionGeneration } from "#hooks/storage";
 import { installLocks } from "../../test/web-locks";
 import {
   ACCESS_TOKEN_QUERY_KEY,
   REFRESH_LOCK_NAME,
   SESSION_CHANNEL_NAME,
+  clearSessionState,
   discardPendingRefreshes,
   ensureSession,
   listenForLogout,
@@ -213,6 +215,52 @@ describe("session", () => {
       await expect(refreshAccessToken(newQueryClient())).resolves.toBe(
         "next-access",
       );
+    });
+  });
+
+  describe("session generation", () => {
+    it("reads a missing or invalid generation as 0", () => {
+      expect(getSessionGeneration()).toBe(0);
+      for (const invalid of ["abc", "-1", "1.5", "Infinity", ""]) {
+        localStorage.setItem("sessionGeneration", invalid);
+        expect(getSessionGeneration()).toBe(0);
+      }
+    });
+
+    it("increments the stored generation", () => {
+      bumpSessionGeneration();
+      expect(localStorage.getItem("sessionGeneration")).toBe("1");
+      localStorage.setItem("sessionGeneration", "41");
+      bumpSessionGeneration();
+      expect(getSessionGeneration()).toBe(42);
+    });
+
+    it("reads 0 and does not throw when storage is unavailable", () => {
+      const getItem = vi
+        .spyOn(Storage.prototype, "getItem")
+        .mockImplementation(() => {
+          throw new DOMException("denied", "SecurityError");
+        });
+      const setItem = vi
+        .spyOn(Storage.prototype, "setItem")
+        .mockImplementation(() => {
+          throw new DOMException("denied", "SecurityError");
+        });
+      try {
+        expect(getSessionGeneration()).toBe(0);
+        expect(() => bumpSessionGeneration()).not.toThrow();
+      } finally {
+        getItem.mockRestore();
+        setItem.mockRestore();
+      }
+    });
+
+    it("is not cleared with the rest of the session state", () => {
+      bumpSessionGeneration();
+      localStorage.setItem("userEmail", "user@example.com");
+      clearSessionState(newQueryClient());
+      expect(localStorage.getItem("userEmail")).toBeNull();
+      expect(getSessionGeneration()).toBe(1);
     });
   });
 

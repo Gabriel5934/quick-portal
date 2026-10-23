@@ -19,7 +19,8 @@ import {
   ensureSession,
   refreshAccessToken,
 } from "./session";
-import { LOGOUT_RETRIES, useLogout } from "./useLogout";
+import { LOGOUT_RETRIES, LOGOUT_TIMEOUT_MS, useLogout } from "./useLogout";
+import { useLogin } from "./useToken";
 
 const navigate = vi.hoisted(() => vi.fn());
 
@@ -75,6 +76,57 @@ function serverError() {
   return new Response(null, { status: 500 });
 }
 
+function isLoginCall([url]: Parameters<typeof fetch>) {
+  return (url as string).endsWith("/api/token/");
+}
+
+function loginCalls() {
+  return fetchMock.mock.calls.filter(isLoginCall);
+}
+
+function loginOk(access: string) {
+  return new Response(JSON.stringify({ access }), { status: 200 });
+}
+
+function sessionGeneration() {
+  return localStorage.getItem("sessionGeneration");
+}
+
+/** Another tab's login: takes the lock and bumps the shared generation. */
+function otherTabLogin() {
+  return navigator.locks.request(REFRESH_LOCK_NAME, () => {
+    localStorage.setItem(
+      "sessionGeneration",
+      String(Number(sessionGeneration()) + 1),
+    );
+    return Promise.resolve();
+  });
+}
+
+function renderLoginAndLogout(queryClient: QueryClient) {
+  function Wrapper({ children }: { children: ReactNode }) {
+    return (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    );
+  }
+  return renderHook(() => ({ login: useLogin(), logout: useLogout() }), {
+    wrapper: Wrapper,
+  });
+}
+
+function logoutMutationStatus(queryClient: QueryClient) {
+  return queryClient.getMutationCache().getAll()[0]?.state.status;
+}
+
+/** A response that never comes; rejects with the reason when aborted. */
+function neverAnswers(init?: RequestInit) {
+  return new Promise<Response>((_resolve, reject) => {
+    init?.signal?.addEventListener("abort", () =>
+      reject(init.signal?.reason as Error),
+    );
+  });
+}
+
 function loggedInClient() {
   const queryClient = new QueryClient();
   queryClient.setQueryData(ACCESS_TOKEN_QUERY_KEY, "access-token");
@@ -95,7 +147,6 @@ function logoutFailureLogs(consoleError: MockInstance<typeof console.error>) {
     ([message]) => message === "Logout request failed after retries.",
   );
 }
-
 
 describe("useLogout", () => {
   let consoleError: MockInstance<typeof console.error>;
@@ -324,6 +375,45 @@ describe("useLogout", () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
+  it("aborts a logout request that never answers and retries it", async () => {
+    vi.useFakeTimers();
+    const signals: AbortSignal[] = [];
+    fetchMock
+      .mockImplementationOnce((_url, init) => {
+        signals.push(init!.signal!);
+        return neverAnswers(init);
+      })
+      .mockImplementationOnce((_url, init) => {
+        signals.push(init!.signal!);
+        return Promise.resolve(noContent());
+      });
+    const queryClient = loggedInClient();
+    const { result } = renderLogout(queryClient);
+
+    await act(() => result.current());
+    await act(() => vi.advanceTimersByTimeAsync(0));
+    // The session is gone while the request hangs.
+    expectSessionCleared(queryClient);
+    expect(logoutCalls()).toHaveLength(1);
+    expect(logoutCalls()[0][1]).toMatchObject({ keepalive: true });
+
+    await act(() => vi.advanceTimersByTimeAsync(LOGOUT_TIMEOUT_MS - 1));
+    expect(signals[0].aborted).toBe(false);
+    expect(logoutCalls()).toHaveLength(1);
+
+    await act(() => vi.advanceTimersByTimeAsync(1));
+    expect(signals[0].aborted).toBe(true);
+    expect((signals[0].reason as DOMException).name).toBe("TimeoutError");
+
+    await runRetries();
+    expect(logoutCalls()).toHaveLength(2);
+    // The answered attempt cleared its timer and was not aborted.
+    expect(signals[1].aborted).toBe(false);
+    expect(logoutMutationStatus(queryClient)).toBe("success");
+    expect(logoutFailureLogs(consoleError)).toHaveLength(0);
+    expectSessionCleared(queryClient);
+  });
+
   it("tells the other tabs that the session ended", async () => {
     fetchMock.mockResolvedValue(noContent());
     const otherTab = new BroadcastChannel(SESSION_CHANNEL_NAME);
@@ -340,5 +430,153 @@ describe("useLogout", () => {
     } finally {
       otherTab.close();
     }
+  });
+});
+
+describe("login and logout race", () => {
+  let consoleError: MockInstance<typeof console.error>;
+
+  beforeEach(() => {
+    navigate.mockReset();
+    fetchMock.mockReset();
+    vi.stubGlobal("fetch", fetchMock);
+    consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    localStorage.clear();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    consoleError.mockRestore();
+    Reflect.deleteProperty(navigator, "locks");
+    localStorage.clear();
+  });
+
+  it("logs in only after an in-flight logout released the lock, then bumps the generation", async () => {
+    const request = installLocks();
+    const logoutResponse = deferred<Response>();
+    fetchMock.mockImplementation((url) =>
+      isLoginCall([url])
+        ? Promise.resolve(loginOk("new-access"))
+        : logoutResponse.promise,
+    );
+    const queryClient = loggedInClient();
+    const { result } = renderLoginAndLogout(queryClient);
+
+    await act(() => result.current.logout());
+    await vi.waitFor(() => expect(logoutCalls()).toHaveLength(1));
+
+    let login!: Promise<unknown>;
+    act(() => {
+      login = result.current.login.mutateAsync({
+        email: "User@Example.com",
+        password: "secret",
+      });
+    });
+    await flushMicrotasks();
+
+    // Login is queued behind the logout that holds the lock.
+    expect(request).toHaveBeenCalledTimes(2);
+    expect(request.mock.calls.map(([name]) => name)).toEqual([
+      REFRESH_LOCK_NAME,
+      REFRESH_LOCK_NAME,
+    ]);
+    expect(loginCalls()).toHaveLength(0);
+    expect(sessionGeneration()).toBeNull();
+
+    logoutResponse.resolve(noContent());
+    await act(() => login);
+
+    expect(loginCalls()).toHaveLength(1);
+    expect(isLoginCall(fetchMock.mock.calls[1])).toBe(true);
+    expect(sessionGeneration()).toBe("1");
+    expect(queryClient.getQueryData(ACCESS_TOKEN_QUERY_KEY)).toBe("new-access");
+    expect(localStorage.getItem("userEmail")).toBe("user@example.com");
+    // Login took the lock once and did not nest it.
+    expect(request).toHaveBeenCalledTimes(2);
+    expect(logoutCalls()).toHaveLength(1);
+  });
+
+  it("does not bump the generation when login fails", async () => {
+    const request = installLocks();
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          detail: ["No active account with these credentials."],
+        }),
+        { status: 401 },
+      ),
+    );
+    const queryClient = new QueryClient();
+    const { result } = renderLoginAndLogout(queryClient);
+
+    await act(() =>
+      expect(
+        result.current.login.mutateAsync({
+          email: "user@example.com",
+          password: "wrong",
+        }),
+      ).rejects.toThrow("No active account with these credentials."),
+    );
+
+    expect(sessionGeneration()).toBeNull();
+    expect(request).toHaveBeenCalledTimes(1);
+    // The lock was released.
+    await expect(otherTabLogin()).resolves.toBeUndefined();
+  });
+
+  it("skips the logout request when another tab logged in before the attempt", async () => {
+    vi.useFakeTimers();
+    installLocks();
+    const otherLogin = deferred<void>();
+    // Another tab's login holds the lock and bumps the generation before
+    // releasing it.
+    const holdLock = navigator.locks.request(REFRESH_LOCK_NAME, async () => {
+      await otherLogin.promise;
+      localStorage.setItem("sessionGeneration", "1");
+    });
+    fetchMock.mockResolvedValue(noContent());
+    const queryClient = loggedInClient();
+    const { result } = renderLogout(queryClient);
+
+    await act(() => result.current());
+    expectSessionCleared(queryClient);
+
+    otherLogin.resolve();
+    await act(() => holdLock);
+    await runRetries();
+
+    // The new login's refresh cookie is not blacklisted, and the skipped
+    // attempt is a success, not a failure to retry.
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(logoutMutationStatus(queryClient)).toBe("success");
+    expect(logoutFailureLogs(consoleError)).toHaveLength(0);
+    // This tab's cache never saw the other tab's token.
+    expect(queryClient.getQueryData(ACCESS_TOKEN_QUERY_KEY)).toBeNull();
+  });
+
+  it("skips a retry when another tab logged in after a failed attempt", async () => {
+    vi.useFakeTimers();
+    installLocks();
+    let otherLogin: Promise<void> | undefined;
+    fetchMock.mockImplementationOnce(() => {
+      // Queued behind this attempt, so it runs before the retry.
+      otherLogin = otherTabLogin();
+      return Promise.resolve(serverError());
+    });
+    fetchMock.mockResolvedValue(noContent());
+    const queryClient = loggedInClient();
+    const { result } = renderLogout(queryClient);
+
+    await act(() => result.current());
+    await runRetries();
+    await otherLogin;
+
+    expect(sessionGeneration()).toBe("1");
+    expect(logoutCalls()).toHaveLength(1);
+    expect(logoutMutationStatus(queryClient)).toBe("success");
+    expect(logoutFailureLogs(consoleError)).toHaveLength(0);
+    // Only the marker stopped it: this tab's cache has no token.
+    expect(queryClient.getQueryData(ACCESS_TOKEN_QUERY_KEY)).toBeNull();
   });
 });
