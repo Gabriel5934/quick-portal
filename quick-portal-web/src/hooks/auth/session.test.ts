@@ -50,8 +50,6 @@ describe("session", () => {
   describe("boot refresh", () => {
     it("exchanges the refresh cookie once and keeps the token in memory", async () => {
       fetchMock.mockResolvedValue(jsonResponse(200, { access: "boot-access" }));
-      localStorage.setItem("token", "old-access");
-      localStorage.setItem("refreshToken", "old-refresh");
       const queryClient = newQueryClient();
 
       await expect(
@@ -71,8 +69,6 @@ describe("session", () => {
       expect(queryClient.getQueryData(ACCESS_TOKEN_QUERY_KEY)).toBe(
         "boot-access",
       );
-      expect(localStorage.getItem("token")).toBeNull();
-      expect(localStorage.getItem("refreshToken")).toBeNull();
     });
 
     it("waits for the refresh before redirecting a visitor without a session", async () => {

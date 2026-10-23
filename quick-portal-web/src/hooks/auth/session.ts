@@ -1,6 +1,6 @@
 import { queryOptions, type QueryClient } from "@tanstack/react-query";
 import { redirect } from "@tanstack/react-router";
-import { clearUserEmail, removeLegacyTokens } from "#hooks/storage";
+import { clearUserEmail } from "#hooks/storage";
 import { ApiError } from "#hooks/types";
 
 /** Query key of the in-memory access token. `null` means "no session". */
@@ -167,7 +167,6 @@ export function accessTokenQueryOptions(queryClient: QueryClient) {
 export async function ensureSession(
   queryClient: QueryClient,
 ): Promise<AccessToken> {
-  removeLegacyTokens();
   try {
     return await queryClient.ensureQueryData(
       accessTokenQueryOptions(queryClient),
