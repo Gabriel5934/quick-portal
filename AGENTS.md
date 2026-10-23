@@ -109,7 +109,7 @@ Important conventions:
 - OWN endpoints require authenticated JWT users.
 - Treat `owndocs/` as reference documentation, not application code.
 - For production, use strong Django and PostgreSQL secrets, set `DEBUG=0`, and
-  configure `ALLOWED_HOSTS`. Use `USE_HTTPS=0` only for HTTP-only QA.
+  configure `ALLOWED_HOSTS`. Use `USE_HTTPS=0` only for HTTP-only QA. The refresh cookie is always `Secure`, so over plain HTTP it works only on localhost; other QA hosts need HTTPS.
 
 ## Full-stack integration
 
