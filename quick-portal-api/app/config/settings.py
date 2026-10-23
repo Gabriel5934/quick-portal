@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 
 import os
 import sys
+from datetime import timedelta
 from pathlib import Path
 
 import sentry_sdk
@@ -211,6 +212,32 @@ REST_FRAMEWORK = {
     ]
 }
 
+# Refresh tokens rotate on every use, and the used token is blacklisted. The
+# access lifetime stays at SimpleJWT's default of 5 minutes.
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=5),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=1),
+    "ROTATE_REFRESH_TOKENS": True,
+    "BLACKLIST_AFTER_ROTATION": True,
+}
+
+# The refresh token only travels in this HttpOnly cookie. The frontend and the
+# API are on different sites, so it must be SameSite=None, which browsers only
+# accept on Secure cookies. Its path limits it to the /api/token/ endpoints.
+REFRESH_TOKEN_COOKIE = {
+    "name": "refresh_token",
+    "path": "/api/token/",
+    "httponly": True,
+    "secure": True,
+    "samesite": "None",
+    "max_age": int(SIMPLE_JWT["REFRESH_TOKEN_LIFETIME"].total_seconds()),
+}
+
+# Login, refresh and logout use the cross-site cookie, so they require this
+# header value in addition to an Origin from CORS_ALLOWED_ORIGINS.
+AUTH_CSRF_HEADER = "X-Requested-With"
+AUTH_CSRF_HEADER_VALUE = "quick-portal"
+
 CORS_ALLOWED_ORIGINS = os.environ.get(
     "CORS_ALLOWED_ORIGINS",
     "http://127.0.0.1:5173 http://localhost:5173",
@@ -231,6 +258,8 @@ CORS_ALLOW_HEADERS = [
     "content-type",
     "accept",
     "origin",
+    # Required by the cookie-based token endpoints as a CSRF defense.
+    "x-requested-with",
     # Sentry distributed tracing headers sent by the frontend SDK.
     "sentry-trace",
     "baggage",

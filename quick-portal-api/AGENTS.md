@@ -53,12 +53,16 @@ The Django manage.py lives at `app/manage.py`. The Docker volume mounts `./app` 
 `make dev`, run from the parent monorepo root, creates or updates a development
 superuser with email `root@email.com` and password `JustTesting593!` (the dev
 containers no longer create it on startup). Before testing an authenticated
-endpoint, request an access token with cURL:
+endpoint, request an access token with cURL. The token endpoints require an
+`Origin` from `CORS_ALLOWED_ORIGINS` and the `X-Requested-With: quick-portal`
+header; the refresh token is only returned as an HttpOnly cookie:
 
 ```bash
 TOKEN=$(curl --fail --silent --show-error \
   --request POST http://localhost:8080/api/token/ \
   --header 'Content-Type: application/json' \
+  --header 'Origin: http://localhost:5173' \
+  --header 'X-Requested-With: quick-portal' \
   --data '{"email":"root@email.com","password":"JustTesting593!"}' \
   | python -c 'import json,sys; print(json.load(sys.stdin)["access"])')
 ```
@@ -85,7 +89,20 @@ This is a Django 5 + DRF API backend for "Quick Portal" — a portal that integr
 - Users register/login with email+password (not Django's default username)
 - `EmailTokenObtainPairSerializer` overrides SimpleJWT to accept email instead of username
 - Usernames are auto-generated UUIDs (`user_{hex}`)
-- JWT tokens (access + refresh) are issued via SimpleJWT
+- JWT tokens (access + refresh) are issued via SimpleJWT. Login returns only
+  `access`; the refresh token is set as an HttpOnly `refresh_token` cookie
+  (`quickportal/services/refresh_tokens.py`). `/api/token/refresh/` rotates it
+  and blacklists the old one. Each blacklist entry records its reason
+  (`BlacklistedTokenReason`: rotated, logged out or revoked). Reusing a
+  rotated refresh token revokes all of the user's tokens; a logged-out or
+  revoked token only gets a 401. `/api/token/logout/` blacklists and clears it.
+  Blacklisting happens only on a logout request that reaches the API: a logout
+  that never does (offline, timed out) leaves the refresh cookie valid until it
+  expires. This is an accepted gap.
+  Locks are always taken user row first, then token rows: every path that
+  changes a user's tokens must go through `_user_transaction`.
+- Run `python manage.py flushexpiredtokens` periodically to delete expired
+  outstanding and blacklisted tokens.
 
 **OWN Financial integration (`quickportal/services/`):**
 

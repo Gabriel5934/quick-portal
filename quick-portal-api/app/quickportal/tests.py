@@ -1,24 +1,38 @@
 
+import threading
 from datetime import datetime, timezone
 from unittest.mock import patch
 
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
 from django.core.management import call_command
-from django.db import IntegrityError, transaction
+from django.db import IntegrityError, connection, transaction
 from django.db.models.deletion import ProtectedError
-from django.test import TestCase
+from django.test import TestCase, TransactionTestCase, override_settings
 from django.urls import reverse
 from rest_framework import status
-from rest_framework.test import APITestCase
+from rest_framework.test import APIClient, APITestCase
+from rest_framework_simplejwt.serializers import TokenRefreshSerializer
+from rest_framework_simplejwt.token_blacklist.models import (
+    BlacklistedToken,
+    OutstandingToken,
+)
+from rest_framework_simplejwt.tokens import RefreshToken
 
 from quickportal.models import (
+    BlacklistedTokenReason,
+    BlacklistReason,
     Business,
     BusinessColorPreference,
     BusinessMembership,
     BusinessRole,
     BusinessType,
     RecurringFee,
+)
+from quickportal.services.refresh_tokens import (
+    revoke_user_tokens,
+    rotate_refresh_token,
+    user_transaction,
 )
 
 
@@ -665,3 +679,534 @@ class CreateDevUserCommandTests(TestCase):
         user = User.objects.get(email="user@email.com")
         self.assertFalse(user.is_staff)
         self.assertFalse(user.is_superuser)
+
+
+FRONTEND_ORIGIN = "http://localhost:5173"
+REFRESH_COOKIE = "refresh_token"
+
+
+@override_settings(CORS_ALLOWED_ORIGINS=[FRONTEND_ORIGIN])
+class RefreshTokenCookieApiTests(APITestCase):
+    password = "Refresh-Test-593!"
+
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username="refresh-user",
+            email="refresh@example.com",
+            password=self.password,
+        )
+
+    @staticmethod
+    def trusted_headers(**overrides):
+        headers = {
+            "HTTP_ORIGIN": FRONTEND_ORIGIN,
+            "HTTP_X_REQUESTED_WITH": "quick-portal",
+        }
+        headers.update(overrides)
+        return {key: value for key, value in headers.items() if value is not None}
+
+    def login(self, **headers):
+        return self.client.post(
+            reverse("token_obtain_pair"),
+            {"email": self.user.email, "password": self.password},
+            format="json",
+            **self.trusted_headers(**headers),
+        )
+
+    def refresh(self, refresh_token=None, **headers):
+        if refresh_token is not None:
+            self.client.cookies[REFRESH_COOKIE] = refresh_token
+        return self.client.post(
+            reverse("token_refresh"), format="json", **self.trusted_headers(**headers)
+        )
+
+    def logout(self, **headers):
+        return self.client.post(
+            reverse("token_logout"), format="json", **self.trusted_headers(**headers)
+        )
+
+    def login_token(self):
+        response = self.login()
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        return response.cookies[REFRESH_COOKIE].value
+
+    def test_login_sets_refresh_cookie_and_returns_only_access(self):
+        response = self.login()
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(set(response.data), {"access"})
+        self.assertNotIn("refresh", response.json())
+        cookie = response.cookies[REFRESH_COOKIE]
+        self.assertTrue(cookie.value)
+        self.assertTrue(cookie["httponly"])
+        self.assertTrue(cookie["secure"])
+        self.assertEqual(cookie["samesite"], "None")
+        self.assertEqual(cookie["path"], "/api/token/")
+        self.assertEqual(cookie["max-age"], 24 * 60 * 60)
+        self.assertTrue(
+            OutstandingToken.objects.filter(user=self.user, token=cookie.value).exists()
+        )
+
+    def test_login_errors_keep_the_drf_shape_and_set_no_cookie(self):
+        response = self.client.post(
+            reverse("token_obtain_pair"),
+            {"email": self.user.email, "password": "wrong-password"},
+            format="json",
+            **self.trusted_headers(),
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data, {"password": ["Incorrect password."]})
+        self.assertNotIn(REFRESH_COOKIE, response.cookies)
+
+    def test_refresh_rotates_cookie_and_rejects_the_previous_one(self):
+        old_token = self.login_token()
+
+        response = self.refresh(old_token)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(set(response.data), {"access"})
+        new_cookie = response.cookies[REFRESH_COOKIE]
+        self.assertNotEqual(new_cookie.value, old_token)
+        self.assertTrue(new_cookie["httponly"])
+        self.assertTrue(new_cookie["secure"])
+        self.assertEqual(new_cookie["samesite"], "None")
+        self.assertTrue(BlacklistedToken.objects.filter(token__token=old_token).exists())
+
+        rejected = self.refresh(old_token)
+        self.assertEqual(rejected.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertEqual(rejected.data["code"], "token_not_valid")
+
+    def test_refresh_reads_only_the_cookie(self):
+        refresh_token = self.login_token()
+        del self.client.cookies[REFRESH_COOKIE]
+
+        response = self.client.post(
+            reverse("token_refresh"),
+            {"refresh": refresh_token},
+            format="json",
+            **self.trusted_headers(),
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertFalse(BlacklistedToken.objects.exists())
+
+    def test_refresh_rejects_invalid_cookie(self):
+        response = self.refresh("not-a-jwt")
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_reuse_revokes_every_outstanding_token_of_the_user(self):
+        first_session = self.login_token()
+        second_session = self.login_token()
+        other_user = User.objects.create_user(
+            username="other-refresh-user", email="other@example.com"
+        )
+        other_token = str(RefreshToken.for_user(other_user))
+        rotated = self.refresh(first_session).cookies[REFRESH_COOKIE].value
+
+        reused = self.refresh(first_session)
+
+        self.assertEqual(reused.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertFalse(
+            OutstandingToken.objects.filter(
+                user=self.user, blacklistedtoken__isnull=True
+            ).exists()
+        )
+        for token in (rotated, second_session):
+            with self.subTest(token="rotated" if token == rotated else "second"):
+                self.assertEqual(
+                    self.refresh(token).status_code, status.HTTP_401_UNAUTHORIZED
+                )
+        self.assertEqual(self.refresh(other_token).status_code, status.HTTP_200_OK)
+
+    def test_logout_blacklists_and_clears_the_cookie(self):
+        refresh_token = self.login_token()
+
+        response = self.logout()
+
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        cleared = response.cookies[REFRESH_COOKIE]
+        self.assertEqual(cleared.value, "")
+        self.assertEqual(cleared["max-age"], 0)
+        self.assertEqual(cleared["path"], "/api/token/")
+        self.assertTrue(cleared["secure"])
+        self.assertEqual(cleared["samesite"], "None")
+        self.assertTrue(
+            BlacklistedToken.objects.filter(token__token=refresh_token).exists()
+        )
+        self.assertEqual(
+            self.refresh(refresh_token).status_code, status.HTTP_401_UNAUTHORIZED
+        )
+
+    def test_logout_is_idempotent_without_a_valid_cookie(self):
+        for cookie_value in (None, "not-a-jwt"):
+            with self.subTest(cookie=cookie_value):
+                self.client.cookies.clear()
+                if cookie_value is not None:
+                    self.client.cookies[REFRESH_COOKIE] = cookie_value
+
+                response = self.logout()
+
+                self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+                self.assertEqual(response.cookies[REFRESH_COOKIE].value, "")
+
+        refresh_token = self.login_token()
+        self.assertEqual(self.logout().status_code, status.HTTP_204_NO_CONTENT)
+        self.client.cookies[REFRESH_COOKIE] = refresh_token
+        self.assertEqual(self.logout().status_code, status.HTTP_204_NO_CONTENT)
+
+    def test_token_endpoints_reject_untrusted_requests(self):
+        refresh_token = self.login_token()
+        cases = {
+            "foreign origin": {"HTTP_ORIGIN": "https://evil.example"},
+            "missing origin": {"HTTP_ORIGIN": None},
+            "null origin": {"HTTP_ORIGIN": "null"},
+            "missing header": {"HTTP_X_REQUESTED_WITH": None},
+            "wrong header": {"HTTP_X_REQUESTED_WITH": "XMLHttpRequest"},
+        }
+        for name, headers in cases.items():
+            for endpoint in ("login", "refresh", "logout"):
+                with self.subTest(case=name, endpoint=endpoint):
+                    self.client.cookies[REFRESH_COOKIE] = refresh_token
+                    response = getattr(self, endpoint)(**headers)
+
+                    self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+                    self.assertIn("detail", response.data)
+                    self.assertNotIn(REFRESH_COOKIE, response.cookies)
+
+        self.assertFalse(BlacklistedToken.objects.exists())
+        self.assertEqual(self.refresh(refresh_token).status_code, status.HTTP_200_OK)
+
+    def test_refresh_token_values_never_reach_the_logs(self):
+        with self.assertLogs(level="DEBUG") as logs:
+            first = self.login_token()
+            rotated = self.refresh(first).cookies[REFRESH_COOKIE].value
+            self.refresh(first)  # reuse: logs a 401 warning
+            self.refresh("not-a-jwt")
+            self.client.cookies[REFRESH_COOKIE] = rotated
+            self.logout()
+
+        output = "\n".join(logs.output)
+        for token in (first, rotated):
+            self.assertNotIn(token, output)
+            # The signature part alone must not leak either.
+            self.assertNotIn(token.rsplit(".", 1)[-1], output)
+
+    def assert_session_valid(self, token):
+        response = self.refresh(token)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        return response.cookies[REFRESH_COOKIE].value
+
+    def assert_rejected_and_cleared(self, response):
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertEqual(response.data["code"], "token_not_valid")
+        self.assertEqual(response.cookies[REFRESH_COOKIE].value, "")
+        self.assertEqual(response.cookies[REFRESH_COOKIE]["max-age"], 0)
+
+    def reason_of(self, token):
+        return BlacklistedTokenReason.objects.get(token__token__token=token).reason
+
+    def test_rotation_and_logout_record_the_blacklist_reason(self):
+        rotated_away = self.login_token()
+        current = self.assert_session_valid(rotated_away)
+        self.client.cookies[REFRESH_COOKIE] = current
+
+        self.logout()
+
+        self.assertEqual(self.reason_of(rotated_away), BlacklistReason.ROTATED)
+        self.assertEqual(self.reason_of(current), BlacklistReason.LOGGED_OUT)
+
+    def test_logged_out_token_is_rejected_without_revoking_other_sessions(self):
+        logged_out = self.login_token()
+        other_session = self.login_token()
+        self.client.cookies[REFRESH_COOKIE] = logged_out
+        self.logout()
+
+        # Presenting it repeatedly never mints tokens nor revokes anything.
+        for attempt in range(2):
+            with self.subTest(attempt=attempt):
+                response = self.refresh(logged_out)
+
+                self.assert_rejected_and_cleared(response)
+                self.assertEqual(
+                    response.data["detail"], "Refresh token is invalid or expired."
+                )
+                self.assertEqual(
+                    OutstandingToken.objects.filter(
+                        user=self.user, blacklistedtoken__isnull=True
+                    ).count(),
+                    1,
+                )
+
+        self.assert_session_valid(other_session)
+
+    def test_logout_after_rotation_keeps_reuse_detection(self):
+        stolen = self.login_token()
+        current = self.assert_session_valid(stolen)
+        # A late logout presents the already rotated token.
+        self.client.cookies[REFRESH_COOKIE] = stolen
+        self.assertEqual(self.logout().status_code, status.HTTP_204_NO_CONTENT)
+        self.assertEqual(self.reason_of(stolen), BlacklistReason.ROTATED)
+
+        reused = self.refresh(stolen)
+
+        self.assert_rejected_and_cleared(reused)
+        self.assertEqual(reused.data["detail"], "Refresh token was already used.")
+        self.assertEqual(
+            self.refresh(current).status_code, status.HTTP_401_UNAUTHORIZED
+        )
+
+    def test_revoked_token_is_rejected_without_revoking_new_sessions(self):
+        first_session = self.login_token()
+        revoked = self.login_token()
+        self.assert_session_valid(first_session)
+        self.refresh(first_session)  # reuse revokes every session
+        self.assertEqual(self.reason_of(revoked), BlacklistReason.REVOKED)
+        fresh_session = self.login_token()
+
+        self.assert_rejected_and_cleared(self.refresh(revoked))
+
+        self.assert_session_valid(fresh_session)
+
+    def test_blacklisted_token_without_a_reason_counts_as_reuse(self):
+        legacy = self.login_token()
+        other_session = self.login_token()
+        RefreshToken(legacy).blacklist()
+
+        reused = self.refresh(legacy)
+
+        self.assert_rejected_and_cleared(reused)
+        self.assertEqual(reused.data["detail"], "Refresh token was already used.")
+        self.assertEqual(
+            self.refresh(other_session).status_code, status.HTTP_401_UNAUTHORIZED
+        )
+
+
+@override_settings(CORS_ALLOWED_ORIGINS=[FRONTEND_ORIGIN])
+class ConcurrentRefreshTokenTests(TransactionTestCase):
+    """Rotation locks the token row, so parallel requests cannot both rotate."""
+
+    def post_in_parallel(self, token, url_names):
+        """POST ``token`` as the cookie to every URL at once; return by name."""
+        barrier = threading.Barrier(len(url_names))
+        responses = {}
+
+        def worker(index, url_name):
+            client = APIClient()
+            client.cookies[REFRESH_COOKIE] = token
+            try:
+                barrier.wait()
+                responses[(index, url_name)] = client.post(
+                    reverse(url_name),
+                    format="json",
+                    HTTP_ORIGIN=FRONTEND_ORIGIN,
+                    HTTP_X_REQUESTED_WITH="quick-portal",
+                )
+            finally:
+                connection.close()
+
+        threads = [
+            threading.Thread(target=worker, args=item)
+            for item in enumerate(url_names)
+        ]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+        return responses
+
+    def usable_tokens(self, user):
+        return OutstandingToken.objects.filter(user=user, blacklistedtoken__isnull=True)
+
+    def test_concurrent_rotation_of_one_token_is_reuse(self):
+        user = User.objects.create_user(username="race", email="race@example.com")
+        token = str(RefreshToken.for_user(user))
+
+        responses = self.post_in_parallel(token, ["token_refresh", "token_refresh"])
+
+        self.assertEqual(
+            sorted(response.status_code for response in responses.values()),
+            [status.HTTP_200_OK, status.HTTP_401_UNAUTHORIZED],
+        )
+        self.assertFalse(self.usable_tokens(user).exists())
+
+    def test_concurrent_logout_and_rotation_never_leave_a_stale_token(self):
+        user = User.objects.create_user(username="race2", email="race2@example.com")
+        refresh = RefreshToken.for_user(user)
+        token = str(refresh)
+
+        responses = self.post_in_parallel(token, ["token_refresh", "token_logout"])
+
+        self.assertEqual(
+            responses[(1, "token_logout")].status_code, status.HTTP_204_NO_CONTENT
+        )
+        refreshed = responses[(0, "token_refresh")]
+        reason = BlacklistedTokenReason.objects.get(
+            token__token__jti=refresh["jti"]
+        ).reason
+        if refreshed.status_code == status.HTTP_200_OK:
+            # Rotation won the lock; logout kept the rotation reason, and only
+            # the rotated cookie is usable.
+            self.assertEqual(reason, BlacklistReason.ROTATED)
+            self.assertEqual(
+                list(self.usable_tokens(user).values_list("token", flat=True)),
+                [refreshed.cookies[REFRESH_COOKIE].value],
+            )
+        else:
+            # Logout won the lock; rotation is rejected without minting tokens.
+            self.assertEqual(refreshed.status_code, status.HTTP_401_UNAUTHORIZED)
+            self.assertEqual(reason, BlacklistReason.LOGGED_OUT)
+            self.assertEqual(OutstandingToken.objects.filter(user=user).count(), 1)
+
+    def start_post(self, token, url_name, data=None):
+        """POST ``data``, with ``token`` as the cookie, from a new thread.
+
+        Returns the thread's state: its database backend ``pid`` (set before
+        the request, then ``ready`` is set) and, once it finishes, ``response``.
+        """
+        state = {"ready": threading.Event()}
+
+        def worker():
+            client = APIClient()
+            if token is not None:
+                client.cookies[REFRESH_COOKIE] = token
+            try:
+                with connection.cursor() as cursor:
+                    cursor.execute("SELECT pg_backend_pid()")
+                    state["pid"] = cursor.fetchone()[0]
+                state["ready"].set()
+                state["response"] = client.post(
+                    reverse(url_name),
+                    data,
+                    format="json",
+                    HTTP_ORIGIN=FRONTEND_ORIGIN,
+                    HTTP_X_REQUESTED_WITH="quick-portal",
+                )
+            finally:
+                connection.close()
+
+        state["thread"] = threading.Thread(target=worker, daemon=True)
+        state["thread"].start()
+        return state
+
+    def wait_until_blocked_by(self, waiter, holder, timeout=10):
+        """Return whether ``waiter``'s query waits on a lock ``holder`` holds."""
+        thread = waiter["thread"]
+        polls = 0
+        while thread.is_alive() and polls < timeout / 0.02:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "SELECT %s = ANY(pg_blocking_pids(%s))",
+                    [holder["pid"], waiter["pid"]],
+                )
+                if cursor.fetchone()[0]:
+                    return True
+            thread.join(timeout=0.02)
+            polls += 1
+        return False
+
+    def test_revocation_waits_for_an_in_flight_rotation(self):
+        user = User.objects.create_user(username="race3", email="race3@example.com")
+        replayed = str(RefreshToken.for_user(user))
+        in_flight = rotate_refresh_token(replayed)["refresh"]
+        rotation_paused = threading.Event()
+        release_rotation = threading.Event()
+        original_validate = TokenRefreshSerializer.validate
+
+        def paused_validate(serializer, attrs):
+            data = original_validate(serializer, attrs)
+            # The successor token is inserted but not committed yet.
+            rotation_paused.set()
+            if not release_rotation.wait(timeout=30):
+                raise RuntimeError("the paused rotation was never released")
+            return data
+
+        with patch.object(TokenRefreshSerializer, "validate", paused_validate):
+            rotation = self.start_post(in_flight, "token_refresh")
+            reuse = None
+            try:
+                self.assertTrue(rotation_paused.wait(timeout=30))
+                reuse = self.start_post(replayed, "token_refresh")
+                self.assertTrue(reuse["ready"].wait(timeout=30))
+
+                # The reuse revocation waits on the paused rotation's lock...
+                self.assertTrue(self.wait_until_blocked_by(reuse, rotation))
+                reuse["thread"].join(timeout=0.2)
+                self.assertTrue(reuse["thread"].is_alive())
+            finally:
+                release_rotation.set()
+                rotation["thread"].join(timeout=30)
+                if reuse is not None:
+                    reuse["thread"].join(timeout=30)
+            self.assertFalse(rotation["thread"].is_alive())
+            self.assertFalse(reuse["thread"].is_alive())
+
+        rotated = rotation["response"]
+        self.assertEqual(rotated.status_code, status.HTTP_200_OK)
+        successor = rotated.cookies[REFRESH_COOKIE].value
+        reused = reuse["response"]
+        self.assertEqual(reused.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertEqual(reused.data["detail"], "Refresh token was already used.")
+        # ...so it also revokes the successor the rotation committed meanwhile.
+        self.assertEqual(OutstandingToken.objects.filter(user=user).count(), 3)
+        self.assertFalse(self.usable_tokens(user).exists())
+        self.assertEqual(
+            BlacklistedTokenReason.objects.get(token__token__token=successor).reason,
+            BlacklistReason.REVOKED,
+        )
+
+    def test_login_waits_for_an_in_flight_revocation(self):
+        password = "Race-pass-593!"
+        user = User.objects.create_user(
+            username="race4", email="race4@example.com", password=password
+        )
+        RefreshToken.for_user(user)
+        revocation = {"locked": threading.Event()}
+        release_revocation = threading.Event()
+
+        def revoke():
+            try:
+                with user_transaction(user.pk):
+                    with connection.cursor() as cursor:
+                        cursor.execute("SELECT pg_backend_pid()")
+                        revocation["pid"] = cursor.fetchone()[0]
+                    revocation["locked"].set()
+                    if not release_revocation.wait(timeout=30):
+                        raise RuntimeError("the paused revocation was never released")
+                    revoke_user_tokens(user.pk)
+            finally:
+                connection.close()
+
+        revocation["thread"] = threading.Thread(target=revoke, daemon=True)
+        revocation["thread"].start()
+        login = None
+        try:
+            self.assertTrue(revocation["locked"].wait(timeout=30))
+            login = self.start_post(
+                None,
+                "token_obtain_pair",
+                {"email": user.email, "password": password},
+            )
+            self.assertTrue(login["ready"].wait(timeout=30))
+
+            # The login authenticates, then waits on the revocation's user lock
+            # before creating its token...
+            self.assertTrue(self.wait_until_blocked_by(login, revocation))
+            self.assertEqual(OutstandingToken.objects.filter(user=user).count(), 1)
+        finally:
+            release_revocation.set()
+            revocation["thread"].join(timeout=30)
+            if login is not None:
+                login["thread"].join(timeout=30)
+        self.assertFalse(revocation["thread"].is_alive())
+        self.assertFalse(login["thread"].is_alive())
+
+        logged_in = login["response"]
+        self.assertEqual(logged_in.status_code, status.HTTP_200_OK)
+        # ...so it runs after the revocation committed: the old token is
+        # revoked and the login's token, created afterwards, stays usable.
+        self.assertEqual(
+            list(self.usable_tokens(user).values_list("token", flat=True)),
+            [logged_in.cookies[REFRESH_COOKIE].value],
+        )

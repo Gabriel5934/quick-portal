@@ -334,3 +334,32 @@ class RecurringFee(models.Model):
     def save(self, *args, **kwargs):
         self.full_clean()
         return super().save(*args, **kwargs)
+
+
+class BlacklistReason(models.TextChoices):
+    ROTATED = "ROTATED", "Rotated"
+    LOGGED_OUT = "LOGGED_OUT", "Logged out"
+    REVOKED = "REVOKED", "Revoked"
+
+
+class BlacklistedTokenReason(models.Model):
+    """Why a refresh token was blacklisted.
+
+    Only a token blacklisted by rotation counts as reuse when it is presented
+    again. The row is deleted with its blacklist entry, so
+    ``flushexpiredtokens`` cleans it up too.
+    """
+
+    token = models.OneToOneField(
+        "token_blacklist.BlacklistedToken",
+        on_delete=models.CASCADE,
+        primary_key=True,
+        related_name="reason",
+    )
+    reason = models.CharField(max_length=16, choices=BlacklistReason.choices)
+
+    class Meta:
+        db_table = "blacklisted_token_reason"
+
+    def __str__(self):
+        return f"{self.token_id} / {self.reason}"

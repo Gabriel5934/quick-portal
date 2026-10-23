@@ -1,4 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { firstError } from "#hooks/errors";
 import { useToken } from "#hooks/auth/useToken";
 import { useAuthQuery } from "#hooks/auth/useAuthQuery";
 import type { Business } from "./useBusinesses";
@@ -56,19 +57,10 @@ async function request<T>(
       ...init?.headers,
     },
   });
-  const data = (await response.json().catch(() => null)) as Record<
-    string,
-    unknown
-  > | null;
+  const data: unknown = await response.json().catch(() => null);
   if (!response.ok) {
-    const first = data ? Object.values(data)[0] : null;
-    const message: unknown = Array.isArray(first)
-      ? (first as unknown[])[0]
-      : first;
     throw new Error(
-      typeof message === "string"
-        ? message
-        : "Não foi possível concluir a operação.",
+      firstError(data) ?? "Não foi possível concluir a operação.",
     );
   }
   return data as T;

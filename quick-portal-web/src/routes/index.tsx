@@ -1,9 +1,11 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { LoginPage } from "../features/auth";
+import { ensureSession } from "#hooks/auth/session";
+import { SessionPending } from "../layout/session-pending";
 
 export const Route = createFileRoute("/")({
-  beforeLoad: ({ location }) => {
-    if (localStorage.getItem("token")) {
+  beforeLoad: async ({ context, location }) => {
+    if (await ensureSession(context.queryClient)) {
       throw redirect({
         to: "/sales",
         search: {
@@ -15,5 +17,6 @@ export const Route = createFileRoute("/")({
       });
     }
   },
+  pendingComponent: SessionPending,
   component: LoginPage,
 });

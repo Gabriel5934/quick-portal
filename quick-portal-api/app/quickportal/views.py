@@ -8,6 +8,7 @@ from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
 from rest_framework_simplejwt.views import TokenObtainPairView
 
 from quickportal.models import (
@@ -18,6 +19,7 @@ from quickportal.models import (
     BusinessType,
     RecurringFee,
 )
+from quickportal.permissions import TrustedAuthOrigin
 from quickportal.serializers import (
     BusinessReadSerializer,
     BusinessColorPreferenceSerializer,
@@ -29,6 +31,15 @@ from quickportal.serializers import (
     UserCreateSerializer,
 )
 from quickportal.services.brasil_api import BrasilApiError
+from quickportal.services.refresh_tokens import (
+    InvalidRefreshToken,
+    RefreshTokenReused,
+    blacklist_refresh_token,
+    clear_refresh_cookie,
+    get_refresh_cookie,
+    rotate_refresh_token,
+    set_refresh_cookie,
+)
 from quickportal.services.business_access import (
     accessible_businesses,
     get_accessible_business_or_404,
@@ -74,7 +85,72 @@ class UserRegistrationView(APIView):
 
 
 class EmailTokenObtainPairView(TokenObtainPairView):
+    """Log in: return the access token and set the refresh token cookie."""
+
     serializer_class = EmailTokenObtainPairSerializer
+    authentication_classes = []
+    permission_classes = [TrustedAuthOrigin]
+
+    def post(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        try:
+            serializer.is_valid(raise_exception=True)
+        except TokenError as exc:
+            raise InvalidToken(exc.args[0]) from exc
+
+        data = dict(serializer.validated_data)
+        refresh = data.pop("refresh")
+        response = Response(data, status=status.HTTP_200_OK)
+        set_refresh_cookie(response, refresh)
+        return response
+
+
+def _refresh_rejected_response(detail):
+    response = Response(
+        {"detail": detail, "code": "token_not_valid"},
+        status=status.HTTP_401_UNAUTHORIZED,
+    )
+    clear_refresh_cookie(response)
+    return response
+
+
+class CookieTokenRefreshView(APIView):
+    """Rotate the refresh cookie and return a new access token.
+
+    The refresh token is read from the cookie only; a body value is ignored.
+    """
+
+    authentication_classes = []
+    permission_classes = [TrustedAuthOrigin]
+
+    def post(self, request):
+        raw_token = get_refresh_cookie(request)
+        if not raw_token:
+            return _refresh_rejected_response("Refresh token cookie is missing.")
+
+        try:
+            data = rotate_refresh_token(raw_token)
+        except RefreshTokenReused:
+            return _refresh_rejected_response("Refresh token was already used.")
+        except InvalidRefreshToken:
+            return _refresh_rejected_response("Refresh token is invalid or expired.")
+
+        response = Response({"access": data["access"]}, status=status.HTTP_200_OK)
+        set_refresh_cookie(response, data["refresh"])
+        return response
+
+
+class CookieTokenLogoutView(APIView):
+    """Blacklist the refresh cookie and clear it. Always succeeds."""
+
+    authentication_classes = []
+    permission_classes = [AllowAny, TrustedAuthOrigin]
+
+    def post(self, request):
+        blacklist_refresh_token(get_refresh_cookie(request))
+        response = Response(status=status.HTTP_204_NO_CONTENT)
+        clear_refresh_cookie(response)
+        return response
 
 
 class BusinessPagination(PageNumberPagination):

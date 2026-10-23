@@ -5,6 +5,7 @@ import type {
 } from "#features/access/types";
 import { ApiError, useAuthQuery } from "#hooks/auth/useAuthQuery";
 import { useToken } from "#hooks/auth/useToken";
+import { firstError } from "#hooks/errors";
 
 /** A failed access request; `body` keeps the DRF field errors. */
 export class AccessRequestError extends ApiError {
@@ -15,17 +16,6 @@ export class AccessRequestError extends ApiError {
     this.name = "AccessRequestError";
     this.body = body;
   }
-}
-
-function firstErrorMessage(value: unknown): string | undefined {
-  if (typeof value === "string") return value;
-  if (value && typeof value === "object") {
-    for (const item of Object.values(value)) {
-      const message = firstErrorMessage(item);
-      if (message) return message;
-    }
-  }
-  return undefined;
 }
 
 async function accessRequest<T>(
@@ -49,7 +39,7 @@ async function accessRequest<T>(
   if (!response.ok) {
     throw new AccessRequestError(
       response.status,
-      firstErrorMessage(body) ?? fallbackMessage,
+      firstError(body) ?? fallbackMessage,
       body,
     );
   }

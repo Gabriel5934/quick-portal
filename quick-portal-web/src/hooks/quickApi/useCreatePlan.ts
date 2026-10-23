@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToken } from "#hooks/auth/useToken";
+import { firstError } from "#hooks/errors";
 import type { OwnPlanFee } from "./useOwnPlans";
 
 export interface CreatePlanPayload {
@@ -9,16 +10,6 @@ export interface CreatePlanPayload {
   activity: number;
   basketId: number;
   fees: OwnPlanFee[];
-}
-
-function firstError(body: unknown): string | null {
-  if (typeof body === "string") return body;
-  if (!body || typeof body !== "object") return null;
-  for (const value of Object.values(body)) {
-    const message = firstError(value);
-    if (message) return message;
-  }
-  return null;
 }
 
 async function createPlan(
