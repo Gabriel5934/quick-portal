@@ -29,7 +29,11 @@ from quickportal.models import (
     BusinessType,
     RecurringFee,
 )
-from quickportal.services.refresh_tokens import rotate_refresh_token
+from quickportal.services.refresh_tokens import (
+    revoke_user_tokens,
+    rotate_refresh_token,
+    user_transaction,
+)
 
 
 class RecurringFeeApiTests(APITestCase):
@@ -1055,17 +1059,18 @@ class ConcurrentRefreshTokenTests(TransactionTestCase):
             self.assertEqual(reason, BlacklistReason.LOGGED_OUT)
             self.assertEqual(OutstandingToken.objects.filter(user=user).count(), 1)
 
-    def start_post(self, token, url_name):
-        """POST ``token`` as the cookie from a new thread; return its state.
+    def start_post(self, token, url_name, data=None):
+        """POST ``data``, with ``token`` as the cookie, from a new thread.
 
-        The state holds the thread's database backend ``pid`` (set before the
-        request, then ``ready`` is set) and, once it finishes, ``response``.
+        Returns the thread's state: its database backend ``pid`` (set before
+        the request, then ``ready`` is set) and, once it finishes, ``response``.
         """
         state = {"ready": threading.Event()}
 
         def worker():
             client = APIClient()
-            client.cookies[REFRESH_COOKIE] = token
+            if token is not None:
+                client.cookies[REFRESH_COOKIE] = token
             try:
                 with connection.cursor() as cursor:
                     cursor.execute("SELECT pg_backend_pid()")
@@ -1073,6 +1078,7 @@ class ConcurrentRefreshTokenTests(TransactionTestCase):
                 state["ready"].set()
                 state["response"] = client.post(
                     reverse(url_name),
+                    data,
                     format="json",
                     HTTP_ORIGIN=FRONTEND_ORIGIN,
                     HTTP_X_REQUESTED_WITH="quick-portal",
@@ -1148,4 +1154,59 @@ class ConcurrentRefreshTokenTests(TransactionTestCase):
         self.assertEqual(
             BlacklistedTokenReason.objects.get(token__token__token=successor).reason,
             BlacklistReason.REVOKED,
+        )
+
+    def test_login_waits_for_an_in_flight_revocation(self):
+        password = "Race-pass-593!"
+        user = User.objects.create_user(
+            username="race4", email="race4@example.com", password=password
+        )
+        RefreshToken.for_user(user)
+        revocation = {"locked": threading.Event()}
+        release_revocation = threading.Event()
+
+        def revoke():
+            try:
+                with user_transaction(user.pk):
+                    with connection.cursor() as cursor:
+                        cursor.execute("SELECT pg_backend_pid()")
+                        revocation["pid"] = cursor.fetchone()[0]
+                    revocation["locked"].set()
+                    if not release_revocation.wait(timeout=30):
+                        raise RuntimeError("the paused revocation was never released")
+                    revoke_user_tokens(user.pk)
+            finally:
+                connection.close()
+
+        revocation["thread"] = threading.Thread(target=revoke, daemon=True)
+        revocation["thread"].start()
+        login = None
+        try:
+            self.assertTrue(revocation["locked"].wait(timeout=30))
+            login = self.start_post(
+                None,
+                "token_obtain_pair",
+                {"email": user.email, "password": password},
+            )
+            self.assertTrue(login["ready"].wait(timeout=30))
+
+            # The login authenticates, then waits on the revocation's user lock
+            # before creating its token...
+            self.assertTrue(self.wait_until_blocked_by(login, revocation))
+            self.assertEqual(OutstandingToken.objects.filter(user=user).count(), 1)
+        finally:
+            release_revocation.set()
+            revocation["thread"].join(timeout=30)
+            if login is not None:
+                login["thread"].join(timeout=30)
+        self.assertFalse(revocation["thread"].is_alive())
+        self.assertFalse(login["thread"].is_alive())
+
+        logged_in = login["response"]
+        self.assertEqual(logged_in.status_code, status.HTTP_200_OK)
+        # ...so it runs after the revocation committed: the old token is
+        # revoked and the login's token, created afterwards, stays usable.
+        self.assertEqual(
+            list(self.usable_tokens(user).values_list("token", flat=True)),
+            [logged_in.cookies[REFRESH_COOKIE].value],
         )

@@ -539,6 +539,40 @@ describe("login and logout race", () => {
     await expect(otherTabLogin()).resolves.toBeUndefined();
   });
 
+  it("shows the detail message of a rejected login", async () => {
+    installLocks();
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify({ detail: "Origin not allowed." }), {
+        status: 403,
+      }),
+    );
+    const { result } = renderLoginAndLogout(new QueryClient());
+
+    await act(() =>
+      expect(
+        result.current.login.mutateAsync({
+          email: "user@example.com",
+          password: "secret",
+        }),
+      ).rejects.toThrow(new Error("Origin not allowed.")),
+    );
+  });
+
+  it("shows a generic message when a failed login has no JSON body", async () => {
+    installLocks();
+    fetchMock.mockResolvedValue(new Response("Bad Gateway", { status: 502 }));
+    const { result } = renderLoginAndLogout(new QueryClient());
+
+    await act(() =>
+      expect(
+        result.current.login.mutateAsync({
+          email: "user@example.com",
+          password: "secret",
+        }),
+      ).rejects.toThrow(new Error("Erro ao entrar.")),
+    );
+  });
+
   it("skips the logout request when another tab logged in before the attempt", async () => {
     vi.useFakeTimers();
     installLocks();

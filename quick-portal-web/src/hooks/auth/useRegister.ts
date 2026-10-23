@@ -1,5 +1,5 @@
 import { useMutation } from "@tanstack/react-query";
-import type { ValidationErrors } from "#hooks/types";
+import { firstError } from "#hooks/errors";
 
 type RegisterRequest = {
   email: string;
@@ -30,9 +30,7 @@ async function fetchRegister(
     | null;
 
   if (!res.ok) {
-    const errors = data as ValidationErrors;
-    const keys = Object.keys(errors);
-    throw new Error(errors[keys[0]][0]);
+    throw new Error(firstError(data) ?? "Erro ao criar conta.");
   }
 
   const id = data?.id;

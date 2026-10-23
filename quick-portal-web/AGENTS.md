@@ -41,7 +41,7 @@ Tests use Vitest. Run `npm test` along with lint and build for relevant changes.
 
 **Hooks** in `src/hooks/` contain API mutation hooks. `src/hooks/types.ts` defines shared types (e.g., `ValidationErrors`).
 
-**Backend API error shape:** Errors are returned as `{ [field]: string[] }` (Django REST Framework validation errors). Hooks read `errors[keys[0]][0]` and throw as an `Error` message.
+**Backend API error shape:** Errors are returned as `{ [field]: string[] }` (Django REST Framework validation errors) or `{ detail: string }` (DRF permission and auth errors). Hooks pass the parsed body to `firstError` from `#hooks/errors`, which returns the first string in the body, and throw it as an `Error` message, falling back to a generic message when it returns `null`. Do not index `errors[keys[0]][0]` directly: it misreads `detail` responses and throws on non-JSON bodies.
 
 ## UI
 

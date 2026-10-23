@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { normalizeDocument } from "#features/business/document";
 import type { NewBusinessFormValues } from "#features/business/new-business/types";
-import type { ValidationErrors } from "#hooks/types";
+import { firstError } from "#hooks/errors";
 import { useToken } from "#hooks/auth/useToken";
 
 type CreateBusinessPayload = NewBusinessFormValues;
@@ -33,17 +33,11 @@ async function fetchCreateBusiness(
   );
 
   const data = (await res.json().catch(() => null)) as
-    | (Partial<CreateBusinessResponse> & ValidationErrors)
+    | Partial<CreateBusinessResponse>
     | null;
 
   if (!res.ok) {
-    const keys = Object.keys(data ?? {});
-    const errors = data as ValidationErrors;
-    throw new Error(
-      keys.length && errors[keys[0]]?.[0]
-        ? errors[keys[0]][0]
-        : "Erro ao criar cadastro.",
-    );
+    throw new Error(firstError(data) ?? "Erro ao criar cadastro.");
   }
 
   if (!data?.id) throw new Error("Resposta inválida do servidor.");

@@ -6,6 +6,7 @@ import type {
 } from "#features/cielo-plans/types";
 import { ApiError, useAuthQuery } from "#hooks/auth/useAuthQuery";
 import { useToken } from "#hooks/auth/useToken";
+import { firstError } from "#hooks/errors";
 
 /** A failed plan request; `body` keeps the DRF field errors. */
 export class CieloPlanRequestError extends ApiError {
@@ -16,17 +17,6 @@ export class CieloPlanRequestError extends ApiError {
     this.name = "CieloPlanRequestError";
     this.body = body;
   }
-}
-
-function firstErrorMessage(value: unknown): string | undefined {
-  if (typeof value === "string") return value;
-  if (value && typeof value === "object") {
-    for (const item of Object.values(value)) {
-      const message = firstErrorMessage(item);
-      if (message) return message;
-    }
-  }
-  return undefined;
 }
 
 async function planRequest<T>(
@@ -49,7 +39,7 @@ async function planRequest<T>(
   if (!response.ok) {
     throw new CieloPlanRequestError(
       response.status,
-      firstErrorMessage(body) ?? fallbackMessage,
+      firstError(body) ?? fallbackMessage,
       body,
     );
   }

@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { firstError } from "#hooks/errors";
 import { bumpSessionGeneration, setUserEmail } from "#hooks/storage";
-import type { ValidationErrors } from "#hooks/types";
 import { fetchWithTimeout } from "./fetchWithTimeout";
 import {
   ACCESS_TOKEN_QUERY_KEY,
@@ -59,9 +59,7 @@ async function requestLogin(payload: LoginRequest): Promise<LoginResponse> {
   );
 
   if (!res.ok) {
-    const errors = data as ValidationErrors;
-    const keys = Object.keys(errors);
-    throw new Error(errors[keys[0]][0]);
+    throw new Error(firstError(data) ?? "Erro ao entrar.");
   }
 
   // A successful response has set the new refresh cookie: tell every tab's

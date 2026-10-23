@@ -10,6 +10,7 @@ from quickportal.models import (
     BusinessType, DocumentType, RecurringFee,
 )
 from quickportal.services.brasil_api import fetch_cnpj_info
+from quickportal.services.refresh_tokens import user_transaction
 from quickportal.validators import validate_cnpj, validate_cpf
 
 
@@ -69,12 +70,14 @@ class EmailTokenObtainPairSerializer(TokenObtainPairSerializer):
         if not authenticated_user.is_active:
             raise serializers.ValidationError({"email": "This account is inactive."})
 
-        # Let SimpleJWT build the token pair from here
+        # Let SimpleJWT build the token pair from here, under the user lock so
+        # a concurrent revocation either sees the new token or runs after it.
         self.user = authenticated_user
         data = {}
-        refresh = self.get_token(authenticated_user)
-        data["refresh"] = str(refresh)
-        data["access"] = str(refresh.access_token)
+        with user_transaction(authenticated_user.pk):
+            refresh = self.get_token(authenticated_user)
+            data["refresh"] = str(refresh)
+            data["access"] = str(refresh.access_token)
         return data
 
 

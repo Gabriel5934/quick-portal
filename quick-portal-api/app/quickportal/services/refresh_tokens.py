@@ -7,9 +7,10 @@ after use. Each blacklist entry records why it was blacklisted
 rotation is treated as token theft and revokes every outstanding token of that
 user. A token blacklisted by logout or by that revocation is only rejected.
 
-Every path that changes a user's tokens runs inside ``_user_transaction``,
-which locks the user row before any token row, so those paths are serialized
-per user and always take their locks in the same order.
+Every path that changes a user's tokens (login, rotation, logout and
+revocation) runs inside ``_user_transaction``, which locks the user row before
+any token row, so those paths are serialized per user and always take their
+locks in the same order. Login uses it through the public ``user_transaction``.
 """
 
 from contextlib import contextmanager
@@ -87,13 +88,14 @@ def _user_transaction(user_id):
     only the presented token is not enough: a rotation inserts its successor
     token before it commits, and a concurrent revocation of the same user would
     not see that row and leave it usable. Holding the user lock serializes
-    rotation, logout and revocation per user, so a revocation only reads the
-    user's tokens after every in-flight rotation has committed or rolled back.
+    login, rotation, logout and revocation per user, so a revocation only reads
+    the user's tokens after every in-flight login or rotation has committed or
+    rolled back. Login authenticates before taking it: password hashing is slow.
 
     ``NO KEY UPDATE`` conflicts with itself but not with the ``KEY SHARE``
-    lock that foreign key checks take, so logins that insert tokens for the
-    user are not blocked. Nested use inside a transaction that already holds
-    the lock is a no-op. With ``user_id`` ``None`` only the transaction opens.
+    lock that foreign key checks take, so other writes that reference the user
+    are not blocked. Nested use inside a transaction that already holds the
+    lock is a no-op. With ``user_id`` ``None`` only the transaction opens.
     """
     with transaction.atomic():
         if user_id is not None:
@@ -104,6 +106,10 @@ def _user_transaction(user_id):
                 .values_list("pk", flat=True)
             )
         yield
+
+
+# For token-creating paths outside this module, such as login.
+user_transaction = _user_transaction
 
 
 def revoke_user_tokens(user_id):

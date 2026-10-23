@@ -8,6 +8,7 @@ import type {
 import { normalizeDocument } from "#features/business/document";
 import { useAuthQuery } from "#hooks/auth/useAuthQuery";
 import { useToken } from "#hooks/auth/useToken";
+import { firstError } from "#hooks/errors";
 
 function authHeaders(token: string) {
   return {
@@ -16,29 +17,12 @@ function authHeaders(token: string) {
   };
 }
 
-function firstErrorMessage(value: unknown): string | undefined {
-  if (typeof value === "string") return value;
-  if (Array.isArray(value)) {
-    for (const item of value) {
-      const message = firstErrorMessage(item);
-      if (message) return message;
-    }
-  }
-  if (value && typeof value === "object") {
-    for (const item of Object.values(value)) {
-      const message = firstErrorMessage(item);
-      if (message) return message;
-    }
-  }
-  return undefined;
-}
-
 async function responseError(
   response: Response,
   fallback: string,
 ): Promise<Error> {
   const body: unknown = await response.json().catch(() => null);
-  return new Error(firstErrorMessage(body) ?? fallback);
+  return new Error(firstError(body) ?? fallback);
 }
 
 export function cieloRequestData(
