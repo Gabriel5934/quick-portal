@@ -12,6 +12,7 @@ from django.test import TestCase, TransactionTestCase, override_settings
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APIClient, APITestCase
+from rest_framework_simplejwt.serializers import TokenRefreshSerializer
 from rest_framework_simplejwt.token_blacklist.models import (
     BlacklistedToken,
     OutstandingToken,
@@ -28,6 +29,7 @@ from quickportal.models import (
     BusinessType,
     RecurringFee,
 )
+from quickportal.services.refresh_tokens import rotate_refresh_token
 
 
 class RecurringFeeApiTests(APITestCase):
@@ -1052,3 +1054,98 @@ class ConcurrentRefreshTokenTests(TransactionTestCase):
             self.assertEqual(refreshed.status_code, status.HTTP_401_UNAUTHORIZED)
             self.assertEqual(reason, BlacklistReason.LOGGED_OUT)
             self.assertEqual(OutstandingToken.objects.filter(user=user).count(), 1)
+
+    def start_post(self, token, url_name):
+        """POST ``token`` as the cookie from a new thread; return its state.
+
+        The state holds the thread's database backend ``pid`` (set before the
+        request, then ``ready`` is set) and, once it finishes, ``response``.
+        """
+        state = {"ready": threading.Event()}
+
+        def worker():
+            client = APIClient()
+            client.cookies[REFRESH_COOKIE] = token
+            try:
+                with connection.cursor() as cursor:
+                    cursor.execute("SELECT pg_backend_pid()")
+                    state["pid"] = cursor.fetchone()[0]
+                state["ready"].set()
+                state["response"] = client.post(
+                    reverse(url_name),
+                    format="json",
+                    HTTP_ORIGIN=FRONTEND_ORIGIN,
+                    HTTP_X_REQUESTED_WITH="quick-portal",
+                )
+            finally:
+                connection.close()
+
+        state["thread"] = threading.Thread(target=worker, daemon=True)
+        state["thread"].start()
+        return state
+
+    def wait_until_blocked_by(self, waiter, holder, timeout=10):
+        """Return whether ``waiter``'s query waits on a lock ``holder`` holds."""
+        thread = waiter["thread"]
+        polls = 0
+        while thread.is_alive() and polls < timeout / 0.02:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "SELECT %s = ANY(pg_blocking_pids(%s))",
+                    [holder["pid"], waiter["pid"]],
+                )
+                if cursor.fetchone()[0]:
+                    return True
+            thread.join(timeout=0.02)
+            polls += 1
+        return False
+
+    def test_revocation_waits_for_an_in_flight_rotation(self):
+        user = User.objects.create_user(username="race3", email="race3@example.com")
+        replayed = str(RefreshToken.for_user(user))
+        in_flight = rotate_refresh_token(replayed)["refresh"]
+        rotation_paused = threading.Event()
+        release_rotation = threading.Event()
+        original_validate = TokenRefreshSerializer.validate
+
+        def paused_validate(serializer, attrs):
+            data = original_validate(serializer, attrs)
+            # The successor token is inserted but not committed yet.
+            rotation_paused.set()
+            if not release_rotation.wait(timeout=30):
+                raise RuntimeError("the paused rotation was never released")
+            return data
+
+        with patch.object(TokenRefreshSerializer, "validate", paused_validate):
+            rotation = self.start_post(in_flight, "token_refresh")
+            reuse = None
+            try:
+                self.assertTrue(rotation_paused.wait(timeout=30))
+                reuse = self.start_post(replayed, "token_refresh")
+                self.assertTrue(reuse["ready"].wait(timeout=30))
+
+                # The reuse revocation waits on the paused rotation's lock...
+                self.assertTrue(self.wait_until_blocked_by(reuse, rotation))
+                reuse["thread"].join(timeout=0.2)
+                self.assertTrue(reuse["thread"].is_alive())
+            finally:
+                release_rotation.set()
+                rotation["thread"].join(timeout=30)
+                if reuse is not None:
+                    reuse["thread"].join(timeout=30)
+            self.assertFalse(rotation["thread"].is_alive())
+            self.assertFalse(reuse["thread"].is_alive())
+
+        rotated = rotation["response"]
+        self.assertEqual(rotated.status_code, status.HTTP_200_OK)
+        successor = rotated.cookies[REFRESH_COOKIE].value
+        reused = reuse["response"]
+        self.assertEqual(reused.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertEqual(reused.data["detail"], "Refresh token was already used.")
+        # ...so it also revokes the successor the rotation committed meanwhile.
+        self.assertEqual(OutstandingToken.objects.filter(user=user).count(), 3)
+        self.assertFalse(self.usable_tokens(user).exists())
+        self.assertEqual(
+            BlacklistedTokenReason.objects.get(token__token__token=successor).reason,
+            BlacklistReason.REVOKED,
+        )

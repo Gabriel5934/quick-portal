@@ -6,9 +6,16 @@ after use. Each blacklist entry records why it was blacklisted
 (``BlacklistedTokenReason``). Presenting a token that was blacklisted by
 rotation is treated as token theft and revokes every outstanding token of that
 user. A token blacklisted by logout or by that revocation is only rejected.
+
+Every path that changes a user's tokens runs inside ``_user_transaction``,
+which locks the user row before any token row, so those paths are serialized
+per user and always take their locks in the same order.
 """
 
+from contextlib import contextmanager
+
 from django.conf import settings
+from django.contrib.auth import get_user_model
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
 from rest_framework.exceptions import AuthenticationFailed, ValidationError
@@ -72,30 +79,58 @@ def _record_reason(blacklisted, reason):
     )
 
 
+@contextmanager
+def _user_transaction(user_id):
+    """Open a transaction that holds the row lock of ``user_id``'s user.
+
+    Lock order: the user row first, then ``OutstandingToken`` rows. Locking
+    only the presented token is not enough: a rotation inserts its successor
+    token before it commits, and a concurrent revocation of the same user would
+    not see that row and leave it usable. Holding the user lock serializes
+    rotation, logout and revocation per user, so a revocation only reads the
+    user's tokens after every in-flight rotation has committed or rolled back.
+
+    ``NO KEY UPDATE`` conflicts with itself but not with the ``KEY SHARE``
+    lock that foreign key checks take, so logins that insert tokens for the
+    user are not blocked. Nested use inside a transaction that already holds
+    the lock is a no-op. With ``user_id`` ``None`` only the transaction opens.
+    """
+    with transaction.atomic():
+        if user_id is not None:
+            list(
+                get_user_model()
+                .objects.select_for_update(no_key=True)
+                .filter(pk=user_id)
+                .values_list("pk", flat=True)
+            )
+        yield
+
+
 def revoke_user_tokens(user_id):
     """Blacklist every outstanding token of ``user_id`` as revoked."""
-    pending_ids = list(
-        OutstandingToken.objects.filter(
-            user_id=user_id, blacklistedtoken__isnull=True
-        ).values_list("id", flat=True)
-    )
-    if not pending_ids:
-        return
-    BlacklistedToken.objects.bulk_create(
-        [BlacklistedToken(token_id=token_id) for token_id in pending_ids],
-        ignore_conflicts=True,
-    )
-    # bulk_create with ignore_conflicts does not return primary keys.
-    unexplained = BlacklistedToken.objects.filter(
-        token_id__in=pending_ids, reason__isnull=True
-    )
-    BlacklistedTokenReason.objects.bulk_create(
-        [
-            BlacklistedTokenReason(token=entry, reason=BlacklistReason.REVOKED)
-            for entry in unexplained
-        ],
-        ignore_conflicts=True,
-    )
+    with _user_transaction(user_id):
+        pending_ids = list(
+            OutstandingToken.objects.filter(
+                user_id=user_id, blacklistedtoken__isnull=True
+            ).values_list("id", flat=True)
+        )
+        if not pending_ids:
+            return
+        BlacklistedToken.objects.bulk_create(
+            [BlacklistedToken(token_id=token_id) for token_id in pending_ids],
+            ignore_conflicts=True,
+        )
+        # bulk_create with ignore_conflicts does not return primary keys.
+        unexplained = BlacklistedToken.objects.filter(
+            token_id__in=pending_ids, reason__isnull=True
+        )
+        BlacklistedTokenReason.objects.bulk_create(
+            [
+                BlacklistedTokenReason(token=entry, reason=BlacklistReason.REVOKED)
+                for entry in unexplained
+            ],
+            ignore_conflicts=True,
+        )
 
 
 def _blacklist_reason(jti):
@@ -139,9 +174,11 @@ def _verified_refresh_payload(raw_token):
 def rotate_refresh_token(raw_token):
     """Return ``{"access", "refresh"}`` for a valid refresh token.
 
-    The token row is locked while it is checked and blacklisted, so two
-    concurrent requests with the same token cannot both rotate it: the second
-    one sees the token blacklisted by rotation and is treated as reuse.
+    The user row and then the token row are locked while the token is checked
+    and blacklisted, so two concurrent requests with the same token cannot both
+    rotate it (the second one sees the token blacklisted by rotation and is
+    treated as reuse), and a revocation waits for an in-flight rotation of the
+    same user to commit, so it also blacklists the successor token.
 
     Raises ``RefreshTokenReused`` (after revoking every token of the user) when
     the token was already rotated, and ``InvalidRefreshToken`` for any other
@@ -154,7 +191,7 @@ def rotate_refresh_token(raw_token):
     jti = payload[api_settings.JTI_CLAIM]
     user_id = payload.get(api_settings.USER_ID_CLAIM)
 
-    with transaction.atomic():
+    with _user_transaction(user_id):
         _lock_outstanding(jti)
         reason = _blacklist_reason(jti)
         # A missing reason is treated as reuse so that unknown entries fail
@@ -201,7 +238,7 @@ def blacklist_refresh_token(raw_token):
         return
     jti = payload[api_settings.JTI_CLAIM]
 
-    with transaction.atomic():
+    with _user_transaction(payload.get(api_settings.USER_ID_CLAIM)):
         _lock_outstanding(jti)
         if _blacklist_reason(jti) is not None:
             return

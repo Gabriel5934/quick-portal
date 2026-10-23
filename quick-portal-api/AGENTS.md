@@ -96,6 +96,8 @@ This is a Django 5 + DRF API backend for "Quick Portal" — a portal that integr
   (`BlacklistedTokenReason`: rotated, logged out or revoked). Reusing a
   rotated refresh token revokes all of the user's tokens; a logged-out or
   revoked token only gets a 401. `/api/token/logout/` blacklists and clears it.
+  Locks are always taken user row first, then token rows: every path that
+  changes a user's tokens must go through `_user_transaction`.
 - Run `python manage.py flushexpiredtokens` periodically to delete expired
   outstanding and blacklisted tokens.
 
