@@ -1,9 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  bumpSessionGeneration,
-  clearPendingLogout,
-  setUserEmail,
-} from "#hooks/storage";
+import { bumpSessionGeneration, setUserEmail } from "#hooks/storage";
 import type { ValidationErrors } from "#hooks/types";
 import { fetchWithTimeout } from "./fetchWithTimeout";
 import {
@@ -71,10 +67,6 @@ async function requestLogin(payload: LoginRequest): Promise<LoginResponse> {
   // A successful response has set the new refresh cookie: tell every tab's
   // pending logout, before the lock is released, not to send it.
   bumpSessionGeneration();
-  // The cookie a pending logout targeted is gone, so a later load must not
-  // resend that logout and blacklist the new cookie. In-flight logouts
-  // already skip their request because of the generation bump.
-  clearPendingLogout();
 
   const access = data?.access;
 

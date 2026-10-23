@@ -98,9 +98,7 @@ This is a Django 5 + DRF API backend for "Quick Portal" — a portal that integr
   revoked token only gets a 401. `/api/token/logout/` blacklists and clears it.
   Blacklisting happens only on a logout request that reaches the API: a logout
   that never does (offline, timed out) leaves the refresh cookie valid until it
-  expires. This is an accepted gap. The frontend's `pendingLogout` flag only
-  stops the app's own restore of that session (it resends the logout on the
-  next load); it does not invalidate the cookie.
+  expires. This is an accepted gap.
   Locks are always taken user row first, then token rows: every path that
   changes a user's tokens must go through `_user_transaction`.
 - Run `python manage.py flushexpiredtokens` periodically to delete expired

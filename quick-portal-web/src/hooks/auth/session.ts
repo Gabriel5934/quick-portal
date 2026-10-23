@@ -1,18 +1,7 @@
-import {
-  MutationObserver,
-  mutationOptions,
-  queryOptions,
-  type QueryClient,
-} from "@tanstack/react-query";
+import { queryOptions, type QueryClient } from "@tanstack/react-query";
 import { redirect } from "@tanstack/react-router";
-import {
-  clearPendingLogout,
-  clearUserEmail,
-  getPendingLogout,
-  getSessionGeneration,
-} from "#hooks/storage";
+import { clearUserEmail } from "#hooks/storage";
 import { ApiError } from "#hooks/types";
-import { fetchWithTimeout } from "./fetchWithTimeout";
 
 /** Query key of the in-memory access token. `null` means "no session". */
 export const ACCESS_TOKEN_QUERY_KEY = ["access_token"] as const;
@@ -161,135 +150,6 @@ export function listenForLogout(queryClient: QueryClient): () => void {
   return () => channel.removeEventListener("message", onMessage);
 }
 
-/** Retries after the first attempt, so up to 4 logout requests in total. */
-export const LOGOUT_RETRIES = 3;
-
-/**
- * An attempt that gets no answer in this time is aborted and retried. Each
- * attempt holds the refresh lock, so this also bounds how long a stuck logout
- * can delay a login or refresh in any tab.
- */
-export const LOGOUT_TIMEOUT_MS = 10_000;
-
-export type LogoutVariables = {
-  /** Session generation read when the logout started. */
-  initialSessionGeneration: number;
-};
-
-async function requestLogout(): Promise<void> {
-  // Blacklists the refresh cookie and clears it. `keepalive` lets the request
-  // finish after logout navigates away or the tab closes. No body is read, so
-  // the timer is cleared as soon as the response arrives.
-  const res = await fetchWithTimeout(
-    `${import.meta.env.VITE_API_BASE_URL}/api/token/logout/`,
-    {
-      method: "POST",
-      credentials: "include",
-      headers: AUTH_REQUEST_HEADERS,
-      keepalive: true,
-    },
-    LOGOUT_TIMEOUT_MS,
-  );
-  // Throwing makes the mutation retry: while the cookie is not blacklisted,
-  // a reload can restore the session from it.
-  if (!res.ok) throw new ApiError(res.status, "Failed to log out.");
-}
-
-/**
- * The logout request mutation, shared by `useLogout` and by the boot path
- * that resumes a pending logout (`ensureSession`).
- */
-export function logoutMutationOptions(queryClient: QueryClient) {
-  return mutationOptions({
-    // Every attempt waits for a login or refresh in flight in any tab, so the
-    // request carries the latest refresh cookie and no rotation can set a new
-    // one afterwards. `requestLogout` does not take the lock again.
-    mutationFn: ({ initialSessionGeneration }: LogoutVariables) =>
-      withRefreshLock(async () => {
-        // A login in any tab since this logout started has replaced the
-        // refresh cookie, and this attempt would blacklist the new one. The
-        // skipped attempt resolves, so it is not retried, and the logout is
-        // over: the login already removed its pending flag, and only a flag
-        // stored at this logout's generation is removed here.
-        if (getSessionGeneration() !== initialSessionGeneration) {
-          clearPendingLogout(initialSessionGeneration);
-          return;
-        }
-        // Same check for this tab only, kept for when localStorage is
-        // unavailable and the generation cannot change.
-        if (queryClient.getQueryData(ACCESS_TOKEN_QUERY_KEY)) return;
-        await requestLogout();
-        // Only a 2xx gets here: the cookie is blacklisted and cleared.
-        clearPendingLogout(initialSessionGeneration);
-      }),
-    retry: LOGOUT_RETRIES,
-    retryDelay: 0,
-    // Mutation-level callback: it still runs after the layout that owns
-    // `useLogout` unmounts. The local session is already gone and is not
-    // restored. If every attempt fails (for example offline for the whole
-    // retry window), the refresh cookie survives on the server until it
-    // expires; the pending logout flag stays set, so the next load sends the
-    // logout again instead of restoring the session.
-    onError(error) {
-      console.error("Logout request failed after retries.", error);
-    },
-  });
-}
-
-/** Query clients (one per app load) with a resumed logout in flight. */
-const resumingLogout = new WeakSet<QueryClient>();
-
-/**
- * Sends a logout that a previous load started but never completed, in the
- * background. It runs the same mutation as `useLogout` (lock, timeout,
- * retries and generation check) with the generation the flag captured, so a
- * login in any tab since then cancels it.
- */
-function resumePendingLogout(
-  queryClient: QueryClient,
-  initialSessionGeneration: number,
-): void {
-  if (resumingLogout.has(queryClient)) return;
-  resumingLogout.add(queryClient);
-  new MutationObserver(queryClient, logoutMutationOptions(queryClient))
-    .mutate({ initialSessionGeneration })
-    // A final failure is already logged by the mutation's `onError`.
-    .catch(() => undefined)
-    .finally(() => resumingLogout.delete(queryClient));
-}
-
-/**
- * Handles a pending logout before the boot refresh. Returns `true` when the
- * boot must not refresh: the session for this load is "no session" and the
- * logout request is resent in the background.
- *
- * Not a security control: it only stops this app from restoring a session
- * that a failed logout left behind. The cookie itself stays valid until a
- * logout reaches the API, and anyone who can clear localStorage or call the
- * refresh endpoint can still use it.
- */
-function handlePendingLogout(queryClient: QueryClient): boolean {
-  const state = queryClient.getQueryState<AccessToken>(ACCESS_TOKEN_QUERY_KEY);
-  // Only when the next call would start a refresh: a stored token or
-  // "no session", or a refresh already in flight, are left to the cache.
-  if (state?.data !== undefined || state?.fetchStatus === "fetching") {
-    return false;
-  }
-  const pendingGeneration = getPendingLogout();
-  if (pendingGeneration === null) return false;
-  if (pendingGeneration !== getSessionGeneration()) {
-    // A login since that logout replaced the cookie it targeted (and should
-    // have removed the flag): the flag is stale and the boot refresh runs.
-    clearPendingLogout(pendingGeneration);
-    return false;
-  }
-  // "No session" is stored like a 401 from the boot refresh would be, so the
-  // guards redirect to login and later calls do not refresh either.
-  queryClient.setQueryData<AccessToken>(ACCESS_TOKEN_QUERY_KEY, null);
-  resumePendingLogout(queryClient, pendingGeneration);
-  return true;
-}
-
 export function accessTokenQueryOptions(queryClient: QueryClient) {
   return queryOptions({
     queryKey: ACCESS_TOKEN_QUERY_KEY,
@@ -303,15 +163,10 @@ export function accessTokenQueryOptions(queryClient: QueryClient) {
  * Resolves the current access token, running the boot refresh the first time
  * it is called. Later calls reuse the cached result (including "no session")
  * until login, logout or a refresh replaces it.
- *
- * With a pending logout flag (a logout whose request never succeeded), it
- * does not refresh: it resolves to "no session" right away and resends the
- * logout in the background.
  */
 export async function ensureSession(
   queryClient: QueryClient,
 ): Promise<AccessToken> {
-  if (handlePendingLogout(queryClient)) return null;
   try {
     return await queryClient.ensureQueryData(
       accessTokenQueryOptions(queryClient),

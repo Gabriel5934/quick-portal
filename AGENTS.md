@@ -75,14 +75,7 @@ Important conventions:
   cache under `["access_token"]`); it is never written to `localStorage`. The
   rotating refresh token lives in an HttpOnly, Secure, `SameSite=None` cookie
   scoped to `/api/token/`, and the app restores the session on load with
-  `POST /api/token/refresh/`. The only `localStorage` keys are the user email,
-  the session generation (`sessionGeneration`) and the pending logout flag
-  (`pendingLogout`); none holds a secret. The flag is set when a logout starts
-  and removed on a 2xx logout response or a login; while it is set, the app
-  load resends the logout instead of restoring the session. It is a UX and
-  consistency measure, not a security control: the refresh cookie stays valid
-  until a logout reaches the API, and anyone who can clear `localStorage` or
-  call the refresh endpoint can still use it.
+  `POST /api/token/refresh/`. Only the user email is kept in `localStorage`.
   Login, refresh, and logout require an allowed `Origin` and the
   `X-Requested-With: quick-portal` header, and must use `credentials: "include"`.
 

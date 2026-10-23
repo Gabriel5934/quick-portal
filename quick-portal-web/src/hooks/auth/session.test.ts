@@ -1,13 +1,7 @@
 import { QueryClient } from "@tanstack/react-query";
 import { isRedirect } from "@tanstack/react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  bumpSessionGeneration,
-  clearPendingLogout,
-  getPendingLogout,
-  getSessionGeneration,
-  setPendingLogout,
-} from "#hooks/storage";
+import { bumpSessionGeneration, getSessionGeneration } from "#hooks/storage";
 import { installLocks } from "../../test/web-locks";
 import {
   ACCESS_TOKEN_QUERY_KEY,
@@ -267,103 +261,6 @@ describe("session", () => {
       clearSessionState(newQueryClient());
       expect(localStorage.getItem("userEmail")).toBeNull();
       expect(getSessionGeneration()).toBe(1);
-    });
-  });
-
-  describe("pending logout flag", () => {
-    it("stores, reads and removes the captured generation", () => {
-      expect(getPendingLogout()).toBeNull();
-      setPendingLogout(4);
-      expect(localStorage.getItem("pendingLogout")).toBe("4");
-      expect(getPendingLogout()).toBe(4);
-      clearPendingLogout();
-      expect(getPendingLogout()).toBeNull();
-    });
-
-    it("reads a missing or invalid value as no pending logout", () => {
-      for (const invalid of ["abc", "-1", "1.5", "Infinity", "", " 1"]) {
-        localStorage.setItem("pendingLogout", invalid);
-        expect(getPendingLogout()).toBeNull();
-      }
-    });
-
-    it("removes only a flag stored at the given generation", () => {
-      setPendingLogout(2);
-      clearPendingLogout(1);
-      expect(getPendingLogout()).toBe(2);
-      clearPendingLogout(2);
-      expect(getPendingLogout()).toBeNull();
-    });
-
-    it("is not cleared with the rest of the session state", () => {
-      setPendingLogout(0);
-      clearSessionState(newQueryClient());
-      expect(getPendingLogout()).toBe(0);
-    });
-
-    it("reads no pending logout and does not throw when storage is unavailable", () => {
-      localStorage.setItem("pendingLogout", "0");
-      const spies = (["getItem", "setItem", "removeItem"] as const).map(
-        (method) =>
-          vi.spyOn(Storage.prototype, method).mockImplementation(() => {
-            throw new DOMException("denied", "SecurityError");
-          }),
-      );
-      try {
-        expect(getPendingLogout()).toBeNull();
-        expect(() => setPendingLogout(1)).not.toThrow();
-        expect(() => clearPendingLogout()).not.toThrow();
-        expect(() => clearPendingLogout(0)).not.toThrow();
-      } finally {
-        for (const spy of spies) spy.mockRestore();
-      }
-    });
-
-    it("runs the normal boot refresh when the flag cannot be read", async () => {
-      localStorage.setItem("pendingLogout", "0");
-      fetchMock.mockResolvedValue(jsonResponse(200, { access: "boot-access" }));
-      const getItem = vi
-        .spyOn(Storage.prototype, "getItem")
-        .mockImplementation(() => {
-          throw new DOMException("denied", "SecurityError");
-        });
-      const queryClient = newQueryClient();
-      try {
-        await expect(ensureSession(queryClient)).resolves.toBe("boot-access");
-      } finally {
-        getItem.mockRestore();
-      }
-      expect(fetchMock).toHaveBeenCalledTimes(1);
-      expect(fetchMock.mock.calls[0][0] as string).toMatch(
-        /\/api\/token\/refresh\/$/,
-      );
-    });
-
-    it("ignores and removes a flag left before a later login, then refreshes", async () => {
-      // The flag's logout started at generation 0, and a login has bumped it
-      // since, so that logout's cookie was already replaced.
-      localStorage.setItem("pendingLogout", "0");
-      localStorage.setItem("sessionGeneration", "1");
-      fetchMock.mockResolvedValue(jsonResponse(200, { access: "boot-access" }));
-
-      await expect(ensureSession(newQueryClient())).resolves.toBe(
-        "boot-access",
-      );
-      expect(fetchMock).toHaveBeenCalledTimes(1);
-      expect(fetchMock.mock.calls[0][0] as string).toMatch(
-        /\/api\/token\/refresh\/$/,
-      );
-      expect(getPendingLogout()).toBeNull();
-    });
-
-    it("leaves a stored token or no session to the cache", async () => {
-      setPendingLogout(0);
-      const queryClient = newQueryClient();
-      queryClient.setQueryData(ACCESS_TOKEN_QUERY_KEY, "login-access");
-
-      await expect(ensureSession(queryClient)).resolves.toBe("login-access");
-      expect(fetchMock).not.toHaveBeenCalled();
-      expect(getPendingLogout()).toBe(0);
     });
   });
 
