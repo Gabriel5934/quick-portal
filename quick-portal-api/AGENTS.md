@@ -115,3 +115,10 @@ This is a Django 5 + DRF API backend for "Quick Portal" — a portal that integr
 - OWN API credentials come from environment variables (OWN_CLIENT_ID, OWN_CLIENT_SECRET, OWN_SCOPE)
 - OWN endpoints are protected with `IsAuthenticated` (require valid JWT)
 - `owndocs/` contains reference documentation for OWN's API (not application code)
+
+Never manually create or modify migrations. Always start by modifying the model and then letting Django auto-generate the migrations
+
+```
+# Run from the Git root against the integrated stack
+docker compose exec -T web python manage.py makemigrations
+```

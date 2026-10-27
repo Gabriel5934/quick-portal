@@ -23,6 +23,14 @@ export default defineConfig({
         ],
       },
       {
+        text: "Beacon",
+        link: "/beacon/",
+        items: [
+          { text: "Notifications", link: "/beacon/notifications" },
+          { text: "Cielo Banks", link: "/beacon/cielo-banks" },
+        ],
+      },
+      {
         text: "OWN",
         link: "/own/",
         items: [

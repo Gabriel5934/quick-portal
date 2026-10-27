@@ -1,8 +1,13 @@
 # Cielo
 
-Integrações com a Cielo.
+Cielo Split API documentation. Sourced from: https://docs.cielo.com.br/split/docs/visao-geral-split. Rewritten for our use case.
 
-- [Seller Onboarding](./seller-onboarding.md)
-- [Onboarding Status](./onboarding-status.md)
-- [Plans](./plans.md)
-- [Transactions](./transactions.md)
+## Endpoints
+
+- [Auth Token](./auth-token.md)
+- [Transaction Lookup](./transaction-lookup.md)
+- [Split](./split.md)
+
+## Other
+
+- [Notifications](./notifications.md)
