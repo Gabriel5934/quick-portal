@@ -19,6 +19,8 @@ Notifications types are identified through `ChangeType`:
 
 A malformed notification from Cielo should never fail. At the very least an entry where only the `body` field has a value is created. Because of that notifications with unhandled change types or none at all are stored raw in `cielo_notification_unhandled`. Notification that fail to parse any other fields are still stored in their respective models.
 
+The body field uses SQLAlchemy's JSON which internally executes `json.dumps()`. Every value accepted by this type is stored in the body field. If it fails (which should be rare since this method is very permissive) error 500 is thrown.
+
 Any other issue, such as an exception raised due to a full disk, should return error code 500 internal server error.
 
 ## Headers
@@ -29,6 +31,10 @@ To compare the header with the configured token `compare_digest` making the comp
 ## Retries
 
 If a notification fails to get a successful response from Beacon, Cielo will retry three more times with a 30 minute interval between each retry. If for some reason a successful notification is retried it should be saved as an ordinary notification in its own row. There is no distinction between first try and retries.
+
+## Responses
+
+As mentioned, we try to write anything that comes in the notification to the database. If that succeds we send a 200 OK reponse. Otherwise, if an exception is raised we send 500 internal server error.
 
 ## Model Mapping
 

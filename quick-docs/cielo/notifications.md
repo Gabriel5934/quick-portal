@@ -1,6 +1,6 @@
 # Cielo Notifications
 
-Cielo will send notification to a configured URL via webhooks. The configured URL must utilize HTTPS and use the standard HTTP port (443). The URL must be static and have a limit of 255 characters.
+Cielo will send notification to a configured URL via webhooks. The configured URL must utilize HTTPS and use the standard HTTPS port (443). The URL must be static and have a limit of 255 characters.
 
 You can configure up to three key-value pairs that will be used as headers by the notification post.
 
