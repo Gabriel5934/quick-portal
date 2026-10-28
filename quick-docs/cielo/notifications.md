@@ -126,34 +126,39 @@ The onboarding status notification represent the global status of the seller onb
 }
 ```
 
-| Key                              | Type           | Length | Options             |
-| -------------------------------- | -------------- | ------ | ------------------- |
-| ChangeType                       | Number         | 2      |                     |
-| MasterMerchantId                 | GUID           | 36     |                     |
-| Data.MerchantId                  | GUID           | 36     |                     |
-| Data.MerchantType                | String         | 14     | Subordinate, Master |
-| Data.BankAccountValidationStatus | Number         | 1      |                     |
-| Data.CompeCode                   | Numeric String | 3      |                     |
-| Data.BankAccountType             | String         | 1      |                     |
-| Data.AccountNumber               | Numeric string | 10     |                     |
-| Data.AccountDigit                | Numeric string | 1      |                     |
-| Data.AgencyNumber                | Numeric string | 15     |                     |
-| Data.AgencyDigit                 | String         | 1      | Digit or "x"        |
-| Data.DocumentNumber              | Numeric string | 14     |                     |
-| Data.DocumentType                | String         | -      | CPF, CNPJ           |
+| Key                  | Type           | Length | Options             |
+| -------------------- | -------------- | ------ | ------------------- |
+| ChangeType           | Number         | 2      |                     |
+| MasterMerchantId     | GUID           | 36     |                     |
+| Data.MerchantId      | GUID           | 36     |                     |
+| Data.MerchantType    | String         | 14     | Subordinate, Master |
+| Data.Status          | Number         | 1      |                     |
+| Data.CompeCode       | Numeric String | 3      |                     |
+| Data.BankAccountType | Number         | 1      |                     |
+| Data.AccountNumber   | Numeric string | 10     |                     |
+| Data.AccountDigit    | Numeric string | 1      |                     |
+| Data.AgencyNumber    | Numeric string | 15     |                     |
+| Data.AgencyDigit     | String         | 1      | Digit or "x"        |
+| Data.DocumentNumber  | Numeric string | 14     |                     |
+| Data.DocumentType    | Number         | 1      |                     |
 
 | Data.BankAccountType | Description     |
 | -------------------- | --------------- |
 | 1                    | CheckingAccount |
 | 2                    | SavingsAccount  |
 
-| Data.BankAccountValidationStatus | Description   |
-| -------------------------------- | ------------- |
-| 0                                | InternalError |
-| 1                                | Created       |
-| 2                                | Processing    |
-| 3                                | Success       |
-| 4                                | Error         |
+| Data.Status | Description   |
+| ----------- | ------------- |
+| 0           | InternalError |
+| 1           | Created       |
+| 2           | Processing    |
+| 3           | Success       |
+| 4           | Error         |
+
+| Data.DocumentType | Description |
+| ----------------- | ----------- |
+| 1                 | CPF         |
+| 2                 | CNPJ        |
 
 | Data.CompeCode | Bank Name                                      |
 | -------------- | ---------------------------------------------- |

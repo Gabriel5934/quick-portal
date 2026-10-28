@@ -1,0 +1,21 @@
+# Local development. Included by the root docker-compose.yml (`make dev`).
+# Beacon is served at http://localhost:8090/cielo/notifications.
+services:
+  beacon:
+    build: .
+    restart: unless-stopped
+    env_file:
+      # Optional so the root stack still starts without beacon/.env; with no
+      # CIELO_WEBHOOK_TOKEN every notification is rejected with 401.
+      - path: .env
+        required: false
+    # Single process; --reload restarts it when ./app or ./alembic change.
+    command: >
+      sh -c "alembic upgrade head &&
+             exec uvicorn app.main:create_app --factory --host 0.0.0.0 --port 8000 --reload"
+    ports:
+      - "8090:8000"
+    volumes:
+      - ./data:/app/data
+      - ./app:/app/app
+      - ./alembic:/app/alembic

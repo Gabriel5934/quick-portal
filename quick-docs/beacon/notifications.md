@@ -45,12 +45,12 @@ See [Cielo Banks](./cielo-banks.md)
 | SUBORDINATE         | Subordinate |
 | MASTER              | Master      |
 
+### IntEnums
+
 | cielo_document_type | Label |
 | ------------------- | ----- |
-| CPF                 | CPF   |
-| CNPJ                | CNPJ  |
-
-### IntEnums
+| 1                   | CPF   |
+| 2                   | CNPJ  |
 
 | cielo_bank_account_type | Label           |
 | ----------------------- | --------------- |
@@ -143,20 +143,20 @@ See [Cielo Banks](./cielo-banks.md)
 
 **cielo_notification_onboarding_bank_account_validation**
 
-| JSON Key                         | Model Field        | Type                                            | Notes            |
-| -------------------------------- | ------------------ | ----------------------------------------------- | ---------------- |
-| ChangeType                       | change_type        | cielo_onboarding_change_type                    |                  |
-| MasterMerchantId                 | master_merchant_id | Uuid                                            |                  |
-| Data.MerchantId                  | merchant_id        | Uuid                                            |                  |
-| Data.MerchantType                | merchant_type      | cielo_merchant_type                             |                  |
-| Data.BankAccountValidationStatus | status             | cielo_onboarding_bank_account_validation_status |                  |
-| Data.CompeCode                   | bank_code          | cielo_bank                                      |                  |
-| Data.BankAccountType             | bank_account_type  | cielo_bank_account_type                         |                  |
-| Data.AccountNumber               | account_number     | String                                          | Length 15        |
-| Data.AccountDigit                | account_digit      | String                                          | Length 5         |
-| Data.AgencyNumber                | agency_number      | String                                          | Length 15        |
-| Data.AgencyDigit                 | agency_digit       | String                                          | Length 5         |
-| Data.DocumentNumber              | document_number    | String                                          | Length 15        |
-| Data.DocumentType                | document_type      | cielo_document_type                             |                  |
-| -                                | body               | LargeBinary                                     | Raw request body |
-| -                                | received_at        | DateTime                                        | timezone=True    |
+| JSON Key             | Model Field        | Type                                            | Notes            |
+| -------------------- | ------------------ | ----------------------------------------------- | ---------------- |
+| ChangeType           | change_type        | cielo_onboarding_change_type                    |                  |
+| MasterMerchantId     | master_merchant_id | Uuid                                            |                  |
+| Data.MerchantId      | merchant_id        | Uuid                                            |                  |
+| Data.MerchantType    | merchant_type      | cielo_merchant_type                             |                  |
+| Data.Status          | status             | cielo_onboarding_bank_account_validation_status |                  |
+| Data.CompeCode       | bank_code          | cielo_bank                                      |                  |
+| Data.BankAccountType | bank_account_type  | cielo_bank_account_type                         |                  |
+| Data.AccountNumber   | account_number     | String                                          | Length 15        |
+| Data.AccountDigit    | account_digit      | String                                          | Length 5         |
+| Data.AgencyNumber    | agency_number      | String                                          | Length 15        |
+| Data.AgencyDigit     | agency_digit       | String                                          | Length 5         |
+| Data.DocumentNumber  | document_number    | String                                          | Length 15        |
+| Data.DocumentType    | document_type      | cielo_document_type                             |                  |
+| -                    | body               | LargeBinary                                     | Raw request body |
+| -                    | received_at        | DateTime                                        | timezone=True    |
