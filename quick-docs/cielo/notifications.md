@@ -6,7 +6,7 @@ You can configure up to three key-value pairs that will be used as headers by th
 
 Notifications are sent every 30 minutes, if it fails 3 new attempts are made. Cielo expects a 200 OK response.
 
-There are two categories of notifications: onboarding and transaction. Theres only one type of transaction notification while theres three onboarding notification types: Global, KYC and bank account.
+There are two categories of notifications: onboarding and transaction. There are three onboarding notification types (Global, KYC and bank account) and ony one transaction notification type
 
 ## Onboarding
 
@@ -281,17 +281,17 @@ The onboarding status notification represent the global status of the seller onb
 | ChangeType                    | Number | 1-2    |
 | RecurrentPaymentId (Optional) | GUID   | 36     |
 
-| ChangeType | Description                             |
-| ---------- | --------------------------------------- |
-| 1          | Change in transaction status            |
-| 2          | Recurrence Created                      |
-| 3          | Change in the anti-fraud status         |
-| 4          | Change in the recurring payment status  |
-| 5          | Cancelling / refund denied              |
-| 6          | Payed less then the actual boleto value |
-| 7          | Chargeback (legacy)                     |
-| 8          | Fraud alert                             |
-| 25         | Cancelled or refunded partially         |
+| ChangeType | Description                            |
+| ---------- | -------------------------------------- |
+| 1          | Change in transaction status           |
+| 2          | Recurrence Created                     |
+| 3          | Change in the anti-fraud status        |
+| 4          | Change in the recurring payment status |
+| 5          | Cancelling / refund denied             |
+| 6          | Paid less then the actual boleto value |
+| 7          | Chargeback (legacy)                    |
+| 8          | Fraud alert                            |
+| 25         | Cancelled or refunded partially        |
 
 ## Source
 
