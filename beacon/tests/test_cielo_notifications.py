@@ -435,6 +435,34 @@ def test_bank_account_fields_that_fail_to_parse_are_null(
         assert getattr(row, field) is None, field
 
 
+def test_string_with_lone_surrogate_is_null(app: FastAPI, client: TestClient) -> None:
+    # Valid JSON, but the decoded str cannot be encoded as UTF-8 for storage.
+    body = (
+        b'{"ChangeType": 21, "Data": {"MerchantId": "' + MERCHANT_ID.encode() + b'", '
+        b'"AccountNumber": "\\ud800", "AgencyNumber": "3581"}}'
+    )
+
+    assert post(client, body).status_code == 200
+    row = only_row(app, CieloNotificationOnboardingBankAccountValidation)
+    assert row.body == body
+    assert row.account_number is None
+    assert row.agency_number == "3581"
+    assert row.merchant_id == uuid.UUID(MERCHANT_ID)
+
+
+def test_integer_string_over_the_digit_limit_is_null(
+    app: FastAPI, client: TestClient
+) -> None:
+    # Longer than Python's default int/str conversion limit (4300 digits).
+    row = bank_account_validation_row(
+        app, client, {"MerchantId": MERCHANT_ID, "Status": "1" * 5000}
+    )
+
+    assert row.status is None
+    assert row.master_merchant_id == uuid.UUID(MASTER_ID)
+    assert row.merchant_id == uuid.UUID(MERCHANT_ID)
+
+
 @pytest.mark.parametrize("data", [None, "oops", [1, 2], {}])
 def test_onboarding_with_missing_or_invalid_data_is_stored(
     app: FastAPI, client: TestClient, data: Any

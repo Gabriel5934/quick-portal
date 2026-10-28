@@ -52,7 +52,11 @@ def _int(value: Any) -> int | None:
     if isinstance(value, int):
         return value
     if isinstance(value, str) and value.isascii() and value.isdigit():
-        return int(value)
+        try:
+            return int(value)
+        except ValueError:
+            # Longer than Python's int/str conversion digit limit.
+            return None
     return None
 
 
@@ -86,9 +90,17 @@ def _uuid(value: Any) -> uuid.UUID | None:
 
 
 def _string(value: Any, max_length: int) -> str | None:
-    if isinstance(value, str) and len(value) <= max_length:
-        return value
-    return None
+    """Strings up to ``max_length`` that can be stored as UTF-8.
+
+    JSON escapes can decode to lone surrogates, which the database rejects.
+    """
+    if not isinstance(value, str) or len(value) > max_length:
+        return None
+    try:
+        value.encode("utf-8")
+    except UnicodeEncodeError:
+        return None
+    return value
 
 
 def _transaction(
