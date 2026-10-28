@@ -1,12 +1,10 @@
 # Payment Split
 
-Payment Split divides the value of a transaction between multiple parties. At the moment of the sale:
+Payment Split divides the value of a transaction between multiple parties. After a payment is approved and receiving a `PaymentID` through a transaction notification you can request the transaction split. The master seller has until 1:00 am the day after the transaction to make the request.
 
-- The value of the transaction is automatically divided between the parties;
+- The value of the transaction is then divided between the parties;
 - The division follows custom rules;
 - Each party receives its part in their own bank account.
-
-After receiving a `PaymentID` through a transaction notification you can request the transaction split. The master seller has until 1:00 am the day after the transaction to make the request.
 
 ## URLs
 

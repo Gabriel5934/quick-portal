@@ -4,9 +4,7 @@ Cielo will send notification to a configured URL via webhooks. The configured UR
 
 You can configure up to three key-value pairs that will be used as headers by the notification post.
 
-Notifications are sent every 30 minutes, if it fails 3 new attempts are made. Cielo expects a 200 OK response.
-
-There are two categories of notifications: onboarding and transaction. There are three onboarding notification types (Global, KYC and bank account) and ony one transaction notification type
+There are two categories of notifications: onboarding and transaction. Onboarding notifications can have three different change types (Global, KYC and bank account validation) and transaction notifications can have nine different change types.
 
 ## Onboarding
 
@@ -269,6 +267,8 @@ The onboarding status notification represent the global status of the seller onb
 | 757            | BCO KEB HANA DO BRASIL S.A.                    |
 
 ## Transaction
+
+Transaction notifications are sent every 30 minutes, if it fails 3 new attempts are made. Cielo expects a 200 OK response.
 
 **Example Notification**
 

@@ -34,6 +34,7 @@ If a notification fails to get a successful response from Beacon, Cielo will ret
 
 Below is a description of how the notification JSON body fields are mapped to their model's fields. Check Cielo notification docs for clarification about type, length and choices for each field.
 As mentioned, malformed notification from Cielo should never fail. For that reason all fields except `body` are optional.
+All three different onboarding notification change types have their own model. While all transaction notifications are stored in the same model no matter the change type since they always hold the same schema.
 
 ### Enums
 
