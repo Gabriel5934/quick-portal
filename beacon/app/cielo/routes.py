@@ -52,10 +52,24 @@ async def receive_cielo_notification(request: Request) -> Response:
         logger.exception("Failed to parse Cielo notification; storing it unhandled")
         notification = CieloNotificationUnhandled(body=body)
 
+    session_factory = request.app.state.session_factory
     try:
-        await run_in_threadpool(
-            store_notification, request.app.state.session_factory, notification
-        )
+        try:
+            await run_in_threadpool(store_notification, session_factory, notification)
+        except Exception:
+            if isinstance(notification, CieloNotificationUnhandled):
+                raise  # already the fallback; nothing else to try
+            logger.exception(
+                "Failed to store %s (ChangeType=%r, PaymentId=%s); storing unhandled",
+                type(notification).__name__,
+                getattr(notification, "change_type", None),
+                getattr(notification, "payment_id", None),
+            )
+            await run_in_threadpool(
+                store_notification,
+                session_factory,
+                CieloNotificationUnhandled(body=body),
+            )
     except Exception:
         logger.exception("Failed to store Cielo notification")
         return JSONResponse(

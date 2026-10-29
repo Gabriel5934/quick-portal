@@ -15,16 +15,10 @@ Notifications types are identified through `ChangeType`:
 - 21: Onboarding Bank Account Validation
 - 23: Onboarding Global
 
-## Malformed notification and responses
+## Headers
 
-A notification that has an unexpected body shouldn't fail and should at least have the raw body stored. Because of that notifications with unhandled change types or none at all are stored raw in `cielo_notification_unhandled. Notification that fail to parse any other fields are still stored in their respective models.
-
-As mentioned on the docs, Cielo allows for up to three headers to be configured. To make sure we only accept notifications from Cielo we expect a header with key `X-Cielo-Webhook-Token` that matches the value for env var `CIELO_WEBHOOK_TOKEN`. Any notification request that fails to match that token is rejected and it is not stored.
-To compare the header with the configured token `compare_digest` making the comparison constant-time.
-
-If we succeed in saving the request bytes 200 ok is returned to Cielo. Any other issue, such as an exception raised due to a full disk, should return error code 500 internal server error.
-
-If the webhook token is missing or incorrect return a 401 unauthorized error.
+Cielo allows for up to three headers to be configured. To make sure we only accept notifications from Cielo we expect a header with key `X-Cielo-Webhook-Token` that matches the value for env var `CIELO_WEBHOOK_TOKEN`. Any notification request that fails to match that token is rejected and it is not stored.
+To compare the header with the configured token `compare_digest` making the comparison constant-time. If the webhook token is missing or incorrect 401 unauthorized is raised.
 
 ## Retries
 
@@ -32,9 +26,15 @@ If a notification fails to get a successful response from Beacon, Cielo will ret
 
 ## Model Mapping
 
-Below is a description of how the notification JSON body fields are mapped to their model's fields. Check Cielo notification docs for clarification about type, length and choices for each field.
-As mentioned, malformed notification from Cielo should never fail. For that reason all fields except `body` are optional.
+Below is a description of how the notification JSON body fields are mapped to their model's fields.
+
 All three different onboarding notification change types have their own model. While all transaction notifications are stored in the same model no matter the change type since they always hold the same schema.
+
+### Malformed notifications
+
+A notification with a valid and mapped `ChangeType` is parsed as its respective model, otherwise it is parsed as the unhandled notification model.
+
+If saving the parsed notification fails, save the raw body to cielo_notification_unhandled and return 200. If that save also fails (for example, a full disk) it throws 500.
 
 ### Enums
 

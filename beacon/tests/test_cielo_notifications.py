@@ -505,13 +505,52 @@ def test_identical_notifications_are_stored_as_separate_rows(
     assert all(row.body == body for row in stored)
 
 
-def test_storage_failure_returns_500(app: FastAPI, client: TestClient) -> None:
+def fail_inserts_into(app: FastAPI, *models: type[CieloNotification]) -> None:
+    """Makes every insert into ``models``' tables fail inside the database."""
     with app.state.session_factory() as session, session.begin():
-        session.execute(text("DROP TABLE cielo_notification_transaction"))
+        for model in models:
+            table = model.__tablename__
+            session.execute(
+                text(
+                    f"CREATE TRIGGER fail_{table} BEFORE INSERT ON {table} "
+                    "BEGIN SELECT RAISE(ABORT, 'database or disk is full'); END"
+                )
+            )
+
+
+def test_typed_storage_failure_falls_back_to_unhandled(
+    app: FastAPI, client: TestClient
+) -> None:
+    fail_inserts_into(app, CieloNotificationTransaction)
+    body = encode({"PaymentId": PAYMENT_ID, "ChangeType": 1})
+
+    response = post(client, body)
+
+    assert response.status_code == 200
+    row = only_row(app, CieloNotificationUnhandled)
+    assert row.body == body
+
+
+def test_fallback_storage_failure_returns_500_and_stores_nothing(
+    app: FastAPI, client: TestClient
+) -> None:
+    fail_inserts_into(app, CieloNotificationTransaction, CieloNotificationUnhandled)
 
     response = post(client, encode({"PaymentId": PAYMENT_ID, "ChangeType": 1}))
 
     assert response.status_code == 500
+    assert all(count == 0 for count in row_counts(app).values())
+
+
+def test_unhandled_storage_failure_returns_500_and_stores_nothing(
+    app: FastAPI, client: TestClient
+) -> None:
+    fail_inserts_into(app, CieloNotificationUnhandled)
+
+    response = post(client, encode({"ChangeType": 99}))
+
+    assert response.status_code == 500
+    assert all(count == 0 for count in row_counts(app).values())
 
 
 def test_commit_failure_returns_500_and_stores_nothing(
