@@ -34,7 +34,7 @@ All three different onboarding notification change types have their own model. W
 
 A notification with a valid and mapped `ChangeType` is parsed as its respective model, otherwise it is parsed as the unhandled notification model.
 
-If saving the parsed notification fails, save the raw body to cielo_notification_unhandled and return 200. If that save also fails (for example, a full disk) it throws 500.
+If saving a typed notification fails, save the raw body to cielo_notification_unhandled and return 200. If saving the unhandled notification fails, return 500 so Cielo can retry.
 
 ### Enums
 
