@@ -14,6 +14,6 @@ The plan form uses baskets 117 (Bandeira) and 333 (Parcela). It submits one `{ "
 
 ## Activities
 
-OWN provides a list that relates CNAES to MCCs trough the `/consultarAtividades` endpoint. The raw response of this endpoint is saved
+OWN provides a list that relates CNAES to MCCs through the `/consultarAtividades` endpoint. The raw response of this endpoint is saved
 as a json file under /app named "load_consultar_atividades" and a management command called "load_own_activities" is used to seed
 the own activities table.

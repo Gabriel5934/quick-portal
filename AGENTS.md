@@ -5,6 +5,7 @@ This directory is the Git root of the Quick Portal monorepo:
 - `quick-portal-web/` — React/TypeScript frontend.
 - `quick-portal-api/` — Django REST Framework backend.
 - `quick-docs/` — shared VitePress documentation.
+- `beacon/` - notification service
 
 Read and follow the nearest `AGENTS.md` before changing application files.
 Child instructions take precedence for application-specific work.
@@ -17,7 +18,6 @@ Child instructions take precedence for application-specific work.
 - Run frontend npm commands from `quick-portal-web/`. Run integrated Docker
   Compose commands from this Git root.
 - Keep frontend and backend dependencies, builds, and deployments independent.
-- Never stage `.monorepo-backup/`, local environments, or credentials.
 - Check the root `git status` before finishing.
 
 ## Integrated Docker Compose project
@@ -40,76 +40,6 @@ root `quick-portal` services are stopped. If a sandboxed Docker command reports
 permission denied for the Docker socket, request elevated Docker access and
 retry before concluding that services are unavailable. Do not print container
 environment variables or credentials during diagnostics.
-
-## Frontend: `quick-portal-web/`
-
-**Stack:** React 19, TypeScript, Vite, Material UI, TanStack Router, TanStack
-Query, React Hook Form, and Zod.
-
-```bash
-cd quick-portal-web
-npm run dev       # Vite development server on localhost:5173
-npm run build     # TypeScript check and production build
-npm run lint      # ESLint
-npm run preview   # Preview the production build
-
-# Standalone frontend Compose project only
-docker compose up --build
-docker compose -f docker-compose.dev.yml up
-docker compose up --build --force-recreate
-```
-
-Frontend tests use Vitest (`npm test`). Run tests, build, and lint for relevant
-frontend changes.
-
-Important conventions:
-
-- Routes live in `src/routes/`; authenticated routes are nested under
-  `src/routes/_authRoutes/`.
-- Never edit `src/routeTree.gen.ts` manually; TanStack Router generates it.
-- Domain code belongs in `src/features/<domain>/`, with an `index.ts` barrel.
-- API mutations belong in `src/hooks/`.
-- Use Material UI components and its default breakpoints: `xs` for phones,
-  `sm`/`md` for tablets, and `lg`/`xl` for desktops.
-- Authentication keeps the JWT access token in memory only (the TanStack Query
-  cache under `["access_token"]`); it is never written to `localStorage`. The
-  rotating refresh token lives in an HttpOnly, Secure, `SameSite=None` cookie
-  scoped to `/api/token/`, and the app restores the session on load with
-  `POST /api/token/refresh/`. Only the user email is kept in `localStorage`.
-  Login, refresh, and logout require an allowed `Origin` and the
-  `X-Requested-With: quick-portal` header, and must use `credentials: "include"`.
-
-## Backend: `quick-portal-api/`
-
-**Stack:** Django 5, Django REST Framework, SimpleJWT, PostgreSQL 16, nginx, and
-Docker Compose.
-
-The commands below target the standalone backend Compose project. For the
-running integrated stack, use the root commands above.
-
-```bash
-cd quick-portal-api
-cp .env.example .env.dev
-docker compose up --build
-docker compose exec web python manage.py migrate
-docker compose exec web python manage.py test quickportal
-docker compose exec web ruff check
-docker compose exec web python manage.py createsuperuser
-```
-
-`manage.py` is at `app/manage.py`; in Docker, `./app` is mounted at `/app`.
-
-Important conventions:
-
-- `app/config/` contains project settings, root URLs, and the health endpoint.
-- `app/quickportal/` contains registration, email-based JWT authentication, and
-  OWN Financial integration.
-- Keep OWN integration logic in `app/quickportal/services/`.
-- OWN credentials must come from environment variables; never commit secrets.
-- OWN endpoints require authenticated JWT users.
-- Treat `owndocs/` as reference documentation, not application code.
-- For production, use strong Django and PostgreSQL secrets, set `DEBUG=0`, and
-  configure `ALLOWED_HOSTS`. Use `USE_HTTPS=0` only for HTTP-only QA. The refresh cookie is always `Secure`, so over plain HTTP it works only on localhost; other QA hosts need HTTPS.
 
 ## Full-stack integration
 
@@ -200,19 +130,10 @@ Business can have three types: store, reseller and re-reseller. To understand ho
 **Hierarchy**
 Businesses can belong to one another, this is determined by `parent`. Only business of types reseller and re-reseller are allowed to have child businesses. A re-reseller business is the only business thats required to have a parent. A re-reseller can only be parent to store type businesses while resellers can be parents to any type.
 
-Users are related to businesses trough the `BusinessMembership` model. Access is direct only: a user can access a business only through a membership on that business itself, never through its parent. New businesses are always stores without a parent, and any authenticated user can create one; the creator becomes its admin.
+Users are related to businesses through the `BusinessMembership` model. Access is direct only: a user can access a business only through a membership on that business itself, never through its parent. New businesses are always stores without a parent, and any authenticated user can create one; the creator becomes its admin.
 
 Plans (OWN and Cielo), recurring fees, and OWN/Cielo signups belong to the business itself: a business signs up with its own plans and its recurring fees apply to itself. Any business type, stores included, can have them, and only admins of the business can create or change them.
 
 ## Fee
 
 The fee model is supposed to be a data source and not created by end users. It represents the different fees for different forms of payment across different card networks. Negative installments have a special meaning: -1 for pix and -2 for the acquirer's anticipation fee.
-
-## Migrations
-
-Never manually create or modify migrations. Always start by modifying the model and then letting Django auto-generate the migrations
-
-```
-# Run from the Git root against the integrated stack
-docker compose exec -T web python manage.py makemigrations
-```

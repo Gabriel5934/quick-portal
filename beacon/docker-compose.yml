@@ -1,0 +1,42 @@
+# Build environments (sandbox and production): Beacon behind Caddy, which
+# serves API_HOST over HTTPS on port 443 and redirects HTTP to HTTPS.
+# Requires beacon/.env (see .env.example).
+services:
+  beacon:
+    build: .
+    restart: unless-stopped
+    env_file:
+      # Optional file, but CIELO_WEBHOOK_TOKEN below is required: compose
+      # (including `docker compose config`) fails when it is missing or empty
+      # in both the shell and beacon/.env. Caddy refuses to start without
+      # API_HOST.
+      - path: .env
+        required: false
+    environment:
+      CIELO_WEBHOOK_TOKEN: ${CIELO_WEBHOOK_TOKEN:?CIELO_WEBHOOK_TOKEN must be set in beacon/.env}
+    # The image's CMD runs migrations, then uvicorn with exactly one worker.
+    expose:
+      - "8000"
+    volumes:
+      - ./data:/app/data
+
+  caddy:
+    image: caddy:2.11.7-alpine
+    restart: unless-stopped
+    depends_on:
+      - beacon
+    environment:
+      API_HOST: ${API_HOST}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  # Certificates and ACME account; must persist across restarts.
+  caddy_data:
+  caddy_config:

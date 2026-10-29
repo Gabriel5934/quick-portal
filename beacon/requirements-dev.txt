@@ -1,0 +1,5 @@
+# Test and lint dependencies (pinned), on top of the runtime ones.
+-r requirements.txt
+httpx==0.28.1
+pytest==9.2.0
+ruff==0.17.3

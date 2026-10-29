@@ -81,9 +81,7 @@ Track the local submission status with these three text choices:
   requires intervention by Quick and is not eligible for user retry.
 
 The submission status only records Quick's submission to Cielo. Cielo's
-onboarding notifications and the KYC, bank-account, and onboarding statuses
-they carry are covered by the onboarding status feature in
-`quick-docs/cielo/prompts/onboarding-status.md`. They never change the
+onboarding notifications and the KYC, bank-account. They never change the
 submission status.
 
 ## Retry cooldown

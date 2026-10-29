@@ -1,0 +1,5 @@
+# Runtime dependencies (pinned). Installed by the Dockerfile.
+alembic==1.20.1
+fastapi==0.162.0
+sqlalchemy==2.1.6
+uvicorn==0.54.0
