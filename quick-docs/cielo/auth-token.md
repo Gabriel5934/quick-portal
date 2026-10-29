@@ -13,14 +13,14 @@ Use this endpoint to obtain an access token. In prod env this token expires afte
 
 ```bash
 curl --request POST \
-     --url https://authsandbox.braspag.com.br/oauth2/token \
-     --header 'Content-Type: application/x-www-form-urlencoded' \
-     --header 'accept: application/json' \
-     --data-urlencode grant_type=client_credentials
+  --url https://authsandbox.braspag.com.br/oauth2/token \
+  --header 'Authorization: Basic <base64(MerchantId:ClientSecret)>' \
+  --header 'Content-Type: application/x-www-form-urlencoded' \
+  --header 'accept: application/json' \
+  --data-urlencode 'grant_type=client_credentials'
 ```
 
-To build `client_credentials` concatenate `MerchantId` and `ClientSecret` as `MerchantId:ClientSecret` and convert to base64.
-It should then be encoded and attached to the request body using the `--data-urlencode` flag.
+Merchant id and client secret values should be concatenated with a colon, converted to base64 and included in the Authorization header.
 
 ## Responses
 
