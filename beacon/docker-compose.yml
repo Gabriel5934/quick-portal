@@ -6,11 +6,14 @@ services:
     build: .
     restart: unless-stopped
     env_file:
-      # Not marked required so `docker compose config` works without secrets.
-      # Without CIELO_WEBHOOK_TOKEN every notification is rejected with 401,
-      # and Caddy refuses to start without API_HOST.
+      # Optional file, but CIELO_WEBHOOK_TOKEN below is required: compose
+      # (including `docker compose config`) fails when it is missing or empty
+      # in both the shell and beacon/.env. Caddy refuses to start without
+      # API_HOST.
       - path: .env
         required: false
+    environment:
+      CIELO_WEBHOOK_TOKEN: ${CIELO_WEBHOOK_TOKEN:?CIELO_WEBHOOK_TOKEN must be set in beacon/.env}
     # The image's CMD runs migrations, then uvicorn with exactly one worker.
     expose:
       - "8000"

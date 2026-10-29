@@ -33,6 +33,22 @@ def require_cielo_webhook_token(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
 
 
+async def read_body_within_limit(request: Request, max_bytes: int) -> bytes:
+    """Reads the body, raising 413 as soon as it exceeds ``max_bytes``."""
+    content_length = request.headers.get("content-length", "")
+    if content_length.isdigit() and int(content_length) > max_bytes:
+        raise HTTPException(status_code=status.HTTP_413_CONTENT_TOO_LARGE)
+
+    chunks: list[bytes] = []
+    size = 0
+    async for chunk in request.stream():
+        size += len(chunk)
+        if size > max_bytes:
+            raise HTTPException(status_code=status.HTTP_413_CONTENT_TOO_LARGE)
+        chunks.append(chunk)
+    return b"".join(chunks)
+
+
 def store_notification(
     session_factory: sessionmaker[Session], notification: CieloNotification
 ) -> None:
@@ -44,7 +60,9 @@ def store_notification(
     "/notifications", dependencies=[Depends(require_cielo_webhook_token)]
 )
 async def receive_cielo_notification(request: Request) -> Response:
-    body = await request.body()
+    body = await read_body_within_limit(
+        request, request.app.state.settings.max_request_body_bytes
+    )
     try:
         notification = parse_notification(body)
     except Exception:

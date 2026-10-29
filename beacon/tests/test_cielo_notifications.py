@@ -1,5 +1,6 @@
 import json
 import uuid
+from dataclasses import replace
 from typing import Any
 
 import pytest
@@ -118,6 +119,73 @@ def test_only_post_is_exposed(client: TestClient) -> None:
     assert client.get(URL, headers={HEADER: TOKEN}).status_code == 405
     for path in ("/docs", "/redoc", "/openapi.json"):
         assert client.get(path).status_code == 404
+
+
+# --- Body size limit ---------------------------------------------------------
+
+BODY_LIMIT = 128
+
+
+@pytest.fixture
+def limited_app(app: FastAPI) -> FastAPI:
+    app.state.settings = replace(app.state.settings, max_request_body_bytes=BODY_LIMIT)
+    return app
+
+
+def padded_transaction(size: int) -> bytes:
+    """A valid transaction notification padded with whitespace to ``size`` bytes."""
+    body = encode({"PaymentId": PAYMENT_ID, "ChangeType": 1})
+    assert len(body) <= size
+    return body + b" " * (size - len(body))
+
+
+@pytest.mark.parametrize("chunked", [False, True])
+def test_body_over_the_limit_is_rejected_and_not_stored(
+    limited_app: FastAPI, client: TestClient, chunked: bool
+) -> None:
+    body = padded_transaction(BODY_LIMIT + 1)
+    # A generator is sent chunked, without Content-Length, so only the
+    # streamed byte count can catch it.
+    content = (body[i : i + 16] for i in range(0, len(body), 16)) if chunked else body
+
+    response = client.post(
+        URL,
+        content=content,
+        headers={HEADER: TOKEN, "Content-Type": "application/json"},
+    )
+
+    assert response.status_code == 413
+    assert all(count == 0 for count in row_counts(limited_app).values())
+
+
+def test_body_exactly_at_the_limit_is_stored(
+    limited_app: FastAPI, client: TestClient
+) -> None:
+    body = padded_transaction(BODY_LIMIT)
+
+    assert post(client, body).status_code == 200
+    row = only_row(limited_app, CieloNotificationTransaction)
+    assert row.body == body
+    assert row.payment_id == uuid.UUID(PAYMENT_ID)
+
+
+def test_content_length_over_the_limit_is_rejected_before_reading(
+    limited_app: FastAPI, client: TestClient
+) -> None:
+    body = padded_transaction(BODY_LIMIT)
+
+    response = client.post(
+        URL,
+        content=body,
+        headers={
+            HEADER: TOKEN,
+            "Content-Type": "application/json",
+            "Content-Length": str(BODY_LIMIT + 1),
+        },
+    )
+
+    assert response.status_code == 413
+    assert all(count == 0 for count in row_counts(limited_app).values())
 
 
 # --- Routing by ChangeType ---------------------------------------------------

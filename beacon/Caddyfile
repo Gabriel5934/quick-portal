@@ -1,5 +1,10 @@
 # API_HOST comes from Caddy's environment (see docker-compose.yml). Caddy
 # obtains the certificate and redirects HTTP to HTTPS automatically.
 {$API_HOST} {
+	# Must match Beacon's MAX_REQUEST_BODY_BYTES (default 1048576 bytes = 1MiB;
+	# note 1MB is 1000000 bytes). Larger bodies get 413 before reaching Beacon.
+	request_body {
+		max_size 1MiB
+	}
 	reverse_proxy beacon:8000
 }

@@ -14,7 +14,18 @@ COPY alembic.ini ./
 COPY alembic ./alembic
 COPY app ./app
 
-# The SQLite database lives in /app/data, bind mounted from the host's ./data.
+# Run as an unprivileged user. /app stays owned by root (read-only to the
+# app); only /app/data, where the SQLite database lives, is writable.
+# /app/data is bind mounted from the host's ./data, and a bind mount keeps
+# host ownership, so on the Lightsail host run `chown -R 10001:10001 data`
+# in the deploy directory.
+RUN groupadd --system --gid 10001 beacon \
+    && useradd --system --uid 10001 --gid 10001 --no-create-home \
+       --shell /usr/sbin/nologin beacon \
+    && mkdir -p /app/data \
+    && chown -R 10001:10001 /app/data
+USER 10001:10001
+
 EXPOSE 8000
 
 # Apply migrations, then serve with exactly one uvicorn worker: SQLite has a
