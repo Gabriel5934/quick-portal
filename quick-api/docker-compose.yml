@@ -1,0 +1,51 @@
+# Build environments (sandbox and production): Quick API behind Caddy, which
+# serves API_HOST over HTTPS on port 443 and redirects HTTP to HTTPS.
+# Requires quick-api/.env (see .env.example).
+services:
+  quick-api:
+    build: .
+    restart: unless-stopped
+    env_file:
+      # Optional file, but JWT_SECRET below is required: compose (including
+      # `docker compose config`) fails when it is missing or empty in both the
+      # shell and quick-api/.env. Caddy refuses to start without API_HOST.
+      - path: .env
+        required: false
+    environment:
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set in quick-api/.env}
+    # The image's CMD runs migrations, then uvicorn with exactly one worker.
+    expose:
+      - "8000"
+    volumes:
+      - ./data:/app/data
+
+  caddy:
+    image: caddy:2.11.7-alpine
+    restart: unless-stopped
+    # Runs as non-root. Caddy writes only to /data/caddy and /config/caddy,
+    # which the image creates world-writable, so fresh volumes just work.
+    # Volumes created while Caddy ran as root need a one-time chown first:
+    #   docker compose run --rm --no-deps --user 0 --entrypoint chown caddy \
+    #     -R 1000:1000 /data/caddy /config/caddy
+    user: "1000:1000"
+    # Lets the non-root process bind ports 80 and 443 (Docker's default for
+    # bridge networks, set explicitly so it does not depend on the runtime).
+    sysctls:
+      net.ipv4.ip_unprivileged_port_start: 0
+    depends_on:
+      - quick-api
+    environment:
+      API_HOST: ${API_HOST}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  # Certificates and ACME account; must persist across restarts.
+  caddy_data:
+  caddy_config:

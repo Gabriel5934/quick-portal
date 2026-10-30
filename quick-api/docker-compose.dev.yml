@@ -1,0 +1,25 @@
+# Local development. Included by the root docker-compose.yml (`make dev`).
+# Quick API is served at http://localhost:8100 (interactive docs at /docs).
+services:
+  quick-api:
+    build: .
+    restart: unless-stopped
+    env_file:
+      # Holds JWT_SECRET; the root Makefile generates it with a random secret.
+      # Without it the app refuses to start.
+      - path: .env
+        required: false
+    environment:
+      # Plain HTTP on localhost: a Secure cookie would never be sent back.
+      COOKIE_SECURE: "false"
+      API_DOCS_ENABLED: "true"
+    # Single process; --reload restarts it when ./app or ./alembic change.
+    command: >
+      sh -c "alembic upgrade head &&
+             exec uvicorn app.main:create_app --factory --host 0.0.0.0 --port 8000 --reload"
+    ports:
+      - "8100:8000"
+    volumes:
+      - ./data:/app/data
+      - ./app:/app/app
+      - ./alembic:/app/alembic

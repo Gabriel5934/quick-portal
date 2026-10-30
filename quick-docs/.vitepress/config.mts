@@ -29,6 +29,11 @@ export default defineConfig({
         ],
       },
       {
+        text: "Quick API",
+        link: "/quick-api/",
+        items: [{ text: "Auth", link: "/quick-api/auth" }],
+      },
+      {
         text: "OWN",
         link: "/own/",
         items: [
