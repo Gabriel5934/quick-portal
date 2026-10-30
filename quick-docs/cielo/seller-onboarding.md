@@ -54,7 +54,7 @@ Required fields are marked with an asterisk*
 | State*        | String | 2 characters max   |
 | ZipCode*      | String | 9 characters max   |
 ## Responses
-### 200
+### 200 - CPF
 ```json
 {
   "Id": "5dcee8e4-f432-42e4-a2a6-5a30c8ce2ca5",
@@ -99,6 +99,67 @@ Required fields are marked with an asterisk*
       "Method": "GET"
     }
   ]
+}
+```
+### 200 - CNPJ
+```json
+{
+  "Type": "Subordinate",
+  "MasterMerchantId": "f88cc14d-c796-4939-957e-de4dddcb2257",
+  "ContactName": "Nome do Contato do Seller",
+  "ContactPhone": "11987654321",
+  "CorporateName": "Seller Corporativo Ltda",
+  "DocumentNumber": "96462142000140",
+  "DocumentType": 2,
+  "FancyName": "Seller Nome Fantasia",
+  "MailAddress": "address@email.mail.com",
+  "Website": "https://www.website.com.br",
+  "BankAccount": {
+    "Bank": "001",
+    "BankAccountType": "CheckingAccount",
+    "Number": "0002",
+    "Operation": "2",
+    "VerifierDigit": "2",
+    "AgencyNumber": "0002",
+    "AgencyDigit": "2",
+    "DocumentNumber": "96462142000140",
+    "DocumentType": "CNPJ"
+  },
+  "Address": {
+    "Street": "Rua Teste",
+    "Number": "50",
+    "Complement": "AP 255",
+    "Neighborhood": "Centro",
+    "City": "São Paulo",
+    "State": "SP",
+    "ZipCode": "12345687"
+  },
+  "Agreements": {
+    "0": {
+      "Percent": 2,
+      "Fee": 100
+    },
+    "MerchantDiscountRates": {
+      "PaymentArrangement": {
+        "Product": "CreditCard",
+        "Brand": "Visa"
+      }
+    }
+  }
+}
+```
+### 400
+```json
+{
+	"type": "https://tools.ietf.org/html/rfc9110#section-15.5.1",
+	"title": "One or more validation errors occurred.",
+	"status": 400,
+	"errors": {
+		"$": [
+			"The JSON object contains a trailing comma at the end which is not supported in this mode. Change the reader options. Path: $ | LineNumber: 3 | BytePositionInLine: 0."
+		]
+	},
+	"traceId": "00-00711588c3373288fc695b525289b42f-2072ade22441190e-01"
 }
 ```
 ## Source

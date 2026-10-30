@@ -31,8 +31,12 @@ quick-api-sandbox.duckdns.org
 A Caddy service acts as a reverse proxy routing all traffic from the DuckDNS domain to uvicorn. The hostname is sourced by Caddyfile from an env var API_HOST
 
 ## Features
-
 [Auth](./auth.md)
+
+**Cielo**
+All Cielo code lives in the `app/cielo` directory, all models and urls are prefixed with `cielo`
+[Cielo Auth](./cielo-auth)
+[Onboarding](./onboarding)
 
 ## Out of Scope / TODO
 
