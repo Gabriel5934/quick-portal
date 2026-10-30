@@ -1,0 +1,5 @@
+# API_HOST comes from Caddy's environment (see docker-compose.yml). Caddy
+# obtains the certificate and redirects HTTP to HTTPS automatically.
+{$API_HOST} {
+	reverse_proxy quick-api:8000
+}
