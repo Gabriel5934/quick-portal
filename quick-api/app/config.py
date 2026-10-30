@@ -89,3 +89,10 @@ class Settings:
             raise ValueError("COOKIE_SAMESITE=none requires COOKIE_SECURE=true")
         if self.access_token_ttl_seconds <= 0 or self.refresh_token_ttl_seconds <= 0:
             raise ValueError("token TTLs must be positive")
+        # CORS runs with credentials, so "*" would let any site make
+        # credentialed requests (the request origin is echoed back).
+        if "*" in self.cors_allowed_origins:
+            raise ValueError(
+                "CORS_ALLOWED_ORIGINS must not contain '*'; list the allowed "
+                "origins explicitly, e.g. https://app.example.com"
+            )

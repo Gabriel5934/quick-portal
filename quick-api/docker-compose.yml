@@ -22,6 +22,16 @@ services:
   caddy:
     image: caddy:2.11.7-alpine
     restart: unless-stopped
+    # Runs as non-root. Caddy writes only to /data/caddy and /config/caddy,
+    # which the image creates world-writable, so fresh volumes just work.
+    # Volumes created while Caddy ran as root need a one-time chown first:
+    #   docker compose run --rm --no-deps --user 0 --entrypoint chown caddy \
+    #     -R 1000:1000 /data/caddy /config/caddy
+    user: "1000:1000"
+    # Lets the non-root process bind ports 80 and 443 (Docker's default for
+    # bridge networks, set explicitly so it does not depend on the runtime).
+    sysctls:
+      net.ipv4.ip_unprivileged_port_start: 0
     depends_on:
       - quick-api
     environment:

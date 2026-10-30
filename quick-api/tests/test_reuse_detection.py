@@ -1,6 +1,7 @@
 """Replaying a rotated-out refresh token revokes all of the user's tokens."""
 
 from collections.abc import Callable
+from datetime import timedelta
 
 import pytest
 from fastapi import FastAPI
@@ -10,10 +11,12 @@ from sqlalchemy.orm import Session
 
 from app.auth import service
 from app.auth.models import RefreshToken, RevokedReason, User
+from app.auth.tokens import hash_refresh_token
 from app.config import Settings
 from app.db import utc_now
 from tests.conftest import (
     CSRF,
+    PASSWORD,
     bearer,
     login,
     refresh,
@@ -111,6 +114,62 @@ def test_replaying_a_reuse_revoked_token_does_not_bump_again(
     assert refresh(client).status_code == 401
     token_version, _ = user_state(app, EMAIL)
     assert token_version == 1
+
+
+def test_replaying_an_expired_rotated_token_is_a_plain_401(
+    app: FastAPI, client: TestClient, new_client: Callable[[], TestClient]
+) -> None:
+    register(client, EMAIL)
+    login(client, EMAIL)
+    token_a = client.cookies["refresh_token"]
+    other = new_client()
+    other_access = login(other, EMAIL)
+    assert refresh(client).status_code == 200  # A -> B
+    access_b = refresh(client).json()["access_token"]  # B -> C
+    with app.state.session_factory() as session, session.begin():
+        session.execute(
+            update(RefreshToken)
+            .where(RefreshToken.token_hash == hash_refresh_token(token_a))
+            .values(expires_at=utc_now() - timedelta(seconds=1))
+        )
+
+    set_refresh_cookie(client, token_a)  # replay A after it expired
+    response = refresh(client)
+    assert response.status_code == 401
+    assert response.json() == {"detail": "Refresh token is invalid or expired."}
+
+    token_version, rows = user_state(app, EMAIL)
+    assert token_version == 0
+    # Only the rotated-out A and B are revoked; C and the other browser's
+    # token survive.
+    assert [row.revoked_reason for row in rows] == [
+        RevokedReason.ROTATED,
+        None,
+        RevokedReason.ROTATED,
+        None,
+    ]
+    assert client.get("/auth/me", headers=bearer(access_b)).status_code == 200
+    assert other.get("/auth/me", headers=bearer(other_access)).status_code == 200
+    assert refresh(other).status_code == 200
+
+
+def test_login_signs_the_current_token_version(
+    app: FastAPI, settings: Settings, client: TestClient
+) -> None:
+    """A reuse bump between the password check and issuing is not lost."""
+    register(client, EMAIL)
+    session: Session = app.state.session_factory()
+    try:
+        user = service.authenticate(session, EMAIL, PASSWORD)
+        # Reuse detection commits a bump while the password is being checked.
+        with app.state.session_factory() as other, other.begin():
+            other.execute(update(User).values(token_version=User.token_version + 1))
+        issued = service.issue_session(session, user, settings)
+    finally:
+        session.close()
+
+    me = client.get("/auth/me", headers=bearer(issued.access_token))
+    assert me.status_code == 200
 
 
 def test_reuse_revocation_is_committed_before_the_401(

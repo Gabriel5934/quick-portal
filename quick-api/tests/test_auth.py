@@ -436,6 +436,14 @@ def test_samesite_none_requires_secure(settings: Settings) -> None:
         create_app(replace(settings, cookie_samesite="none", cookie_secure=False))
 
 
+@pytest.mark.parametrize("origins", [("*",), ("http://localhost:5173", "*")])
+def test_wildcard_cors_origin_is_rejected(
+    settings: Settings, origins: tuple[str, ...]
+) -> None:
+    with pytest.raises(ValueError, match="CORS_ALLOWED_ORIGINS"):
+        create_app(replace(settings, cors_allowed_origins=origins))
+
+
 def test_secret_is_not_in_repr(settings: Settings) -> None:
     assert JWT_SECRET not in repr(settings)
 

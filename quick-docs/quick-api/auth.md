@@ -43,7 +43,7 @@ A refresh revokes the presented token with reason `rotated`, inserts a new one a
 | `logout`         | logout          | 401 only                 |
 | `reuse_detected` | reuse detection | 401 only                 |
 
-An expired token that was never revoked, or an unknown token, gets a plain 401.
+An expired token, revoked or not, or an unknown token, gets a plain 401. An expired `rotated` token never triggers reuse detection.
 
 Two concurrent refreshes with the same token can both read it as unrevoked, so the revoke is a conditional `UPDATE ... WHERE id = :id AND revoked_at IS NULL`. Only the request whose update changes the row gets a new token. The other re-reads the row's reason and follows the table above: losing to another refresh counts as reuse, and losing to a logout is a plain 401.
 
@@ -59,7 +59,7 @@ The user has to log in again on every device. Other users are not affected. Logg
 
 ## CSRF
 
-`/auth/refresh` and `/auth/logout` require the header `X-Requested-With: quick-portal`; without it they return 403. A cross-site form cannot set custom headers, and a cross-origin `fetch` that sets one needs a CORS preflight, which only `CORS_ALLOWED_ORIGINS` (default `http://localhost:5173`) passes. Unlike legacy, the `Origin` header is not checked.
+`/auth/refresh` and `/auth/logout` require the header `X-Requested-With: quick-portal`; without it they return 403. A cross-site form cannot set custom headers, and a cross-origin `fetch` that sets one needs a CORS preflight, which only `CORS_ALLOWED_ORIGINS` (default `http://localhost:5173`) passes. CORS allows credentials, so the app refuses to start if that list contains `*`. Unlike legacy, the `Origin` header is not checked.
 
 ## Known gaps
 

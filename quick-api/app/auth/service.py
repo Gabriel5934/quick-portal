@@ -89,6 +89,10 @@ def issue_session(
     raw, row = _new_refresh_row(user.id, settings, now)
     with session.begin():
         session.add(row)
+        session.flush()  # the INSERT takes SQLite's write lock
+        # Re-read token_version under that lock: a reuse detection may have
+        # bumped it since the user was loaded (e.g. during password checking).
+        session.refresh(user)
     return IssuedSession(create_access_token(user, settings, now), raw, row)
 
 
@@ -145,11 +149,12 @@ def rotate_refresh(
         row = _find_refresh_token(session, hash_refresh_token(raw_token))
         if row is None:
             raise InvalidRefreshToken
+        # Expired tokens, revoked or not, are rejected and never trigger the
+        # reuse path.
+        if row.expires_at <= now:
+            raise InvalidRefreshToken
         reason = row.revoked_reason
         if row.revoked_at is None:
-            # Expired tokens are rejected but never trigger the reuse path.
-            if row.expires_at <= now:
-                raise InvalidRefreshToken
             user = session.get(User, row.user_id)
             if user is None or not user.is_active:
                 raise InvalidRefreshToken
