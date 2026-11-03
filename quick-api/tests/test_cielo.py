@@ -101,7 +101,7 @@ def cpf_seller(**overrides) -> dict:
     seller = cnpj_seller(
         document_type="CPF",
         document_number=CPF,
-        birthday_date="2019-04-25",
+        birthday_date="2019/04/25",
         business_activity_id="24",
     )
     seller.update(overrides)
@@ -398,7 +398,7 @@ def test_onboard_cpf_seller(
     assert response.status_code == 201, response.text
     assert response.json()["document_type"] == "CPF"
     sent = json.loads(calls_to(cielo_http, ONBOARD_URL)[0].request.body)
-    assert sent["BirthdayDate"] == "2019-04-25"
+    assert sent["BirthdayDate"] == "2019/04/25"
     assert sent["BusinessActivityId"] == "24"
 
 

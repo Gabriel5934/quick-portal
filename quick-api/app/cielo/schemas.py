@@ -84,8 +84,8 @@ class OnboardIn(_CieloPayload):
     fancy_name: str = _required(FANCY_NAME_MAX_LENGTH)
     mail_address: str = _required(50)
     website: str | None = _optional(200)
-    # Passed through as sent: Cielo's reference says YYYY/MM/DD, its examples
-    # use YYYY-MM-DD. Required for CPF.
+    # Passed through as sent. Cielo expects YYYY/MM/DD on input, although its
+    # sample responses show YYYY-MM-DD. Required for CPF.
     birthday_date: str | None = _optional(10)
     # A string for Cielo; a JSON number is accepted too. Required for CPF.
     business_activity_id: str | None = None
