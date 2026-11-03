@@ -142,24 +142,31 @@ def _wait_until_healthy(
     process: subprocess.Popen, base_url: str, stderr_path: Path
 ) -> None:
     deadline = time.monotonic() + STARTUP_TIMEOUT_SECONDS
-    while time.monotonic() < deadline:
-        if process.poll() is not None:
-            pytest.fail(
-                f"cielo-mock exited with {process.returncode}:\n"
-                + stderr_path.read_text(errors="replace")
-            )
-        try:
-            if requests.get(base_url + "/health", timeout=1).ok:
-                return
-        except requests.ConnectionError:
-            pass
-        time.sleep(0.1)
+    # The module-scoped cielo_mock runs before the function-scoped
+    # _no_proxy_for_the_mock, so the probe must not read proxy variables itself.
+    with requests.Session() as probe:
+        probe.trust_env = False
+        while time.monotonic() < deadline:
+            if process.poll() is not None:
+                pytest.fail(
+                    f"cielo-mock exited with {process.returncode}:\n"
+                    + stderr_path.read_text(errors="replace")
+                )
+            try:
+                if probe.get(base_url + "/health", timeout=1).ok:
+                    return
+            except requests.ConnectionError:
+                pass
+            time.sleep(0.1)
     pytest.fail(f"cielo-mock did not become healthy within {STARTUP_TIMEOUT_SECONDS}s")
 
 
 @pytest.fixture(autouse=True)
 def _no_proxy_for_the_mock(monkeypatch: pytest.MonkeyPatch) -> None:
-    """requests honours proxy variables; the mock is local."""
+    """The app's requests honour proxy variables; the mock is local.
+
+    The startup probe in _wait_until_healthy ignores them on its own.
+    """
     monkeypatch.setenv("NO_PROXY", "127.0.0.1,localhost")
     monkeypatch.setenv("no_proxy", "127.0.0.1,localhost")
 
