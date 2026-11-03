@@ -42,13 +42,14 @@ def _env_base_url(name: str) -> str:
 
 def _is_base_url(value: str) -> bool:
     """scheme://host[:port] with nothing after it (a trailing slash is fine)."""
+    # urlsplit drops a bare "?" or "#", so check the delimiters themselves.
+    if "?" in value or "#" in value:
+        return False
     parts = urlsplit(value)
     return (
         parts.scheme in ("http", "https")
         and bool(parts.netloc)
         and parts.path in ("", "/")
-        and not parts.query
-        and not parts.fragment
     )
 
 
@@ -160,7 +161,7 @@ class Settings:
             if not _is_base_url(required[name]):
                 raise ValueError(
                     f"{name} must be an http(s) scheme and host without a path, "
-                    "e.g. https://authsandbox.braspag.com.br"
+                    "query or fragment, e.g. https://authsandbox.braspag.com.br"
                 )
         try:
             uuid.UUID(self.cielo_master_merchant_id)

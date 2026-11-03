@@ -958,6 +958,13 @@ def test_create_app_requires_every_cielo_setting(
         "https://cielo.test/oauth2/token",
         "https://cielo.test/api",
         "https://cielo.test?x=1",
+        "http://h?a=1",
+        "http://h#frag",
+        # urlsplit reports an empty query/fragment for a bare delimiter.
+        "http://h?",
+        "http://h#",
+        "http://h/?",
+        "http://h:3000#",
     ],
 )
 @pytest.mark.parametrize("field", ["cielo_auth_base_url", "cielo_onboarding_base_url"])
@@ -966,6 +973,14 @@ def test_base_urls_must_be_scheme_and_host(
 ) -> None:
     with pytest.raises(ValueError, match=field.upper()):
         create_app(replace(settings, **{field: url}))
+
+
+@pytest.mark.parametrize("url", ["http://h", "http://h/", "https://h:3000"])
+@pytest.mark.parametrize("field", ["cielo_auth_base_url", "cielo_onboarding_base_url"])
+def test_base_urls_accept_scheme_and_host(
+    settings: Settings, field: str, url: str
+) -> None:
+    create_app(replace(settings, **{field: url}))
 
 
 def test_master_merchant_id_must_be_a_uuid(settings: Settings) -> None:
