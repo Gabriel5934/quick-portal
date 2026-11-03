@@ -8,13 +8,13 @@ Quick API authenticates users by email and password. A login returns a short-liv
 
 All routes live under `/auth`.
 
-| Route                 | Auth                 | Behaviour                                                                                                      |
-| --------------------- | -------------------- | -------------------------------------------------------------------------------------------------------------- |
-| `POST /auth/register` | none                 | Body `{email, password}`. 201 `{id, email}`; 409 if the email exists; 422 if invalid                           |
-| `POST /auth/login`    | none                 | Body `{email, password}`. 200 `{access_token, token_type: "bearer", expires_in}` + cookie                      |
-| `POST /auth/refresh`  | cookie + CSRF header | Rotates the refresh token. 200 with a new access token and cookie, 403 if CSRF header is missing otherwise 401 |
-| `POST /auth/logout`   | cookie + CSRF header | Revokes the refresh token and clears the cookie. 403 CSRF header is missing otherwise 204                      |
-| `GET /auth/me`        | Bearer               | 200 `{id, email}`                                                                                              |
+| Route                 | Auth                 | Behaviour                                                                                                                  |
+| --------------------- | -------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `POST /auth/register` | none                 | Body `{email, password}`. 201 `{id, email}`; 409 if the email exists; 422 if invalid                                       |
+| `POST /auth/login`    | none                 | Body `{email, password}`. 200 `{access_token, token_type: "bearer", expires_in}` + cookie                                  |
+| `POST /auth/refresh`  | cookie + CSRF header | Rotates the refresh token. 200 with a new access token and cookie, 403 if CSRF header is missing or invalid; otherwise 401 |
+| `POST /auth/logout`   | cookie + CSRF header | Revokes the refresh token and clears the cookie. 403 CSRF header is missing or invalid; otherwise 204                      |
+| `GET /auth/me`        | Bearer               | 200 `{id, email}`                                                                                                          |
 
 Emails are stripped and lowercased before they are stored or looked up. Passwords need at least 10 characters and are hashed with Argon2 (pwdlib).
 
