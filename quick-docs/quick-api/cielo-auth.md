@@ -6,7 +6,7 @@ Below is described how Quick API handles authenticating with Cielo Split API.
 
 Cielo tokens are stored in-memory since they have a short lifespan.
 
-Before making any calls to Cielo it is checked if the in-memory token will expire in the next minute and a new one is requestes only if it isn't. This one minute margin makes it harder that a token expires mid-request.
+Before each Cielo call, Quick API requests a new token if none is cached or the cached token expires within 60 seconds. Otherwise, it reuses the cached token. This margin reduces the chance that a token expires mid-request.
 
 ## Lock
 

@@ -143,11 +143,12 @@ function validateBankAccount(
     "must contain up to four digits and cannot be zero.",
     errors,
   );
+  // Cielo documents "x" for an agency without a digit.
   requirePattern(
     agencyDigit,
-    /^\d$/,
+    /^(?:\d|x)$/,
     "BankAccount.AgencyDigit",
-    "must contain one digit.",
+    'must contain one digit or "x".',
     errors,
   );
 

@@ -54,7 +54,9 @@ docker compose -f cielo-mock/docker-compose.dev.yml up --build
   response. `DocumentType` is numeric, `1` for CPF and `2` for CNPJ, although
   the request sends `"CPF"` or `"CNPJ"`. `MerchantId` repeats `Id` for
   quick-portal-api, which reads that key. A document that is already
-  registered returns `400` with `SellerAlreadyExists`.
+  registered returns `400` with `SellerAlreadyExists`. `BankAccount.AgencyDigit`
+  is optional; when sent it must be one digit or `"x"`, which Cielo documents
+  for an agency without a digit.
 
   ```json
   {

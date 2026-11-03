@@ -159,6 +159,88 @@ describe("POST /api/merchants", () => {
     assert.deepEqual(lastRecordedAttempt("52839789801"), { status: 201, body });
   });
 
+  function withAgencyDigit(
+    documentType: "CPF" | "CNPJ",
+    documentNumber: string,
+    agencyDigit: string,
+  ) {
+    const payload = sellerPayload(documentType, documentNumber);
+    return {
+      ...payload,
+      BankAccount: { ...payload.BankAccount, AgencyDigit: agencyDigit },
+    };
+  }
+
+  test('accepts "x" as the AgencyDigit of an agency without a digit', async () => {
+    for (const [documentType, documentNumber] of [
+      ["CNPJ", "45723174000110"],
+      ["CPF", "39053344705"],
+    ] as const) {
+      const response = await onboard(
+        withAgencyDigit(documentType, documentNumber, "x"),
+      );
+
+      assert.equal(response.status, 201);
+      const body = (await response.json()) as Record<string, unknown>;
+      assert.match(String(body.Id), UUID_PATTERN);
+      assert.deepEqual(body, {
+        Id: body.Id,
+        MerchantId: body.Id,
+        Type: "Subordinate",
+        MasterMerchantId: MASTER_MERCHANT_ID,
+        CorporateName: "Maria Silva Comercio",
+        FancyName: documentType === "CNPJ" ? "Loja da Maria" : "",
+        DocumentType: documentType === "CPF" ? 1 : 2,
+        DocumentNumber: documentNumber,
+      });
+      assert.deepEqual(lastRecordedAttempt(documentNumber), {
+        status: 201,
+        body,
+      });
+    }
+  });
+
+  test("accepts a numeric AgencyDigit and an omitted one", async () => {
+    const numeric = await onboard(withAgencyDigit("CNPJ", "60701190000104", "7"));
+    assert.equal(numeric.status, 201);
+
+    const payload = sellerPayload("CPF", "11144477735");
+    const { AgencyDigit: _omitted, ...bankAccount } = payload.BankAccount;
+    const omitted = await onboard({ ...payload, BankAccount: bankAccount });
+    assert.equal(omitted.status, 201);
+  });
+
+  for (const agencyDigit of ["y", "X", "-"]) {
+    test(`rejects ${JSON.stringify(agencyDigit)} as the AgencyDigit`, async () => {
+      const documentNumber = "33000167000101";
+      const response = await onboard(
+        withAgencyDigit("CNPJ", documentNumber, agencyDigit),
+      );
+
+      assert.equal(response.status, 400);
+      assert.deepEqual(await response.json(), [
+        {
+          Code: "RequestValidationError",
+          Message: 'BankAccount.AgencyDigit: must contain one digit or "x".',
+        },
+      ]);
+    });
+  }
+
+  test("rejects an AgencyDigit longer than one character", async () => {
+    const response = await onboard(
+      withAgencyDigit("CNPJ", "33000167000101", "xx"),
+    );
+
+    assert.equal(response.status, 400);
+    assert.deepEqual(await response.json(), [
+      {
+        Code: "RequestValidationError",
+        Message: "The AgencyDigit field must not exceed 1 characters.",
+      },
+    ]);
+  });
+
   test("rejects a document that is already registered", async () => {
     const payload = sellerPayload("CNPJ", "11444777000161");
     assert.equal((await onboard(payload)).status, 201);
