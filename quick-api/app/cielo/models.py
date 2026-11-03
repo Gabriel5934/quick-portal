@@ -1,8 +1,8 @@
 """Sellers onboarded through Cielo and the users that own them.
 
-Only what is needed to find a seller again is stored: Cielo's ID and the
-document. The onboarding payload itself (contact, bank account, address) is
-never persisted.
+Only what is needed to find a seller again is stored: Cielo's ID, the document
+and the fancy name. The onboarding payload itself (contact, bank account,
+address) is never persisted.
 """
 
 import enum
@@ -16,6 +16,8 @@ from app.db import Base, IntEnumType, UTCDateTime, utc_now
 
 # Cielo's DocumentNumber limit (digits only, as Cielo returns it).
 DOCUMENT_NUMBER_MAX_LENGTH = 14
+# Cielo's FancyName limit.
+FANCY_NAME_MAX_LENGTH = 50
 
 
 class CieloDocumentType(enum.IntEnum):
@@ -41,6 +43,11 @@ class CieloSeller(Base):
     document_number: Mapped[str] = mapped_column(String(DOCUMENT_NUMBER_MAX_LENGTH))
     document_type: Mapped[CieloDocumentType] = mapped_column(
         IntEnumType(CieloDocumentType)
+    )
+    # The trade name sent when onboarding. The default only fills sellers saved
+    # before the column existed.
+    fancy_name: Mapped[str] = mapped_column(
+        String(FANCY_NAME_MAX_LENGTH), server_default=""
     )
 
 

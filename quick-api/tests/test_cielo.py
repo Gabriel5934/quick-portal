@@ -318,11 +318,13 @@ def test_onboard_creates_the_seller_and_membership(
         "id": SELLER_ID,
         "document_type": "CNPJ",
         "document_number": CNPJ,
+        "fancy_name": "Seller Nome Fantasia",
     }
     (seller,) = sellers(app)
     assert seller.id == uuid.UUID(SELLER_ID)
     assert seller.document_type is CieloDocumentType.CNPJ
     assert seller.document_number == CNPJ
+    assert seller.fancy_name == "Seller Nome Fantasia"
     (membership,) = memberships(app)
     with app.state.session_factory() as session:
         user = session.scalar(select(User))
@@ -416,11 +418,12 @@ def test_onboarding_the_same_id_overwrites_and_keeps_one_membership(
         status=201,
         json=created_body(DocumentType=1, DocumentNumber=CPF),
     )
-    assert onboard(client, auth, cpf_seller()).status_code == 201
+    assert onboard(client, auth, cpf_seller(fancy_name="Novo Nome")).status_code == 201
 
     (seller,) = sellers(app)
     assert seller.document_type is CieloDocumentType.CPF
     assert seller.document_number == CPF
+    assert seller.fancy_name == "Novo Nome"
     assert len(memberships(app)) == 1
 
 
@@ -810,6 +813,7 @@ def add_seller(
     document_number: str = CNPJ,
     created_at: datetime = T0,
     seller_id: uuid.UUID | None = None,
+    fancy_name: str = "Seller Nome Fantasia",
 ) -> uuid.UUID:
     """Inserts a seller and a membership per owner, all at ``created_at``."""
     seller_id = seller_id or uuid.uuid4()
@@ -819,6 +823,7 @@ def add_seller(
                 id=seller_id,
                 document_type=document_type,
                 document_number=document_number,
+                fancy_name=fancy_name,
             )
         )
         session.flush()
@@ -861,17 +866,23 @@ def test_get_sellers_returns_only_the_callers_sellers(
     register(client, "bruno@example.com")
     other = bearer(login(client, "bruno@example.com"))
     ana, bruno = user_id(app, "ana@example.com"), user_id(app, "bruno@example.com")
-    anas = add_seller(app, [ana], CieloDocumentType.CPF, CPF)
+    anas = add_seller(app, [ana], CieloDocumentType.CPF, CPF, fancy_name="Loja da Ana")
     brunos = add_seller(app, [bruno], document_number="11111111000111")
 
     assert get_sellers(client, auth) == [
-        {"id": str(anas), "document_type": "CPF", "document_number": CPF}
+        {
+            "id": str(anas),
+            "document_type": "CPF",
+            "document_number": CPF,
+            "fancy_name": "Loja da Ana",
+        }
     ]
     assert get_sellers(client, other) == [
         {
             "id": str(brunos),
             "document_type": "CNPJ",
             "document_number": "11111111000111",
+            "fancy_name": "Seller Nome Fantasia",
         }
     ]
     # Read-only: Cielo is never called.
@@ -894,7 +905,12 @@ def test_a_shared_seller_is_returned_to_every_member(
     # Same shape as the onboard 201 body, and nothing else.
     assert get_sellers(client, auth) == [onboarded.json()]
     assert get_sellers(client, other) == [onboarded.json()]
-    assert set(onboarded.json()) == {"id", "document_type", "document_number"}
+    assert set(onboarded.json()) == {
+        "id",
+        "document_type",
+        "document_number",
+        "fancy_name",
+    }
 
 
 def test_get_sellers_orders_by_membership_then_seller_id(
@@ -925,7 +941,8 @@ def test_get_sellers_orders_by_membership_then_seller_id(
         "CNPJ",
     ]
     assert all(
-        set(seller) == {"id", "document_type", "document_number"} for seller in listed
+        set(seller) == {"id", "document_type", "document_number", "fancy_name"}
+        for seller in listed
     )
 
 

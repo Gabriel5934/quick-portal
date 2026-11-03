@@ -73,7 +73,7 @@ def onboard(
         )
     return JSONResponse(
         status_code=status.HTTP_201_CREATED,
-        content=seller.to_out().model_dump(mode="json"),
+        content=seller.to_out(body.fancy_name).model_dump(mode="json"),
     )
 
 

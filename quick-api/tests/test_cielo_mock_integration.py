@@ -243,6 +243,7 @@ def test_onboard_against_the_mock(
         "id": body["id"],
         "document_type": document_type,
         "document_number": document_number,
+        "fancy_name": seller["fancy_name"],
     }
     seller_id = uuid.UUID(body["id"])
     with app.state.session_factory() as session:
@@ -252,6 +253,7 @@ def test_onboard_against_the_mock(
     assert stored.id == seller_id
     assert stored.document_type is CieloDocumentType[document_type]
     assert stored.document_number == document_number
+    assert stored.fancy_name == seller["fancy_name"]
     assert (membership.seller_id, membership.user_id) == (seller_id, user.id)
 
     bank_account = _mock_bank_account(cielo_mock, document_number)

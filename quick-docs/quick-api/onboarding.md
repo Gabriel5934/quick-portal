@@ -29,7 +29,7 @@ We foward the request to Cielo in pascal case as defined by their documentation.
 - In case of a 2xx response:
   - We try to save `Id`, `DocumentType`, and `DocumentNumber`. If any of those is missing we throw a 502 error with body: `{message: "Invalid format from Cielo"}`
   - If `Id` already exists we overwrite the row
-  - If the response is well-formatted and the save is successful we return 201 created with body including `Id`, `DocumentType` and `DocumentNumber`
+  - If the response is well-formatted and the save is successful we return 201 created with body including `Id`, `DocumentType`, `DocumentNumber` and `FancyName`
 - In case of a 4xx or 5xx response
   - In case of a 401 we trhow a 502 error with body: `{message: "Invalid Cielo Credentials"}` and the cache is cleared
   - Otherwise we bubble the error up to the client
@@ -39,7 +39,7 @@ We foward the request to Cielo in pascal case as defined by their documentation.
 
 Returns every seller the current user has access to. Access is direct only: a seller is returned only if there is a `cielo_seller_membership` row for the user, so a user never sees another user's sellers. A seller shared by more than one user is returned to each of them.
 
-- Responds 200 with a JSON array of the same shape as the onboarding 201 body: `[{id, document_type, document_number}]`, with `document_type` as its label (`CPF` or `CNPJ`)
+- Responds 200 with a JSON array of the same shape as the onboarding 201 body: `[{id, document_type, document_number, fancy_name}]`, with `document_type` as its label (`CPF` or `CNPJ`)
 - If the user has no sellers we return an empty array `[]`, not a 404
 - Sellers are ordered by the membership's `created_at`, oldest first, then by seller id
 - Read-only: Cielo is not called. There is no pagination or filtering
@@ -62,6 +62,9 @@ Returns every seller the current user has access to. Access is direct only: a se
 | id              | Uuid                | Unique     |
 | document_number | String              | Not Unique |
 | document_type   | cielo_document_type |            |
+| fancy_name      | String(50)          |            |
+
+`fancy_name` is the one sent in the onboarding request, saved together with the seller once Cielo has created it. Onboarding an existing `Id` overwrites it.
 
 ## Environment Variables
 

@@ -23,6 +23,7 @@ from pydantic.alias_generators import to_pascal
 
 from app.cielo.models import (
     DOCUMENT_NUMBER_MAX_LENGTH,
+    FANCY_NAME_MAX_LENGTH,
     CieloDocumentType,
     CieloSeller,
 )
@@ -80,7 +81,7 @@ class OnboardIn(_CieloPayload):
     corporate_name: str = _required(100)
     document_number: str = _required(DOCUMENT_NUMBER_MAX_LENGTH)
     document_type: DocumentTypeLabel
-    fancy_name: str = _required(50)
+    fancy_name: str = _required(FANCY_NAME_MAX_LENGTH)
     mail_address: str = _required(50)
     website: str | None = _optional(200)
     # Passed through as sent: Cielo's reference says YYYY/MM/DD, its examples
@@ -146,14 +147,16 @@ class OnboardOut(BaseModel):
     id: uuid.UUID
     document_type: DocumentTypeLabel
     document_number: str
+    fancy_name: str
 
     @classmethod
-    def from_seller(cls, seller: "CieloSeller | CieloSellerCreated") -> Self:
+    def from_seller(cls, seller: "CieloSeller") -> Self:
         """Maps the stored integer DocumentType to its label."""
         return cls(
             id=seller.id,
             document_type=seller.document_type.name,
             document_number=seller.document_number,
+            fancy_name=seller.fancy_name,
         )
 
 
@@ -180,5 +183,11 @@ class CieloSellerCreated(BaseModel):
             raise ValueError("must be an integer")
         return value
 
-    def to_out(self) -> OnboardOut:
-        return OnboardOut.from_seller(self)
+    def to_out(self, fancy_name: str) -> OnboardOut:
+        """``fancy_name`` is the one from the request, as it was saved."""
+        return OnboardOut(
+            id=self.id,
+            document_type=self.document_type.name,
+            document_number=self.document_number,
+            fancy_name=fancy_name,
+        )

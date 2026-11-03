@@ -36,7 +36,7 @@ def onboard(
     """
     created = cielo.onboard_seller(seller)
     try:
-        save_seller(session, user_id, created)
+        save_seller(session, user_id, created, seller.fancy_name)
     except Exception as exc:
         # The only record of the seller is at Cielo now. Log just what is
         # needed to recover it: not the payload, and not ``exc`` itself, whose
@@ -53,11 +53,15 @@ def onboard(
 
 
 def save_seller(
-    session: Session, user_id: uuid.UUID, seller: CieloSellerCreated
+    session: Session,
+    user_id: uuid.UUID,
+    seller: CieloSellerCreated,
+    fancy_name: str,
 ) -> None:
     """Upserts the seller by Id and links it to the user (idempotent).
 
-    Onboarding an Id that already exists overwrites its document and adds the
+    ``fancy_name`` is the one from the onboarding request. Onboarding an Id
+    that already exists overwrites its document and fancy name and adds the
     user's membership next to any existing ones. Single statements (SQLite
     upserts), so concurrent saves of one Id cannot collide on the primary key.
     """
@@ -65,6 +69,7 @@ def save_seller(
         "id": seller.id,
         "document_number": seller.document_number,
         "document_type": seller.document_type,
+        "fancy_name": fancy_name,
     }
     upsert_seller = insert(CieloSeller).values(values)
     upsert_seller = upsert_seller.on_conflict_do_update(
@@ -72,6 +77,7 @@ def save_seller(
         set_={
             "document_number": upsert_seller.excluded.document_number,
             "document_type": upsert_seller.excluded.document_type,
+            "fancy_name": upsert_seller.excluded.fancy_name,
         },
     )
     add_membership = (
