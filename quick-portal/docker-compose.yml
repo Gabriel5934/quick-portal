@@ -1,0 +1,64 @@
+# Build environments (sandbox and production): Quick Portal behind Caddy, which
+# serves PORTAL_HOST over HTTPS on port 443 and redirects HTTP to HTTPS.
+# Includes Quick API's build compose, so one command starts the whole stack on
+# a single compose network. Quick API is internal only: nothing publishes its
+# port, and only the portal's server functions call it.
+# Requires quick-portal/.env and quick-api/.env (see their .env.example).
+#   docker compose -f quick-portal/docker-compose.yml up --build --detach
+# Not included by the root docker-compose.yml (local development).
+
+# Explicit, so it never shares containers or volumes with the root development
+# project, which is also named quick-portal.
+name: quick-portal-deploy
+
+include:
+  # Interpolated with quick-api/.env, so JWT_SECRET is required there.
+  - ../quick-api/docker-compose.yml
+
+services:
+  portal:
+    build:
+      context: .
+      target: production
+    restart: unless-stopped
+    environment:
+      # Server functions call Quick API over the compose network; the browser
+      # never talks to Quick API directly.
+      QUICK_API_URL: http://quick-api:8000
+    depends_on:
+      - quick-api
+    expose:
+      - "3000"
+
+  caddy:
+    image: caddy:2.11.7-alpine
+    restart: unless-stopped
+    # Runs as non-root. Caddy writes only to /data/caddy and /config/caddy,
+    # which the image creates world-writable, so fresh volumes just work.
+    # Volumes created while Caddy ran as root need a one-time chown first:
+    #   docker compose -f quick-portal/docker-compose.yml run --rm --no-deps \
+    #     --user 0 --entrypoint chown caddy -R 1000:1000 /data/caddy /config/caddy
+    user: "1000:1000"
+    # Lets the non-root process bind ports 80 and 443 (Docker's default for
+    # bridge networks, set explicitly so it does not depend on the runtime).
+    sysctls:
+      net.ipv4.ip_unprivileged_port_start: 0
+    depends_on:
+      - portal
+    environment:
+      # Required: compose (including `docker compose config`) fails when it is
+      # missing or empty in both the shell and quick-portal/.env.
+      PORTAL_HOST: ${PORTAL_HOST:?PORTAL_HOST must be set in quick-portal/.env}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  # Certificates and ACME account; must persist across restarts.
+  caddy_data:
+  caddy_config:

@@ -5,3 +5,4 @@ include:
   - ./cielo-mock/docker-compose.dev.yml
   - ./beacon/docker-compose.dev.yml
   - ./quick-api/docker-compose.dev.yml
+  - ./quick-portal/docker-compose.dev.yml

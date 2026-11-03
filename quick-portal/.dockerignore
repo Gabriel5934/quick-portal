@@ -1,0 +1,14 @@
+.git
+.env
+.env.*
+!.env.example
+node_modules
+dist
+storybook-static
+.tanstack
+.vscode
+.stylelintcache
+Dockerfile
+.dockerignore
+docker-compose*.yml
+Caddyfile
