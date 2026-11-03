@@ -1,60 +1,73 @@
 # Seller Onboarding
+
 Cielo Split API allows for the signup of sellers who can then be included in the split of transactions.
+
+The `DocumentType` fiels is sent as a string (CPF or CNPJ) and the response returns it as an integer (1 for CPF and 2 for CNPJ).
+
 ## URLs
 
 | Environment | Method | Endpoint                                                         |
 | ----------- | ------ | ---------------------------------------------------------------- |
 | Sandbox     | POST   | `https://splitonboardingapisandbox.braspag.com.br/api/merchants` |
 | Prod        | POST   | `https://splitonboardingapi.braspag.com.br/api/merchants`        |
+
 ## Headers
+
 | Header        | Value                 |
 | ------------- | --------------------- |
 | Authorization | Bearer {access_token} |
+
 ## Body Params
-Required fields are marked with an asterisk*
+
+Required fields are marked with an asterisk\*
 
 | Key                | Type   | Notes                                                                                             |
 | ------------------ | ------ | ------------------------------------------------------------------------------------------------- |
-| Type*              | String | Fixed value: "Subordinate"                                                                        |
+| Type\*             | String | Fixed value: "Subordinate"                                                                        |
 | MasterMerchantId   | UUID   |                                                                                                   |
-| ContactName*       | String | 100 characters max                                                                                |
-| ContactPhone*      | String | 11 characters max                                                                                 |
-| CorporateName*     | String | 100 characters max                                                                                |
-| DocumentNumber*    | String | 14 characters max                                                                                 |
-| DocumentType*      | String | Either "CPF" or "CNPJ"                                                                            |
-| FancyName*         | String | 50 characters max                                                                                 |
-| MailAddress*       | String | 50 characters max                                                                                 |
+| ContactName\*      | String | 100 characters max                                                                                |
+| ContactPhone\*     | String | 11 characters max                                                                                 |
+| CorporateName\*    | String | 100 characters max                                                                                |
+| DocumentNumber\*   | String | 14 characters max                                                                                 |
+| DocumentType\*     | String | Either "CPF" or "CNPJ";                                                                           |
+| FancyName\*        | String | 50 characters max                                                                                 |
+| MailAddress\*      | String | 50 characters max                                                                                 |
 | Website            | String | 200 characters max                                                                                |
 | BirthdayDate       | String | YYYY/MM/DD; Required if CPF DocumentType                                                          |
 | BusinessActivityId | String | 1 to 100, see [Cielo Business Activities](./business-activities.md); Required if CPF DocumentType |
 | BankAccount        | Object |                                                                                                   |
 | Address            | Object |                                                                                                   |
+
 **BankAccount**
 
-| Key              | Type   | Notes                                           |
-| ---------------- | ------ | ----------------------------------------------- |
-| Bank*            | String | 3 characters max; See [Cielo Banks](./banks)    |
-| BankAccountType* | String | Either "CheckingAccount" or "SavingsAccount"    |
-| Number*          | String | 10 characters max                               |
-| Operation        | String | 10 characters max                               |
-| VerifierDigit*   | String | 1 character max                                 |
-| AgencyNumber*    | String | 4 characters max                                |
-| AgencyDigit*     | String | 1 character max; If there's no digit inform "x" |
-| DocumentNumber   | String | 14 characters max                               |
-| DocumentType     | String | Either "CPF" or "CNPJ"                          |
+| Key               | Type   | Notes                                           |
+| ----------------- | ------ | ----------------------------------------------- |
+| Bank\*            | String | 3 characters max; See [Cielo Banks](./banks)    |
+| BankAccountType\* | String | Either "CheckingAccount" or "SavingsAccount"    |
+| Number\*          | String | 10 characters max                               |
+| Operation         | String | 10 characters max                               |
+| VerifierDigit\*   | String | 1 character max                                 |
+| AgencyNumber\*    | String | 4 characters max                                |
+| AgencyDigit\*     | String | 1 character max; If there's no digit inform "x" |
+| DocumentNumber    | String | 14 characters max                               |
+| DocumentType      | String | Either "CPF" or "CNPJ"                          |
+
 **Address**
 
-| Key           | Type   | Notes              |
-| ------------- | ------ | ------------------ |
-| Street*       | String | 100 characters max |
-| Number*       | String | 15 characters max  |
-| Complement    | String | 80 characters max  |
-| Neighborhood* | String | 50 characters max  |
-| City*         | String | 50 characters max  |
-| State*        | String | 2 characters max   |
-| ZipCode*      | String | 9 characters max   |
+| Key            | Type   | Notes              |
+| -------------- | ------ | ------------------ |
+| Street\*       | String | 100 characters max |
+| Number\*       | String | 15 characters max  |
+| Complement     | String | 80 characters max  |
+| Neighborhood\* | String | 50 characters max  |
+| City\*         | String | 50 characters max  |
+| State\*        | String | 2 characters max   |
+| ZipCode\*      | String | 9 characters max   |
+
 ## Responses
-### 200 - CPF
+
+### 201 - CPF
+
 ```json
 {
   "Id": "5dcee8e4-f432-42e4-a2a6-5a30c8ce2ca5",
@@ -101,9 +114,12 @@ Required fields are marked with an asterisk*
   ]
 }
 ```
-### 200 - CNPJ
+
+### 201 - CNPJ
+
 ```json
 {
+  "Id": "5dcee8e4-f432-42e4-a2a6-5a30c8ce2ca5",
   "Type": "Subordinate",
   "MasterMerchantId": "f88cc14d-c796-4939-957e-de4dddcb2257",
   "ContactName": "Nome do Contato do Seller",
@@ -148,21 +164,23 @@ Required fields are marked with an asterisk*
   }
 }
 ```
+
 ### 400
+
 ```json
 {
-	"type": "https://tools.ietf.org/html/rfc9110#section-15.5.1",
-	"title": "One or more validation errors occurred.",
-	"status": 400,
-	"errors": {
-		"$": [
-			"The JSON object contains a trailing comma at the end which is not supported in this mode. Change the reader options. Path: $ | LineNumber: 3 | BytePositionInLine: 0."
-		]
-	},
-	"traceId": "00-00711588c3373288fc695b525289b42f-2072ade22441190e-01"
+  "type": "https://tools.ietf.org/html/rfc9110#section-15.5.1",
+  "title": "One or more validation errors occurred.",
+  "status": 400,
+  "errors": {
+    "$": [
+      "The JSON object contains a trailing comma at the end which is not supported in this mode. Change the reader options. Path: $ | LineNumber: 3 | BytePositionInLine: 0."
+    ]
+  },
+  "traceId": "00-00711588c3373288fc695b525289b42f-2072ade22441190e-01"
 }
 ```
+
 ## Source
+
 https://docs.cielo.com.br/split/reference/cadastrar-seller-api
-
-

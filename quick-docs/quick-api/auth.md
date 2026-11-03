@@ -8,13 +8,13 @@ Quick API authenticates users by email and password. A login returns a short-liv
 
 All routes live under `/auth`.
 
-| Route                 | Auth                 | Behaviour                                                                                  |
-| --------------------- | -------------------- | ------------------------------------------------------------------------------------------ |
-| `POST /auth/register` | none                 | Body `{email, password}`. 201 `{id, email}`; 409 if the email exists; 422 if invalid       |
-| `POST /auth/login`    | none                 | Body `{email, password}`. 200 `{access_token, token_type: "bearer", expires_in}` + cookie |
-| `POST /auth/refresh`  | cookie + CSRF header | Rotates the refresh token. 200 with a new access token and cookie, otherwise 401           |
-| `POST /auth/logout`   | cookie + CSRF header | Revokes the refresh token and clears the cookie. Always 204                                |
-| `GET /auth/me`        | Bearer               | 200 `{id, email}`                                                                          |
+| Route                 | Auth                 | Behaviour                                                                                                      |
+| --------------------- | -------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `POST /auth/register` | none                 | Body `{email, password}`. 201 `{id, email}`; 409 if the email exists; 422 if invalid                           |
+| `POST /auth/login`    | none                 | Body `{email, password}`. 200 `{access_token, token_type: "bearer", expires_in}` + cookie                      |
+| `POST /auth/refresh`  | cookie + CSRF header | Rotates the refresh token. 200 with a new access token and cookie, 403 if CSRF header is missing otherwise 401 |
+| `POST /auth/logout`   | cookie + CSRF header | Revokes the refresh token and clears the cookie. 403 CSRF header is missing otherwise 204                      |
+| `GET /auth/me`        | Bearer               | 200 `{id, email}`                                                                                              |
 
 Emails are stripped and lowercased before they are stored or looked up. Passwords need at least 10 characters and are hashed with Argon2 (pwdlib).
 
@@ -37,11 +37,11 @@ Every 401 from `/auth/refresh` also clears the cookie. The `detail` is one of `R
 
 A refresh revokes the presented token with reason `rotated`, inserts a new one and points the old row's `replaced_by_id` at it. Revoked rows stay in the table, which is what makes reuse detectable. Rows are deleted only after `expires_at`, by a purge that runs at startup.
 
-| `revoked_reason` | Set by          | If presented again       |
-| ---------------- | --------------- | ------------------------ |
-| `rotated`        | refresh         | reuse detected (below)   |
-| `logout`         | logout          | 401 only                 |
-| `reuse_detected` | reuse detection | 401 only                 |
+| `revoked_reason` | Set by          | If presented again     |
+| ---------------- | --------------- | ---------------------- |
+| `rotated`        | refresh         | reuse detected (below) |
+| `logout`         | logout          | 401 only               |
+| `reuse_detected` | reuse detection | 401 only               |
 
 An expired token, revoked or not, or an unknown token, gets a plain 401. An expired `rotated` token never triggers reuse detection.
 

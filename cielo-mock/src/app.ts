@@ -145,7 +145,7 @@ export function createApp(store: SqliteStore) {
       ] satisfies CieloError[]);
       return;
     }
-    response.status(201).json({ MerchantId: result.seller.MerchantId });
+    response.status(201).json(result.response);
     scheduleOnboardingNotifications(result.seller.MerchantId);
   });
 

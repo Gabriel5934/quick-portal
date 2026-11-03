@@ -31,7 +31,11 @@ export default defineConfig({
       {
         text: "Quick API",
         link: "/quick-api/",
-        items: [{ text: "Auth", link: "/quick-api/auth" }],
+        items: [
+          { text: "Auth", link: "/quick-api/auth" },
+          { text: "Cielo Seller Onboarding", link: "/quick-api/onboarding" },
+          { text: "Cielo Auth", link: "/quick-api/cielo-auth" },
+        ],
       },
       {
         text: "OWN",

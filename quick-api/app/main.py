@@ -12,6 +12,8 @@ from starlette.concurrency import run_in_threadpool
 from app.auth.deps import CSRF_HEADER
 from app.auth.routes import auth_router
 from app.auth.service import purge_expired
+from app.cielo.client import CieloClient
+from app.cielo.routes import cielo_router
 from app.config import Settings
 from app.db import create_db_engine
 
@@ -20,7 +22,8 @@ logger = logging.getLogger(__name__)
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or Settings.from_env()
-    settings.validate()  # refuses to start without a usable JWT_SECRET
+    # Refuses to start without a usable JWT_SECRET or any Cielo setting.
+    settings.validate()
 
     engine = create_db_engine(settings.database_path)
     session_factory = sessionmaker(engine, expire_on_commit=False)
@@ -49,6 +52,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     app.state.settings = settings
     app.state.session_factory = session_factory
+    # Shared by every request, so all of them use one Cielo token cache.
+    app.state.cielo = CieloClient(settings)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=list(settings.cors_allowed_origins),
@@ -63,4 +68,5 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return {"status": "ok"}
 
     app.include_router(auth_router)
+    app.include_router(cielo_router)
     return app

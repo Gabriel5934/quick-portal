@@ -1,5 +1,6 @@
 """Database engine, declarative base and shared column types."""
 
+import enum
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -9,6 +10,7 @@ from sqlalchemy import (
     DateTime,
     Dialect,
     Engine,
+    Integer,
     TypeDecorator,
     create_engine,
     event,
@@ -53,6 +55,32 @@ class UTCDateTime(TypeDecorator[datetime]):
         if value.tzinfo is None:
             return value.replace(tzinfo=UTC)
         return value.astimezone(UTC)
+
+
+class IntEnumType[E: enum.IntEnum](TypeDecorator[E]):
+    """IntEnum stored as its integer value.
+
+    SQLAlchemy's Enum stores member names as strings; this keeps the integer
+    codes external APIs use (e.g. Cielo's DocumentType). Add a CHECK constraint
+    on the table to restrict the column to the enum's values.
+    """
+
+    impl = Integer
+    cache_ok = True
+
+    def __init__(self, enum_class: type[E]) -> None:
+        super().__init__()
+        self.enum_class = enum_class
+
+    def process_bind_param(self, value: E | int | None, dialect: Dialect) -> int | None:
+        if value is None:
+            return None
+        return int(self.enum_class(value))  # rejects values outside the enum
+
+    def process_result_value(self, value: int | None, dialect: Dialect) -> E | None:
+        if value is None:
+            return None
+        return self.enum_class(value)
 
 
 def _enable_foreign_keys(dbapi_connection: Any, connection_record: Any) -> None:

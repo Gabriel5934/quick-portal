@@ -48,6 +48,23 @@ export interface StoredSeller {
   OnboardingData: SellerPayload;
 }
 
+/**
+ * The `201` body of `POST /api/merchants`, a subset of Cielo's documented
+ * response. Cielo's `DocumentType` is numeric (1 = CPF, 2 = CNPJ), unlike the
+ * request's string. `MerchantId` repeats `Id` for quick-portal-api, which
+ * reads that key.
+ */
+export interface SellerCreatedResponse {
+  Id: string;
+  MerchantId: string;
+  Type: "Subordinate";
+  MasterMerchantId: string;
+  CorporateName: string;
+  FancyName: string;
+  DocumentType: 1 | 2;
+  DocumentNumber: string;
+}
+
 export type TransactionPaymentType = "CreditCard" | "DebitCard" | "Pix" | "Boleto";
 
 export interface TransactionCard {
