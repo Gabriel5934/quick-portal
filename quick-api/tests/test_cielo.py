@@ -965,6 +965,9 @@ def test_create_app_requires_every_cielo_setting(
         "http://h#",
         "http://h/?",
         "http://h:3000#",
+        # A netloc with a port but no host.
+        "http://:3000",
+        "http://user@:3000",
     ],
 )
 @pytest.mark.parametrize("field", ["cielo_auth_base_url", "cielo_onboarding_base_url"])

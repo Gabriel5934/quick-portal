@@ -48,7 +48,8 @@ def _is_base_url(value: str) -> bool:
     parts = urlsplit(value)
     return (
         parts.scheme in ("http", "https")
-        and bool(parts.netloc)
+        # netloc alone would accept a port without a host ("http://:3000").
+        and bool(parts.hostname)
         and parts.path in ("", "/")
     )
 
