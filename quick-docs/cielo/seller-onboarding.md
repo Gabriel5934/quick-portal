@@ -76,7 +76,7 @@ Required fields are marked with an asterisk\*
   "CorporateName": "Corporate Name Seller",
   "FancyName": "Fancy Name Seller",
   "DocumentType": 1,
-  "DocumentNumber": "64829167000142",
+  "DocumentNumber": "60493224068",
   "BirthdayDate": "2019-04-25",
   "WebSite": "https://www.website.com.br",
   "ContactName": "Joao Costa",
