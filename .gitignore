@@ -1,2 +1,8 @@
 # macOS
 .DS_Store
+
+# lightsail key
+*.pem
+
+# env
+.env

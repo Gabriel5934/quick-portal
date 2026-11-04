@@ -2,7 +2,10 @@ COMPOSE ?= docker compose
 
 ENV_FILES := quick-portal-api/.env.dev cielo-mock/.env quick-api/.env
 
-.PHONY: dev
+# Lightsail instance IPs, see .env.example.
+-include .env
+
+.PHONY: dev ssh-beacon-sandbox ssh-portal-sandbox
 
 # Create missing env files from their examples, start the stack and wait until
 # it is healthy, create or update the dev superuser, then create Quick Digital
@@ -14,6 +17,12 @@ dev: $(ENV_FILES)
 	$(COMPOSE) exec -T web python manage.py create_dev_user root@email.com 'JustTesting593!' --superuser
 	$(COMPOSE) exec -T web python manage.py create_admin_business
 	$(COMPOSE) exec -T cielo-mock npm run seed:admin-business
+
+ssh-beacon-sandbox:
+	ssh -i lightsail-key.pem ubuntu@$(or $(QUICK_BEACON_SANDBOX),$(error QUICK_BEACON_SANDBOX is not set in .env))
+
+ssh-portal-sandbox:
+	ssh -i lightsail-key.pem ubuntu@$(or $(QUICK_PORTAL_SANDBOX),$(error QUICK_PORTAL_SANDBOX is not set in .env))
 
 # Order-only prerequisites: copy only when the env file is missing, even if the
 # example is newer.
