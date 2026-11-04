@@ -33,7 +33,7 @@ function sellerPayload(documentType: "CPF" | "CNPJ", documentNumber: string) {
     CorporateName: "Maria Silva Comercio",
     FancyName: documentType === "CNPJ" ? "Loja da Maria" : "",
     ...(documentType === "CPF"
-      ? { BirthdayDate: "1990-05-17", BusinessActivityId: "123" }
+      ? { BirthdayDate: "1990/05/17", BusinessActivityId: "123" }
       : {}),
     BankAccount: {
       Bank: "341",
@@ -240,6 +240,32 @@ describe("POST /api/merchants", () => {
       },
     ]);
   });
+
+  function withBirthday(documentNumber: string, birthdayDate: string) {
+    return { ...sellerPayload("CPF", documentNumber), BirthdayDate: birthdayDate };
+  }
+
+  test("accepts BirthdayDate as yyyy/MM/dd, and yyyy-MM-dd too", async () => {
+    const slashes = await onboard(withBirthday("70000000001", "1990/05/17"));
+    assert.equal(slashes.status, 201);
+
+    const dashes = await onboard(withBirthday("70000000002", "1990-05-17"));
+    assert.equal(dashes.status, 201);
+  });
+
+  for (const birthdayDate of ["17/05/1990", "1990/05-17", "19900517", "1990/5/17"]) {
+    test(`rejects ${JSON.stringify(birthdayDate)} as the BirthdayDate`, async () => {
+      const response = await onboard(withBirthday("70000000003", birthdayDate));
+
+      assert.equal(response.status, 400);
+      assert.deepEqual(await response.json(), [
+        {
+          Code: "RequestValidationError",
+          Message: "BirthdayDate: must use yyyy/MM/dd.",
+        },
+      ]);
+    });
+  }
 
   test("rejects a document that is already registered", async () => {
     const payload = sellerPayload("CNPJ", "11444777000161");

@@ -56,7 +56,9 @@ docker compose -f cielo-mock/docker-compose.dev.yml up --build
   quick-portal-api, which reads that key. A document that is already
   registered returns `400` with `SellerAlreadyExists`. `BankAccount.AgencyDigit`
   is optional; when sent it must be one digit or `"x"`, which Cielo documents
-  for an agency without a digit.
+  for an agency without a digit. `BirthdayDate`, required for CPF, uses
+  `yyyy/MM/dd` as Cielo expects on input; `yyyy-MM-dd` is accepted too, but not
+  a mix of the two.
 
   ```json
   {

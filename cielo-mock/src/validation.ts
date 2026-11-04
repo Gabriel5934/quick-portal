@@ -349,11 +349,13 @@ export function validateSellerPayload(
       "must contain 11 digits for CPF.",
       errors,
     );
+    // Cielo expects yyyy/MM/dd on input; its sample responses show yyyy-MM-dd,
+    // so that is accepted too, but not a mix of the two.
     requirePattern(
       birthdayDate,
-      /^\d{4}-\d{2}-\d{2}$/,
+      /^\d{4}([/-])\d{2}\1\d{2}$/,
       "BirthdayDate",
-      "must use yyyy-MM-dd.",
+      "must use yyyy/MM/dd.",
       errors,
     );
     if (!birthdayDate) {
