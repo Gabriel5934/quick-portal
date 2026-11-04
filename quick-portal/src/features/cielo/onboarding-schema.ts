@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import type { BankAccountType, OnboardPayload } from '@/api/types';
-import { documentMask, maskLength, MASKS, unmask } from '@/lib/mask';
+import { documentMask, maskLength, unmask } from '@/lib/mask';
 
 const REQUIRED = 'Campo obrigatório';
 const maxChars = (max: number) => `Máximo de ${max} caracteres`;
@@ -61,7 +61,7 @@ export const onboardingSchema = z
     contact_phone: z
       .string()
       .min(1, REQUIRED)
-      .refine((value) => unmask(value).length === maskLength(MASKS.phone), 'Telefone incompleto'),
+      .refine((value) => [10, 11].includes(unmask(value).length), 'Telefone incompleto'),
     corporate_name: requiredText(100),
     document_type: z.enum(['CPF', 'CNPJ'], { error: 'Selecione o tipo de documento' }),
     document_number: z.string().min(1, REQUIRED),
@@ -116,11 +116,13 @@ export const onboardingSchema = z
         message: `${values.document_type} incompleto`,
       });
     }
-    if (values.document_number && !/^[A-Z0-9.\-/]+$/i.test(values.document_number)) {
+    // Only CNPJs are alphanumeric; CPFs are digits only.
+    const allowedChars = values.document_type === 'CNPJ' ? /^[A-Z0-9.\-/]+$/i : /^[\d.-]+$/;
+    if (values.document_number && !allowedChars.test(values.document_number)) {
       ctx.addIssue({
         code: 'custom',
         path: ['document_number'],
-        message: 'Use apenas letras e números',
+        message: values.document_type === 'CNPJ' ? 'Use apenas letras e números' : ONLY_DIGITS,
       });
     }
 

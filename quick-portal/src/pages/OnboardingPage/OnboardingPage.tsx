@@ -28,7 +28,7 @@ import { BANK_OPTIONS } from '@/features/cielo/options/banks';
 import { BUSINESS_ACTIVITY_OPTIONS } from '@/features/cielo/options/business-activities';
 import { useCep } from '@/hooks/brasil-api/useCep';
 import { useOnboardSeller } from '@/hooks/cielo/useOnboardSeller';
-import { applyMask, documentMask, MASKS, type DocumentType } from '@/lib/mask';
+import { documentMask, formatPhone, MASKS, type DocumentType } from '@/lib/mask';
 import { SelectField, TextField } from './fields';
 import classes from './OnboardingPage.module.css';
 
@@ -142,12 +142,7 @@ export function OnboardingPage() {
                 placeholder="Selecione"
                 withAsterisk
                 data={DOCUMENT_TYPE_OPTIONS}
-                onValueChange={(value) => {
-                  if (value === 'CPF' || value === 'CNPJ') {
-                    const current = getValues('document_number');
-                    setValue('document_number', applyMask(current, documentMask(value)));
-                  }
-                }}
+                onValueChange={() => setValue('document_number', '')}
               />
               <TextField
                 control={control}
@@ -229,9 +224,9 @@ export function OnboardingPage() {
                 type="tel"
                 autoComplete="tel-national"
                 inputMode="numeric"
-                placeholder="(00) 00000-0000"
+                placeholder="(00) 0000-0000"
                 withAsterisk
-                mask={MASKS.phone}
+                mask={formatPhone}
               />
             </Section>
 

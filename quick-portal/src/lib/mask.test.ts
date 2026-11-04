@@ -1,10 +1,22 @@
-import { applyMask, formatDocument, MASKS, unmask } from './mask';
+import { applyMask, formatDocument, formatPhone, MASKS, unmask } from './mask';
 
 describe('applyMask', () => {
   it('formats a phone and drops trailing literals', () => {
     expect(applyMask('11987654321', MASKS.phone)).toBe('(11) 98765-4321');
     expect(applyMask('11', MASKS.phone)).toBe('(11');
     expect(applyMask('abc', MASKS.phone)).toBe('');
+  });
+
+  it('formats landlines until an 11th digit is typed', () => {
+    expect(formatPhone('2133333334')).toBe('(21) 3333-3334');
+    expect(formatPhone('21987654321')).toBe('(21) 98765-4321');
+    expect(formatPhone('(21) 3333-3334' + '5')).toBe('(21) 33333-3345');
+  });
+
+  it('drops letters from CPFs but keeps them in CNPJs', () => {
+    expect(applyMask('ABC', MASKS.cpf)).toBe('');
+    expect(applyMask('52839789801', MASKS.cpf)).toBe('528.397.898-01');
+    expect(applyMask('12abc345', MASKS.cnpj)).toBe('12.ABC.345');
   });
 
   it('uppercases alphanumeric CNPJs', () => {

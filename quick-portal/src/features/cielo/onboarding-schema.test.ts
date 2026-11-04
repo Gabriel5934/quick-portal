@@ -67,6 +67,38 @@ describe('onboardingSchema', () => {
   });
 });
 
+describe('document_number letters', () => {
+  it('rejects letters in a CPF', () => {
+    expect(messagesFor({ ...valid, document_number: 'ABC.DEF.GHI-JK' }, 'document_number')).toEqual(
+      ['Use apenas números']
+    );
+  });
+
+  it('accepts letters in a CNPJ', () => {
+    const cnpj = {
+      ...valid,
+      document_type: 'CNPJ' as const,
+      document_number: '12.ABC.345/01DE-35',
+    };
+    expect(messagesFor(cnpj, 'document_number')).toEqual([]);
+  });
+});
+
+describe('contact_phone', () => {
+  it('accepts landline (10 digits) and mobile (11 digits) numbers', () => {
+    expect(messagesFor({ ...valid, contact_phone: '(21) 3333-3334' }, 'contact_phone')).toEqual([]);
+    expect(messagesFor({ ...valid, contact_phone: '(11) 98765-4321' }, 'contact_phone')).toEqual(
+      []
+    );
+  });
+
+  it('rejects any other length', () => {
+    expect(messagesFor({ ...valid, contact_phone: '(21) 3333' }, 'contact_phone')).toEqual([
+      'Telefone incompleto',
+    ]);
+  });
+});
+
 describe('toOnboardPayload', () => {
   it('unmasks, converts the date and defaults the agency digit', () => {
     const payload = toOnboardPayload(onboardingSchema.parse(valid));

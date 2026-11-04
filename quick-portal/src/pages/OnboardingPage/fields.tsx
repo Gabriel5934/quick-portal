@@ -5,8 +5,8 @@ import { applyMask } from '@/lib/mask';
 type TextFieldProps<T extends FieldValues> = {
   control: Control<T>;
   name: FieldPathByValue<T, string>;
-  /** See `applyMask` for the pattern syntax. */
-  mask?: string;
+  /** See `applyMask` for the pattern syntax, or a function that formats the typed value. */
+  mask?: string | ((value: string) => string);
   /** Shown when the field itself has no validation error. */
   extraError?: string | null;
 } & Omit<TextInputProps, 'name' | 'value' | 'onChange' | 'onBlur' | 'error'>;
@@ -32,7 +32,9 @@ export function TextField<T extends FieldValues>({
           onBlur={field.onBlur}
           onChange={(event) => {
             const { value } = event.currentTarget;
-            field.onChange(mask ? applyMask(value, mask) : value);
+            field.onChange(
+              typeof mask === 'function' ? mask(value) : mask ? applyMask(value, mask) : value
+            );
           }}
           error={fieldState.error?.message ?? extraError ?? undefined}
         />

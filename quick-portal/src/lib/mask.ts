@@ -56,7 +56,8 @@ export function unmask(value: string): string {
 
 export const MASKS = {
   phone: '(00) 00000-0000',
-  cpf: 'XXX.XXX.XXX-XX',
+  landline: '(00) 0000-0000',
+  cpf: '000.000.000-00',
   cnpj: 'XX.XXX.XXX/XXXX-XX',
   date: '00/00/0000',
   zipCode: '00000-000',
@@ -66,6 +67,15 @@ export type DocumentType = 'CPF' | 'CNPJ';
 
 export function documentMask(type: DocumentType): string {
   return type === 'CPF' ? MASKS.cpf : MASKS.cnpj;
+}
+
+/**
+ * Formats a phone as a landline (10 digits) until an 11th digit is typed, then
+ * as a mobile number (11 digits).
+ */
+export function formatPhone(value: string): string {
+  const digits = value.replace(/\D/g, '');
+  return applyMask(value, digits.length > 10 ? MASKS.phone : MASKS.landline);
 }
 
 /** Number of letters/digits a pattern holds. */
