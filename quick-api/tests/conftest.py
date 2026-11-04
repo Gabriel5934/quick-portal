@@ -16,6 +16,13 @@ QUICK_API_DIR = Path(__file__).resolve().parent.parent
 JWT_SECRET = "test-jwt-secret-0123456789abcdefghijklmnop"
 PASSWORD = "correct horse battery"
 CSRF = {"X-Requested-With": "quick-portal"}
+# Fake Cielo configuration. Tests never reach these hosts: Cielo calls are
+# intercepted with the ``responses`` library (see test_cielo.py).
+CIELO_MERCHANT_ID = "11111111-1111-4111-8111-111111111111"
+CIELO_CLIENT_SECRET = "test-cielo-client-secret"
+CIELO_AUTH_BASE_URL = "https://cielo-auth.test"
+CIELO_ONBOARDING_BASE_URL = "https://cielo-onboarding.test"
+CIELO_MASTER_MERCHANT_ID = "22222222-2222-4222-8222-222222222222"
 
 
 def alembic_config(settings: Settings) -> Config:
@@ -32,6 +39,11 @@ def settings(tmp_path: Path) -> Settings:
     return Settings(
         jwt_secret=JWT_SECRET,
         database_path=tmp_path / "data" / "quick-api.sqlite3",
+        cielo_merchant_id=CIELO_MERCHANT_ID,
+        cielo_client_secret=CIELO_CLIENT_SECRET,
+        cielo_auth_base_url=CIELO_AUTH_BASE_URL,
+        cielo_onboarding_base_url=CIELO_ONBOARDING_BASE_URL,
+        cielo_master_merchant_id=CIELO_MASTER_MERCHANT_ID,
         # httpx only sends Secure cookies over https; the client is http.
         cookie_secure=False,
     )

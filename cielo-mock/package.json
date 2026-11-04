@@ -7,6 +7,7 @@
     "build": "tsc -p tsconfig.json",
     "check": "tsc -p tsconfig.json --noEmit",
     "dev": "tsx watch src/server.ts",
+    "test": "node --disable-warning=ExperimentalWarning --import tsx --test \"src/**/*.test.ts\"",
     "start": "node --disable-warning=ExperimentalWarning dist/server.js",
     "notify:transaction": "node --disable-warning=ExperimentalWarning dist/scripts/send-transaction-notification.js",
     "seed:admin-business": "node --disable-warning=ExperimentalWarning dist/scripts/seed-admin-business.js"

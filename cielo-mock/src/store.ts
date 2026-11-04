@@ -4,10 +4,30 @@ import { createHash, randomUUID } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
 
 import type {
+  SellerCreatedResponse,
   SellerPayload,
   StoredSeller,
   TransactionResponse,
 } from "./types.js";
+
+const cieloDocumentTypes = { CPF: 1, CNPJ: 2 } as const;
+
+/** The `201` body Cielo returns for a created seller. */
+export function sellerCreatedResponse(
+  seller: StoredSeller,
+): SellerCreatedResponse {
+  const data = seller.OnboardingData;
+  return {
+    Id: seller.MerchantId,
+    MerchantId: seller.MerchantId,
+    Type: data.Type,
+    MasterMerchantId: data.MasterMerchantId,
+    CorporateName: data.CorporateName,
+    FancyName: data.FancyName,
+    DocumentType: cieloDocumentTypes[data.DocumentType],
+    DocumentNumber: data.DocumentNumber,
+  };
+}
 
 const schema = `
   CREATE TABLE IF NOT EXISTS sellers (
@@ -76,7 +96,7 @@ export class SqliteStore {
   createSeller(
     payload: SellerPayload,
   ):
-    | { created: true; seller: StoredSeller }
+    | { created: true; seller: StoredSeller; response: SellerCreatedResponse }
     | { created: false; merchantId: string } {
     return this.transaction(() => {
       const existing = this.database
@@ -112,8 +132,9 @@ export class SqliteStore {
           seller.CreatedAt,
           JSON.stringify(payload),
         );
-      this.insertAttempt(payload, 201, { MerchantId: seller.MerchantId });
-      return { created: true, seller };
+      const response = sellerCreatedResponse(seller);
+      this.insertAttempt(payload, 201, response);
+      return { created: true, seller, response };
     });
   }
 

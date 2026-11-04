@@ -3,9 +3,11 @@ from logging.config import fileConfig
 from alembic import context
 from sqlalchemy import create_engine, pool
 
-import app.auth.models  # noqa: F401  (registers the tables on Base.metadata)
+# Imported for their side effect: registering the tables on Base.metadata.
+import app.auth.models  # noqa: F401
+import app.cielo.models  # noqa: F401
 from app.config import Settings
-from app.db import Base, UTCDateTime
+from app.db import Base, IntEnumType, UTCDateTime
 
 config = context.config
 
@@ -30,6 +32,10 @@ def render_item(type_, obj, autogen_context):
     # DateTime. Keep migrations free of application imports.
     if type_ == "type" and isinstance(obj, UTCDateTime):
         return "sa.DateTime(timezone=True)"
+    # Likewise IntEnumType is a plain Integer; a CHECK constraint on the table
+    # restricts its values.
+    if type_ == "type" and isinstance(obj, IntEnumType):
+        return "sa.Integer()"
     return False
 
 
