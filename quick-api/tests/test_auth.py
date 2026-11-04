@@ -7,7 +7,6 @@ from datetime import timedelta
 
 import jwt
 import pytest
-from alembic import command
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy import select, update
@@ -26,7 +25,6 @@ from tests.conftest import (
     CSRF,
     JWT_SECRET,
     PASSWORD,
-    alembic_config,
     bearer,
     login,
     refresh,
@@ -84,22 +82,8 @@ def test_refresh_cookie_flags(client: TestClient, settings: Settings) -> None:
     assert "httponly" in attributes
     assert "path=/auth" in attributes
     assert f"max-age={settings.refresh_token_ttl_seconds}" in attributes
-    assert "samesite=lax" in attributes
-    assert "secure" not in attributes  # cookie_secure=False in the fixture
     # The refresh token is never in the body.
     assert "refresh_token" not in response.json()
-
-
-def test_secure_cookie_by_default(settings: Settings) -> None:
-    secure = replace(settings, cookie_secure=True)
-    app = create_app(secure)
-    command.upgrade(alembic_config(secure), "head")
-    with TestClient(app, base_url="https://testserver") as client:
-        register(client, EMAIL)
-        response = client.post(
-            "/auth/login", json={"email": EMAIL, "password": PASSWORD}
-        )
-    assert "secure" in set_cookie_header(response).lower().split("; ")
 
 
 def test_duplicate_email_is_rejected(client: TestClient) -> None:
@@ -431,19 +415,6 @@ def test_create_app_rejects_a_weak_secret(settings: Settings, secret: str) -> No
         create_app(replace(settings, jwt_secret=secret))
 
 
-def test_samesite_none_requires_secure(settings: Settings) -> None:
-    with pytest.raises(ValueError, match="COOKIE_SECURE"):
-        create_app(replace(settings, cookie_samesite="none", cookie_secure=False))
-
-
-@pytest.mark.parametrize("origins", [("*",), ("http://localhost:5173", "*")])
-def test_wildcard_cors_origin_is_rejected(
-    settings: Settings, origins: tuple[str, ...]
-) -> None:
-    with pytest.raises(ValueError, match="CORS_ALLOWED_ORIGINS"):
-        create_app(replace(settings, cors_allowed_origins=origins))
-
-
 def test_secret_is_not_in_repr(settings: Settings) -> None:
     assert JWT_SECRET not in repr(settings)
 
@@ -461,30 +432,10 @@ def test_docs_can_be_enabled(app: FastAPI, settings: Settings) -> None:
 
 def test_settings_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("JWT_SECRET", JWT_SECRET)
-    monkeypatch.setenv("COOKIE_SECURE", "false")
-    monkeypatch.setenv("COOKIE_SAMESITE", "None")
-    monkeypatch.setenv("CORS_ALLOWED_ORIGINS", "http://a.test, http://b.test")
     monkeypatch.setenv("REFRESH_TOKEN_TTL_SECONDS", "60")
     settings = Settings.from_env()
-    assert settings.cookie_secure is False
-    assert settings.cookie_samesite == "none"
-    assert settings.cors_allowed_origins == ("http://a.test", "http://b.test")
     assert settings.refresh_token_ttl_seconds == 60
     assert settings.access_token_ttl_seconds == 300
-
-
-def test_cors_allows_the_frontend_with_credentials(client: TestClient) -> None:
-    response = client.options(
-        "/auth/refresh",
-        headers={
-            "Origin": "http://localhost:5173",
-            "Access-Control-Request-Method": "POST",
-            "Access-Control-Request-Headers": "x-requested-with",
-        },
-    )
-    assert response.status_code == 200
-    assert response.headers["access-control-allow-origin"] == "http://localhost:5173"
-    assert response.headers["access-control-allow-credentials"] == "true"
 
 
 def test_health(client: TestClient) -> None:

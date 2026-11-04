@@ -45,7 +45,6 @@ environment variables or credentials during diagnostics.
 - Backend validation errors use the Django REST Framework shape
   `{ "<field>": ["<message>"] }`; preserve that contract or update both sides
   together.
-- CORS must allow the Vite development origin at `http://localhost:5173`.
 
 ## Verification
 

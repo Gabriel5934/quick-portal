@@ -37,20 +37,16 @@ def _set_refresh_cookie(response: Response, token: str, settings: Settings) -> N
         token,
         max_age=settings.refresh_token_ttl_seconds,
         path=REFRESH_COOKIE_PATH,
-        secure=settings.cookie_secure,
         httponly=True,
-        samesite=settings.cookie_samesite,
     )
 
 
-def _clear_refresh_cookie(response: Response, settings: Settings) -> None:
-    # Browsers only replace the cookie when path/secure/samesite match.
+def _clear_refresh_cookie(response: Response) -> None:
+    # Browsers only replace the cookie when the path matches.
     response.delete_cookie(
         REFRESH_COOKIE,
         path=REFRESH_COOKIE_PATH,
-        secure=settings.cookie_secure,
         httponly=True,
-        samesite=settings.cookie_samesite,
     )
 
 
@@ -61,11 +57,11 @@ def _token_out(issued: service.IssuedSession, settings: Settings) -> TokenOut:
     )
 
 
-def _refresh_rejected(detail: str, settings: Settings) -> JSONResponse:
+def _refresh_rejected(detail: str) -> JSONResponse:
     response = JSONResponse(
         status_code=status.HTTP_401_UNAUTHORIZED, content={"detail": detail}
     )
-    _clear_refresh_cookie(response, settings)
+    _clear_refresh_cookie(response)
     return response
 
 
@@ -109,13 +105,13 @@ def refresh(
     session: SessionDep, settings: SettingsDep, refresh_token: RefreshCookie = None
 ) -> Response:
     if not refresh_token:
-        return _refresh_rejected("Refresh token cookie is missing.", settings)
+        return _refresh_rejected("Refresh token cookie is missing.")
     try:
         issued = service.rotate_refresh(session, refresh_token, settings)
     except service.RefreshTokenReused:
-        return _refresh_rejected("Refresh token was already used.", settings)
+        return _refresh_rejected("Refresh token was already used.")
     except service.InvalidRefreshToken:
-        return _refresh_rejected("Refresh token is invalid or expired.", settings)
+        return _refresh_rejected("Refresh token is invalid or expired.")
     response = JSONResponse(content=_token_out(issued, settings).model_dump())
     _set_refresh_cookie(response, issued.refresh_token, settings)
     return response
@@ -126,13 +122,11 @@ def refresh(
     status_code=status.HTTP_204_NO_CONTENT,
     dependencies=[Depends(require_csrf_header)],
 )
-def logout(
-    session: SessionDep, settings: SettingsDep, refresh_token: RefreshCookie = None
-) -> Response:
+def logout(session: SessionDep, refresh_token: RefreshCookie = None) -> Response:
     if refresh_token:
         service.logout(session, refresh_token)
     response = Response(status_code=status.HTTP_204_NO_CONTENT)
-    _clear_refresh_cookie(response, settings)
+    _clear_refresh_cookie(response)
     return response
 
 

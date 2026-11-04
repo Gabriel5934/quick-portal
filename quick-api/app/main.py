@@ -56,7 +56,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.cielo = CieloClient(settings)
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=list(settings.cors_allowed_origins),
         # Lets the browser send and store the refresh cookie cross-origin.
         allow_credentials=True,
         allow_methods=["GET", "POST"],

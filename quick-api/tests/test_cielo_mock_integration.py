@@ -178,7 +178,6 @@ def settings(settings: Settings, cielo_mock: RunningMock) -> Settings:
         cielo_client_secret=MOCK_CLIENT_SECRET,
         cielo_auth_base_url=cielo_mock.base_url,
         cielo_onboarding_base_url=cielo_mock.base_url,
-        cielo_master_merchant_id=MOCK_MERCHANT_ID,
     )
 
 

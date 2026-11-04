@@ -32,8 +32,8 @@ cielo-mock/.env: | cielo-mock/.env.example
 # Generated, not copied: the example leaves JWT_SECRET and the Cielo settings
 # empty, and Quick API refuses to start without them. The Cielo settings point
 # at cielo-mock over the compose network and reuse the credentials hard-coded in
-# cielo-mock/src/config.ts; the mock only accepts its own merchant ID as
-# MasterMerchantId, so that is CIELO_MASTER_MERCHANT_ID too. Only created when
+# cielo-mock/src/config.ts. Quick API also sends CIELO_MERCHANT_ID as
+# MasterMerchantId, which the mock only accepts as its own. Only created when
 # missing, like the rules above: delete quick-api/.env to regenerate it (an
 # older one without the Cielo settings stops Quick API from starting).
 quick-api/.env: | quick-api/.env.example
@@ -47,5 +47,4 @@ quick-api/.env: | quick-api/.env.example
 	    "CIELO_MERCHANT_ID=$$merchant" \
 	    "CIELO_CLIENT_SECRET=$$client_secret" \
 	    'CIELO_AUTH_BASE_URL=http://cielo-mock:3000' \
-	    'CIELO_ONBOARDING_BASE_URL=http://cielo-mock:3000' \
-	    "CIELO_MASTER_MERCHANT_ID=$$merchant" > $@
+	    'CIELO_ONBOARDING_BASE_URL=http://cielo-mock:3000' > $@

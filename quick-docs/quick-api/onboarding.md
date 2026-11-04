@@ -12,7 +12,7 @@ We foward the request to Cielo in pascal case as defined by their documentation.
 
 `bank_account.document_number` and `bank_account.document_type` are ignored if the client sends them, like any other unknown field. The account holder is always the seller, so when building the Cielo payload they are copied from the seller's own `document_number` and `document_type`.
 
-`MasterMerchantId` is not sent by the client, instead we send `CIELO_MASTER_MERCHANT_ID`.
+`MasterMerchantId` is not sent by the client, instead we send `CIELO_MERCHANT_ID`.
 
 ## URLs
 
@@ -70,7 +70,7 @@ Returns every seller the current user has access to. Access is direct only: a se
 
 ## Environment Variables
 
-`CIELO_MASTER_MERCHANT_ID` - Defines the ID that will be used as `MasterMerchantId`
+`CIELO_MERCHANT_ID` - Defines the ID that will be used as `MasterMerchantId` (the same ID used for the token request, see [Cielo Auth](./cielo-auth))
 
 ## Ownership
 
