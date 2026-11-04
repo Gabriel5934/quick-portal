@@ -1,11 +1,9 @@
 # Quick Portal
 
-Quick Portal is a monorepo containing three independently built applications:
+Quick Portal is a monorepo containing independently built applications:
 
 | Directory | Application |
 | --- | --- |
-| `quick-portal-web/` | React / TypeScript frontend |
-| `quick-portal-api/` | Django REST API |
 | `quick-docs/` | VitePress documentation |
 
 Run Git commands from this root. Related API and frontend changes belong in the
@@ -14,8 +12,8 @@ See `AGENTS.md` and each application's `AGENTS.md` for development conventions.
 
 ## Local development
 
-The root `docker-compose.yml` includes all three applications' development Compose
-files. Configure `quick-portal-api/.env.dev` using its `.env.example`, then run:
+The root `docker-compose.yml` includes the applications' development Compose
+files. Run:
 
 ```sh
 docker compose up --build
@@ -24,28 +22,7 @@ docker compose up --build
 Documentation is available at `http://localhost:5174` with live reload.
 Run `docker compose up docs` to start only the documentation service.
 
-The API is available at `http://localhost:8080` and the frontend at
-`http://localhost:5173`. To run the frontend outside Docker, run `npm ci` and
-`npm run dev` from `quick-portal-web/` with the backend development Compose
-stack running. Keep CORS origins consistent with the frontend URL.
-
 ## Checks
-
-From `quick-portal-web/`:
-
-```sh
-npm ci
-npm run lint
-npm test
-npm run build
-```
-
-From the root, with the root development Compose stack running:
-
-```sh
-docker compose exec web ruff check
-docker compose exec web python manage.py test quickportal
-```
 
 From `quick-docs/`:
 
@@ -73,17 +50,8 @@ review guidance to the backend.
 The existing local Elastic Beanstalk configuration files remain ignored in each
 application directory. Before using EB CLI deployment from this monorepo,
 configure an application-only deployment artifact; Git-based packaging may select
-the entire repository. From the root, create committed source bundles with:
-
-```sh
-git archive --format=zip --output=/tmp/quick-portal-web.zip HEAD:quick-portal-web
-git archive --format=zip --output=/tmp/quick-portal-api.zip HEAD:quick-portal-api
-```
-
-These archives put each application's files at the archive root. Configure the
-corresponding EB application's `deploy.artifact` setting to use its archive.
-Regenerate the archive after committing changes. Remote deployments have not
-been changed by this migration.
+the entire repository. Remote deployments have not been changed by this
+migration.
 
 ## Migration and recovery
 

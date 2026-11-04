@@ -2,8 +2,8 @@ import { parseArgs } from "node:util";
 
 import {
   databaseFile,
+  notificationUrl,
   transactionMerchantId,
-  transactionNotificationUrl,
 } from "../config.js";
 import { deliver } from "../notifications.js";
 import { SqliteStore } from "../store.js";
@@ -24,8 +24,8 @@ const { values } = parseArgs({
 });
 const paymentId = values["payment-id"];
 
-if (!transactionNotificationUrl) {
-  fail("MOCK_CIELO_TRANSACTION_NOTIFICATION_URL is not configured.");
+if (!notificationUrl) {
+  fail("MOCK_CIELO_NOTIFICATION_URL is not configured.");
 }
 
 const store = new SqliteStore(databaseFile);
@@ -46,7 +46,7 @@ try {
     store.createTransaction(transaction);
   }
 
-  const delivered = await deliver(transactionNotificationUrl, {
+  const delivered = await deliver(notificationUrl, {
     PaymentId: transaction.Payment.PaymentId,
     ChangeType: PAYMENT_STATUS_CHANGE,
   });

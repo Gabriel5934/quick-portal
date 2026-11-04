@@ -1,13 +1,5 @@
 import path from "node:path";
 
-function requireEnv(name: string): string {
-  const configured = process.env[name];
-  if (!configured) {
-    throw new Error(`Missing ${name}. Set it in cielo-mock/.env.`);
-  }
-  return configured;
-}
-
 function resolveTokenLifetimeSeconds(): number {
   const configured = process.env.MOCK_CIELO_TOKEN_LIFETIME_SECONDS ?? "1200";
   const lifetime = Number(configured);
@@ -20,8 +12,8 @@ function resolveTokenLifetimeSeconds(): number {
 }
 
 // Must match the backend's CIELO_MERCHANT_ID and CIELO_CLIENT_SECRET.
-export const MOCK_MERCHANT_ID = requireEnv("MOCK_CIELO_MERCHANT_ID");
-export const MOCK_CLIENT_SECRET = requireEnv("MOCK_CIELO_CLIENT_SECRET");
+export const MOCK_MERCHANT_ID = "00000000-0000-0000-0000-000000000000";
+export const MOCK_CLIENT_SECRET = "mock-cielo-secret";
 
 export const TOKEN_LIFETIME_SECONDS = resolveTokenLifetimeSeconds();
 
@@ -82,7 +74,8 @@ function resolveNotificationDelaySeconds(): number {
   return delay;
 }
 
-// Notifications are disabled when no destination URL is configured.
+// Onboarding and transaction notifications share one destination. Onboarding
+// notifications are disabled when it is not configured.
 export const notificationUrl = process.env.MOCK_CIELO_NOTIFICATION_URL || null;
 export const notificationToken =
   process.env.MOCK_CIELO_NOTIFICATION_TOKEN ?? "";
@@ -90,7 +83,5 @@ export const notificationDelaySeconds = resolveNotificationDelaySeconds();
 export const notificationScenario = resolveNotificationScenario();
 
 // Transaction notifications are sent only by the notify:transaction script.
-export const transactionNotificationUrl =
-  process.env.MOCK_CIELO_TRANSACTION_NOTIFICATION_URL || null;
 export const transactionMerchantId =
   process.env.MOCK_CIELO_TRANSACTION_MERCHANT_ID || null;

@@ -2,7 +2,7 @@
 # compose network. Only Caddy publishes ports; Quick API and the mock are
 # internal. To use the mock, point Quick API's Cielo settings at it in
 # quick-api/.env: both base URLs at http://cielo-mock:3000 and the merchant ID
-# and client secret matching cielo-mock/.env.
+# and client secret hard-coded in cielo-mock/src/config.ts.
 # Requires quick-portal/.env, quick-api/.env and cielo-mock/.env (see their
 # .env.example).
 #   docker compose -f docker-compose.prod.yml up --build --detach
@@ -21,14 +21,13 @@ services:
     build: ./cielo-mock
     restart: unless-stopped
     env_file:
-      # Holds the credentials the mock refuses to start without.
+      # Holds the notification token and the mock's other settings.
       - ./cielo-mock/.env
     environment:
       PORT: 3000
       MOCK_CIELO_DATABASE_FILE: /app/data/cielo.sqlite3
-      # Both default to Django's web service, which is not part of this stack.
+      # Defaults to Django's web service, which is not part of this stack.
       MOCK_CIELO_NOTIFICATION_URL: ""
-      MOCK_CIELO_TRANSACTION_NOTIFICATION_URL: ""
     expose:
       - "3000"
     volumes:

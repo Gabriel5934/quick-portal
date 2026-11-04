@@ -2,8 +2,6 @@
 
 This directory is the Git root of the Quick Portal monorepo:
 
-- `quick-portal-web/` — React/TypeScript frontend.
-- `quick-portal-api/` — Django REST Framework backend.
 - `quick-docs/` — shared VitePress documentation.
 - `beacon/` - notification service
 
@@ -15,8 +13,7 @@ Child instructions take precedence for application-specific work.
 - Run Git commands from this workspace root. The application directories are
   regular directories in this repository, not nested Git repositories.
 - Keep related frontend and backend work in the same branch, commit, and PR.
-- Run frontend npm commands from `quick-portal-web/`. Run integrated Docker
-  Compose commands from this Git root.
+- Run integrated Docker Compose commands from this Git root.
 - Keep frontend and backend dependencies, builds, and deployments independent.
 - Check the root `git status` before finishing.
 
@@ -24,18 +21,17 @@ Child instructions take precedence for application-specific work.
 
 The root `docker-compose.yml` includes the child development Compose files and
 runs as the `quick-portal` project. Use it when checking the running monorepo
-stack. Its services are `app` (React frontend), `web` (Django API), `db`
-(PostgreSQL), `nginx` (API proxy), and `docs` (VitePress).
+stack. Its services are `portal`, `storybook`, `quick-api`, `cielo-mock`,
+`beacon`, and `docs` (VitePress).
 
 ```bash
 # Run from this Git root
 docker compose ls --all
 docker compose ps
-docker compose exec -T web python manage.py showmigrations own
 ```
 
-Running `docker compose ps` inside `quick-portal-api/` or `quick-portal-web/`
-checks a separate child project; an empty result there does **not** mean the
+Running `docker compose ps` inside an application directory checks a separate
+child project; an empty result there does **not** mean the
 root `quick-portal` services are stopped. If a sandboxed Docker command reports
 permission denied for the Docker socket, request elevated Docker access and
 retry before concluding that services are unavailable. Do not print container
@@ -53,19 +49,7 @@ environment variables or credentials during diagnostics.
 
 ## Verification
 
-Run checks in the application you changed:
-
-```bash
-# Frontend
-cd quick-portal-web
-npm run lint
-npm run build
-
-# Backend: run from the Git root against the integrated stack
-cd ..
-docker compose exec -T web ruff check
-docker compose exec -T web python manage.py test quickportal
-```
+Run checks in the application you changed.
 
 If the root Docker services are not running or cannot be accessed after the
 permission retry, report which backend checks could not be executed rather

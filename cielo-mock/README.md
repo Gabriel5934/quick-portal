@@ -5,10 +5,11 @@ onboarding endpoints used by Quick Portal.
 
 ## Credentials
 
-The token endpoint validates HTTP Basic authentication against
-`MOCK_CIELO_MERCHANT_ID` and `MOCK_CIELO_CLIENT_SECRET`, and requires
-`grant_type=client_credentials`. Both variables are required and must match the
-backend's `CIELO_MERCHANT_ID` and `CIELO_CLIENT_SECRET`. Issued bearer tokens
+The token endpoint validates HTTP Basic authentication against the merchant ID
+`00000000-0000-0000-0000-000000000000` and the client secret
+`mock-cielo-secret`, hard-coded in `src/config.ts`, and requires
+`grant_type=client_credentials`. They must match the backend's
+`CIELO_MERCHANT_ID` and `CIELO_CLIENT_SECRET`. Issued bearer tokens
 expire after `MOCK_CIELO_TOKEN_LIFETIME_SECONDS` (20 minutes by default) and
 survive restarts; see [Persistence](#persistence).
 
@@ -22,10 +23,7 @@ cp cielo-mock/.env.example cielo-mock/.env
 
 Docker Compose reads that file to fill the variables in
 `docker-compose.dev.yml`, both standalone and through the root
-`docker-compose.yml`. Shell variables take precedence over it. The example's
-credentials and `MOCK_CIELO_NOTIFICATION_TOKEN` match `CIELO_MERCHANT_ID`,
-`CIELO_CLIENT_SECRET`, and `CIELO_WEBHOOK_TOKEN` in
-`quick-portal-api/.env.dev.example`.
+`docker-compose.yml`. Shell variables take precedence over it.
 
 ## Run
 
@@ -36,7 +34,8 @@ automatically:
 docker compose up --build
 ```
 
-The mock is available from the host at `http://localhost:3001`. Quick Portal's
+The mock is available from the host at `http://localhost:3001`; the port is
+fixed in `docker-compose.dev.yml`. Quick Portal's
 backend uses the Docker-network address `http://cielo-mock:3000` by default.
 
 To start only the mock:
@@ -66,7 +65,7 @@ docker compose -f cielo-mock/docker-compose.dev.yml up --build
     "id": "<UUID>",
     "merchantId": "<same UUID>",
     "type": "Subordinate",
-    "masterMerchantId": "<MOCK_CIELO_MERCHANT_ID>",
+    "masterMerchantId": "00000000-0000-0000-0000-000000000000",
     "corporateName": "<request corporateName>",
     "fancyName": "<request fancyName>",
     "documentType": 2,
@@ -91,7 +90,7 @@ a registration request:
 
 | Variable                                | Purpose                                                                                                     |
 | --------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| `MOCK_CIELO_NOTIFICATION_URL`           | Destination, for example `http://web:8000/cielo/onboarding/notifications/`. Notifications are disabled when unset. |
+| `MOCK_CIELO_NOTIFICATION_URL`           | Destination, for example `http://web:8000/cielo/onboarding/notifications/`. Transaction notifications use it too. Onboarding notifications are disabled when unset. |
 | `MOCK_CIELO_NOTIFICATION_TOKEN`         | Sent as `X-Cielo-Webhook-Token`. Must match the backend's `CIELO_WEBHOOK_TOKEN`.                            |
 | `MOCK_CIELO_NOTIFICATION_DELAY_SECONDS` | Delay before each notification. Defaults to `5`.                                                            |
 | `MOCK_CIELO_NOTIFICATION_SCENARIO`      | Statuses sent: `approved` (default), `kyc_rejected`, `bank_error`, or `under_analysis`.                     |
@@ -138,7 +137,7 @@ transaction notification for it:
 
 | Variable                                  | Purpose                                                                       |
 | ----------------------------------------- | ----------------------------------------------------------------------------- |
-| `MOCK_CIELO_TRANSACTION_NOTIFICATION_URL` | Destination, for example `http://web:8000/cielo/transactions/notifications/`. |
+| `MOCK_CIELO_NOTIFICATION_URL`             | Destination, shared with onboarding notifications.                            |
 | `MOCK_CIELO_TRANSACTION_MERCHANT_ID`      | `MerchantId` of generated transactions; set it to a seller's merchant ID.     |
 | `MOCK_CIELO_NOTIFICATION_TOKEN`           | Sent as `X-Cielo-Webhook-Token`, like onboarding notifications.               |
 
