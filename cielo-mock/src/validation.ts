@@ -322,9 +322,9 @@ export function validateSellerPayload(
   }
   requirePattern(
     contactPhone,
-    /^\d{11}$/,
+    /^\d{10,11}$/,
     "ContactPhone",
-    "must contain 11 digits.",
+    "must contain 10 or 11 digits.",
     errors,
   );
   requirePattern(
