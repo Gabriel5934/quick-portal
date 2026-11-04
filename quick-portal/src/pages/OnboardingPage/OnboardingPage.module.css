@@ -1,0 +1,16 @@
+/* Address fields filled from the CEP lookup: read-only, so they look muted. */
+.managed :global(.mantine-Input-input) {
+  background-color: var(--mantine-color-gray-0);
+  color: var(--mantine-color-gray-7);
+}
+
+/* Mobile first: full-width buttons, primary action on top. */
+.actions {
+  flex-direction: column-reverse;
+  align-items: stretch;
+
+  @media (min-width: $mantine-breakpoint-xs) {
+    flex-direction: row;
+    align-items: center;
+  }
+}

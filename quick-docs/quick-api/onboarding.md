@@ -16,10 +16,12 @@ We foward the request to Cielo in pascal case as defined by their documentation.
 
 ## URLs
 
-| Environment | Auth   | Method | Path                                                    |
-| ----------- | ------ | ------ | ------------------------------------------------------- |
-| Sandbox     | Bearer | POST   | https://quick-api-sandbox.duckdns.org/cielo/onboard     |
-| Sandbox     | Bearer | GET    | https://quick-api-sandbox.duckdns.org/cielo/get-sellers |
+Quick API is internal only, so these are reachable from the compose network (Quick Portal's server functions), not from the internet.
+
+| Environment | Auth   | Method | Path                                    |
+| ----------- | ------ | ------ | --------------------------------------- |
+| Sandbox     | Bearer | POST   | http://quick-api:8000/cielo/onboard     |
+| Sandbox     | Bearer | GET    | http://quick-api:8000/cielo/get-sellers |
 
 ## Workflow
 

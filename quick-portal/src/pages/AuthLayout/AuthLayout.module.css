@@ -1,0 +1,30 @@
+.header {
+  width: 100%;
+  background-color: var(--mantine-color-white);
+  border-bottom: 1px solid var(--mantine-color-gray-3);
+  padding: var(--mantine-spacing-xs) var(--mantine-spacing-md);
+
+  @media (min-width: $mantine-breakpoint-sm) {
+    padding-inline: var(--mantine-spacing-xl);
+  }
+}
+
+.logo {
+  display: block;
+  width: 32px;
+  height: 32px;
+}
+
+.avatarButton {
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+
+.main {
+  padding: var(--mantine-spacing-md);
+
+  @media (min-width: $mantine-breakpoint-sm) {
+    padding: var(--mantine-spacing-xl);
+  }
+}
