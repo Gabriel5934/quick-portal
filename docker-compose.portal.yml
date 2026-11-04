@@ -3,8 +3,7 @@
 # internal. To use the mock, point Quick API's Cielo settings at it in
 # quick-api/.env: both base URLs at http://cielo-mock:3000 and the merchant ID
 # and client secret hard-coded in cielo-mock/src/config.ts.
-# Requires quick-portal/.env, quick-api/.env and cielo-mock/.env (see their
-# .env.example).
+# Requires quick-api/.env and cielo-mock/.env (see their .env.example).
 #   docker compose -f docker-compose.prod.yml up --build --detach
 # Not included by the root docker-compose.yml (local development).
 

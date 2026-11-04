@@ -1,9 +1,10 @@
 # Build environments (sandbox and production): Quick Portal behind Caddy, which
-# serves PORTAL_HOST over HTTPS on port 443 and redirects HTTP to HTTPS.
+# serves PORTAL_HOST (set on the caddy service below) over HTTPS on port 443 and
+# redirects HTTP to HTTPS.
 # Includes Quick API's build compose, so one command starts the whole stack on
 # a single compose network. Quick API is internal only: nothing publishes its
 # port, and only the portal's server functions call it.
-# Requires quick-portal/.env and quick-api/.env (see their .env.example).
+# Requires quick-api/.env (see its .env.example).
 #   docker compose -f quick-portal/docker-compose.yml up --build --detach
 # Not included by the root docker-compose.yml (local development).
 
@@ -46,9 +47,8 @@ services:
     depends_on:
       - portal
     environment:
-      # Required: compose (including `docker compose config`) fails when it is
-      # missing or empty in both the shell and quick-portal/.env.
-      PORTAL_HOST: ${PORTAL_HOST:?PORTAL_HOST must be set in quick-portal/.env}
+      # Public hostname the Caddyfile serves over HTTPS.
+      PORTAL_HOST: quick-portal-sandbox.duckdns.org
     ports:
       - "80:80"
       - "443:443"
