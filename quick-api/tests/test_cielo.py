@@ -111,13 +111,13 @@ def cpf_seller(**overrides) -> dict:
 def created_body(**overrides) -> dict:
     """A trimmed Cielo 201 body."""
     body = {
-        "Id": SELLER_ID,
-        "Type": "Subordinate",
-        "MasterMerchantId": CIELO_MASTER_MERCHANT_ID,
-        "DocumentType": 2,
-        "DocumentNumber": CNPJ,
-        "ContactName": CONTACT_NAME,
-        "MailAddress": MAIL_ADDRESS,
+        "id": SELLER_ID,
+        "type": "Subordinate",
+        "masterMerchantId": CIELO_MASTER_MERCHANT_ID,
+        "documentType": 2,
+        "documentNumber": CNPJ,
+        "contactName": CONTACT_NAME,
+        "mailAddress": MAIL_ADDRESS,
     }
     body.update(overrides)
     return body
@@ -332,16 +332,15 @@ def test_onboard_creates_the_seller_and_membership(
     assert membership.created_at.tzinfo is not None
 
 
-def test_onboard_forwards_pascal_case_with_server_fields(
+def test_onboard_forwards_camel_case_with_server_fields(
     client: TestClient, auth: dict[str, str], cielo_http: responses.RequestsMock
 ) -> None:
     add_token(cielo_http, "token-1")
     cielo_http.add(responses.POST, ONBOARD_URL, status=201, json=created_body())
     seller = cnpj_seller(
         master_merchant_id="33333333-3333-4333-8333-333333333333",
-        MasterMerchantId="33333333-3333-4333-8333-333333333333",
+        masterMerchantId="33333333-3333-4333-8333-333333333333",
         type="Master",
-        Type="Master",
         unknown_field="dropped",
     )
     del seller["website"]  # optional fields left out are not sent
@@ -352,34 +351,34 @@ def test_onboard_forwards_pascal_case_with_server_fields(
     assert call.request.headers["Authorization"] == "Bearer token-1"
     assert call.request.req_kwargs["timeout"] == 120
     assert json.loads(call.request.body) == {
-        "Type": "Subordinate",
-        "MasterMerchantId": CIELO_MASTER_MERCHANT_ID,
-        "ContactName": CONTACT_NAME,
-        "ContactPhone": CONTACT_PHONE,
-        "CorporateName": "Seller Corporativo Ltda",
-        "DocumentNumber": CNPJ,
-        "DocumentType": "CNPJ",
-        "FancyName": "Seller Nome Fantasia",
-        "MailAddress": MAIL_ADDRESS,
-        "BankAccount": {
-            "Bank": "001",
-            "BankAccountType": "CheckingAccount",
-            "Number": "0002",
-            "Operation": "2",
-            "VerifierDigit": "2",
-            "AgencyNumber": "0002",
-            "AgencyDigit": "x",
-            "DocumentNumber": CNPJ,
-            "DocumentType": "CNPJ",
+        "type": "Subordinate",
+        "masterMerchantId": CIELO_MASTER_MERCHANT_ID,
+        "contactName": CONTACT_NAME,
+        "contactPhone": CONTACT_PHONE,
+        "corporateName": "Seller Corporativo Ltda",
+        "documentNumber": CNPJ,
+        "documentType": "CNPJ",
+        "fancyName": "Seller Nome Fantasia",
+        "mailAddress": MAIL_ADDRESS,
+        "bankAccount": {
+            "bank": "001",
+            "bankAccountType": "CheckingAccount",
+            "number": "0002",
+            "operation": "2",
+            "verifierDigit": "2",
+            "agencyNumber": "0002",
+            "agencyDigit": "x",
+            "documentNumber": CNPJ,
+            "documentType": "CNPJ",
         },
-        "Address": {
-            "Street": "Rua Teste",
-            "Number": "50",
-            "Complement": "AP 255",
-            "Neighborhood": "Centro",
-            "City": "São Paulo",
-            "State": "SP",
-            "ZipCode": "12345687",
+        "address": {
+            "street": "Rua Teste",
+            "number": "50",
+            "complement": "AP 255",
+            "neighborhood": "Centro",
+            "city": "São Paulo",
+            "state": "SP",
+            "zipCode": "12345687",
         },
     }
 
@@ -392,14 +391,14 @@ def test_onboard_cpf_seller(
         responses.POST,
         ONBOARD_URL,
         status=201,
-        json=created_body(DocumentType=1, DocumentNumber=CPF),
+        json=created_body(documentType=1, documentNumber=CPF),
     )
     response = onboard(client, auth, cpf_seller(business_activity_id=24))
     assert response.status_code == 201, response.text
     assert response.json()["document_type"] == "CPF"
     sent = json.loads(calls_to(cielo_http, ONBOARD_URL)[0].request.body)
-    assert sent["BirthdayDate"] == "2019/04/25"
-    assert sent["BusinessActivityId"] == "24"
+    assert sent["birthdayDate"] == "2019/04/25"
+    assert sent["businessActivityId"] == "24"
 
 
 def test_onboarding_the_same_id_overwrites_and_keeps_one_membership(
@@ -416,7 +415,7 @@ def test_onboarding_the_same_id_overwrites_and_keeps_one_membership(
         responses.POST,
         ONBOARD_URL,
         status=201,
-        json=created_body(DocumentType=1, DocumentNumber=CPF),
+        json=created_body(documentType=1, documentNumber=CPF),
     )
     assert onboard(client, auth, cpf_seller(fancy_name="Novo Nome")).status_code == 201
 
@@ -467,18 +466,20 @@ def test_deleting_a_user_removes_its_memberships(
 @pytest.mark.parametrize(
     "body",
     [
-        created_body(Id=None),
-        {k: v for k, v in created_body().items() if k != "Id"},
-        {k: v for k, v in created_body().items() if k != "DocumentType"},
-        {k: v for k, v in created_body().items() if k != "DocumentNumber"},
-        created_body(Id="not-a-uuid"),
-        created_body(Id=123),
-        created_body(DocumentType=3),
-        created_body(DocumentType="1"),
-        created_body(DocumentType="CNPJ"),
-        created_body(DocumentType=True),
-        created_body(DocumentNumber=96462142000140),
-        created_body(DocumentNumber=""),
+        created_body(id=None),
+        {k: v for k, v in created_body().items() if k != "id"},
+        {k: v for k, v in created_body().items() if k != "documentType"},
+        {k: v for k, v in created_body().items() if k != "documentNumber"},
+        created_body(id="not-a-uuid"),
+        created_body(id=123),
+        created_body(documentType=3),
+        created_body(documentType="1"),
+        created_body(documentType="CNPJ"),
+        created_body(documentType=True),
+        created_body(documentNumber=96462142000140),
+        created_body(documentNumber=""),
+        # Only camelCase keys are read.
+        {"Id": SELLER_ID, "DocumentType": 2, "DocumentNumber": CNPJ},
         # What cielo-mock returns today.
         {"MerchantId": SELLER_ID},
         ["not", "an", "object"],
@@ -771,15 +772,15 @@ def test_bank_account_document_is_copied_from_the_seller(
         responses.POST,
         ONBOARD_URL,
         status=201,
-        json=created_body(DocumentType=1, DocumentNumber=CPF),
+        json=created_body(documentType=1, documentNumber=CPF),
     )
     seller = cpf_seller()
     # Sent by the client, but ignored.
     seller["bank_account"].update(document_number=CNPJ, document_type="CNPJ")
     assert onboard(client, auth, seller).status_code == 201
     sent = json.loads(calls_to(cielo_http, ONBOARD_URL)[0].request.body)
-    assert sent["BankAccount"]["DocumentNumber"] == CPF
-    assert sent["BankAccount"]["DocumentType"] == "CPF"
+    assert sent["bankAccount"]["documentNumber"] == CPF
+    assert sent["bankAccount"]["documentType"] == "CPF"
 
 
 def test_bank_account_and_address_are_optional(
@@ -791,7 +792,7 @@ def test_bank_account_and_address_are_optional(
     del seller["bank_account"], seller["address"]
     assert onboard(client, auth, seller).status_code == 201
     sent = json.loads(calls_to(cielo_http, ONBOARD_URL)[0].request.body)
-    assert "BankAccount" not in sent and "Address" not in sent
+    assert "bankAccount" not in sent and "address" not in sent
 
 
 # Get sellers

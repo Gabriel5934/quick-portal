@@ -23,35 +23,35 @@ const { SqliteStore } = await import("./store.js");
 
 function sellerPayload(documentType: "CPF" | "CNPJ", documentNumber: string) {
   return {
-    Type: "Subordinate",
-    MasterMerchantId: MASTER_MERCHANT_ID,
-    ContactPhone: "11987654321",
-    ContactName: "Maria Silva",
-    MailAddress: "maria@example.com",
-    DocumentType: documentType,
-    DocumentNumber: documentNumber,
-    CorporateName: "Maria Silva Comercio",
-    FancyName: documentType === "CNPJ" ? "Loja da Maria" : "",
+    type: "Subordinate",
+    masterMerchantId: MASTER_MERCHANT_ID,
+    contactPhone: "11987654321",
+    contactName: "Maria Silva",
+    mailAddress: "maria@example.com",
+    documentType: documentType,
+    documentNumber: documentNumber,
+    corporateName: "Maria Silva Comercio",
+    fancyName: documentType === "CNPJ" ? "Loja da Maria" : "",
     ...(documentType === "CPF"
-      ? { BirthdayDate: "1990/05/17", BusinessActivityId: "123" }
+      ? { birthdayDate: "1990/05/17", businessActivityId: "123" }
       : {}),
-    BankAccount: {
-      Bank: "341",
-      BankAccountType: "CheckingAccount",
-      Number: "12345",
-      VerifierDigit: "6",
-      AgencyNumber: "1234",
-      AgencyDigit: "1",
-      DocumentType: documentType,
-      DocumentNumber: documentNumber,
+    bankAccount: {
+      bank: "341",
+      bankAccountType: "CheckingAccount",
+      number: "12345",
+      verifierDigit: "6",
+      agencyNumber: "1234",
+      agencyDigit: "1",
+      documentType: documentType,
+      documentNumber: documentNumber,
     },
-    Address: {
-      Number: "100",
-      ZipCode: "01310100",
-      Street: "Avenida Paulista",
-      Neighborhood: "Bela Vista",
-      City: "São Paulo",
-      State: "SP",
+    address: {
+      number: "100",
+      zipCode: "01310100",
+      street: "Avenida Paulista",
+      neighborhood: "Bela Vista",
+      city: "São Paulo",
+      state: "SP",
     },
   };
 }
@@ -124,21 +124,21 @@ describe("POST /api/merchants", () => {
     }
   }
 
-  test("returns the created CNPJ seller with a numeric DocumentType", async () => {
+  test("returns the created CNPJ seller with a numeric documentType", async () => {
     const response = await onboard(sellerPayload("CNPJ", "96462142000140"));
 
     assert.equal(response.status, 201);
     const body = (await response.json()) as Record<string, unknown>;
-    assert.match(String(body.Id), UUID_PATTERN);
+    assert.match(String(body.id), UUID_PATTERN);
     assert.deepEqual(body, {
-      Id: body.Id,
-      MerchantId: body.Id,
-      Type: "Subordinate",
-      MasterMerchantId: MASTER_MERCHANT_ID,
-      CorporateName: "Maria Silva Comercio",
-      FancyName: "Loja da Maria",
-      DocumentType: 2,
-      DocumentNumber: "96462142000140",
+      id: body.id,
+      merchantId: body.id,
+      type: "Subordinate",
+      masterMerchantId: MASTER_MERCHANT_ID,
+      corporateName: "Maria Silva Comercio",
+      fancyName: "Loja da Maria",
+      documentType: 2,
+      documentNumber: "96462142000140",
     });
     assert.deepEqual(lastRecordedAttempt("96462142000140"), {
       status: 201,
@@ -146,16 +146,16 @@ describe("POST /api/merchants", () => {
     });
   });
 
-  test("returns the created CPF seller with a numeric DocumentType", async () => {
+  test("returns the created CPF seller with a numeric documentType", async () => {
     const response = await onboard(sellerPayload("CPF", "52839789801"));
 
     assert.equal(response.status, 201);
     const body = (await response.json()) as Record<string, unknown>;
-    assert.match(String(body.Id), UUID_PATTERN);
-    assert.equal(body.MerchantId, body.Id);
-    assert.equal(body.DocumentType, 1);
-    assert.equal(body.DocumentNumber, "52839789801");
-    assert.equal(body.FancyName, "");
+    assert.match(String(body.id), UUID_PATTERN);
+    assert.equal(body.merchantId, body.id);
+    assert.equal(body.documentType, 1);
+    assert.equal(body.documentNumber, "52839789801");
+    assert.equal(body.fancyName, "");
     assert.deepEqual(lastRecordedAttempt("52839789801"), { status: 201, body });
   });
 
@@ -167,11 +167,11 @@ describe("POST /api/merchants", () => {
     const payload = sellerPayload(documentType, documentNumber);
     return {
       ...payload,
-      BankAccount: { ...payload.BankAccount, AgencyDigit: agencyDigit },
+      bankAccount: { ...payload.bankAccount, agencyDigit: agencyDigit },
     };
   }
 
-  test('accepts "x" as the AgencyDigit of an agency without a digit', async () => {
+  test('accepts "x" as the agencyDigit of an agency without a digit', async () => {
     for (const [documentType, documentNumber] of [
       ["CNPJ", "45723174000110"],
       ["CPF", "39053344705"],
@@ -182,16 +182,16 @@ describe("POST /api/merchants", () => {
 
       assert.equal(response.status, 201);
       const body = (await response.json()) as Record<string, unknown>;
-      assert.match(String(body.Id), UUID_PATTERN);
+      assert.match(String(body.id), UUID_PATTERN);
       assert.deepEqual(body, {
-        Id: body.Id,
-        MerchantId: body.Id,
-        Type: "Subordinate",
-        MasterMerchantId: MASTER_MERCHANT_ID,
-        CorporateName: "Maria Silva Comercio",
-        FancyName: documentType === "CNPJ" ? "Loja da Maria" : "",
-        DocumentType: documentType === "CPF" ? 1 : 2,
-        DocumentNumber: documentNumber,
+        id: body.id,
+        merchantId: body.id,
+        type: "Subordinate",
+        masterMerchantId: MASTER_MERCHANT_ID,
+        corporateName: "Maria Silva Comercio",
+        fancyName: documentType === "CNPJ" ? "Loja da Maria" : "",
+        documentType: documentType === "CPF" ? 1 : 2,
+        documentNumber: documentNumber,
       });
       assert.deepEqual(lastRecordedAttempt(documentNumber), {
         status: 201,
@@ -200,18 +200,18 @@ describe("POST /api/merchants", () => {
     }
   });
 
-  test("accepts a numeric AgencyDigit and an omitted one", async () => {
+  test("accepts a numeric agencyDigit and an omitted one", async () => {
     const numeric = await onboard(withAgencyDigit("CNPJ", "60701190000104", "7"));
     assert.equal(numeric.status, 201);
 
     const payload = sellerPayload("CPF", "11144477735");
-    const { AgencyDigit: _omitted, ...bankAccount } = payload.BankAccount;
-    const omitted = await onboard({ ...payload, BankAccount: bankAccount });
+    const { agencyDigit: _omitted, ...bankAccount } = payload.bankAccount;
+    const omitted = await onboard({ ...payload, bankAccount: bankAccount });
     assert.equal(omitted.status, 201);
   });
 
   for (const agencyDigit of ["y", "X", "-"]) {
-    test(`rejects ${JSON.stringify(agencyDigit)} as the AgencyDigit`, async () => {
+    test(`rejects ${JSON.stringify(agencyDigit)} as the agencyDigit`, async () => {
       const documentNumber = "33000167000101";
       const response = await onboard(
         withAgencyDigit("CNPJ", documentNumber, agencyDigit),
@@ -221,13 +221,13 @@ describe("POST /api/merchants", () => {
       assert.deepEqual(await response.json(), [
         {
           Code: "RequestValidationError",
-          Message: 'BankAccount.AgencyDigit: must contain one digit or "x".',
+          Message: 'bankAccount.agencyDigit: must contain one digit or "x".',
         },
       ]);
     });
   }
 
-  test("rejects an AgencyDigit longer than one character", async () => {
+  test("rejects an agencyDigit longer than one character", async () => {
     const response = await onboard(
       withAgencyDigit("CNPJ", "33000167000101", "xx"),
     );
@@ -236,16 +236,16 @@ describe("POST /api/merchants", () => {
     assert.deepEqual(await response.json(), [
       {
         Code: "RequestValidationError",
-        Message: "The AgencyDigit field must not exceed 1 characters.",
+        Message: "The agencyDigit field must not exceed 1 characters.",
       },
     ]);
   });
 
   function withBirthday(documentNumber: string, birthdayDate: string) {
-    return { ...sellerPayload("CPF", documentNumber), BirthdayDate: birthdayDate };
+    return { ...sellerPayload("CPF", documentNumber), birthdayDate: birthdayDate };
   }
 
-  test("accepts BirthdayDate as yyyy/MM/dd, and yyyy-MM-dd too", async () => {
+  test("accepts birthdayDate as yyyy/MM/dd, and yyyy-MM-dd too", async () => {
     const slashes = await onboard(withBirthday("70000000001", "1990/05/17"));
     assert.equal(slashes.status, 201);
 
@@ -254,14 +254,14 @@ describe("POST /api/merchants", () => {
   });
 
   for (const birthdayDate of ["17/05/1990", "1990/05-17", "19900517", "1990/5/17"]) {
-    test(`rejects ${JSON.stringify(birthdayDate)} as the BirthdayDate`, async () => {
+    test(`rejects ${JSON.stringify(birthdayDate)} as the birthdayDate`, async () => {
       const response = await onboard(withBirthday("70000000003", birthdayDate));
 
       assert.equal(response.status, 400);
       assert.deepEqual(await response.json(), [
         {
           Code: "RequestValidationError",
-          Message: "BirthdayDate: must use yyyy/MM/dd.",
+          Message: "birthdayDate: must use yyyy/MM/dd.",
         },
       ]);
     });

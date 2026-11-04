@@ -27,8 +27,8 @@ class CieloClient:
 
         Raises CieloInvalidCredentials when Cielo rejects the token (which
         clears it from the cache), CieloUpstreamError for other 4xx/5xx,
-        CieloInvalidResponse for a success without Id, DocumentType and
-        DocumentNumber, and CieloTimeout/CieloUnavailable for transport errors.
+        CieloInvalidResponse for a success without id, documentType and
+        documentNumber, and CieloTimeout/CieloUnavailable for transport errors.
         """
         token = self.tokens.get_token()
         response = http.post(

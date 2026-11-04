@@ -3,7 +3,7 @@
 Unlike test_cielo.py nothing is intercepted: the mock (../cielo-mock) runs as a
 node subprocess with a throwaway SQLite database, and Settings point the app
 at it. This keeps the payload Quick API builds in step with the mock's
-validation, e.g. AgencyDigit "x" for an agency without a digit.
+validation, e.g. agencyDigit "x" for an agency without a digit.
 
 Skipped when node 24+ or the mock's dependencies are unavailable.
 """
@@ -38,7 +38,7 @@ MIN_NODE_MAJOR = 24
 STARTUP_TIMEOUT_SECONDS = 20
 # Test values for the mock's required environment (see cielo-mock/.env.example).
 # The master merchant ID must equal the mock's merchant ID: the mock rejects any
-# other MasterMerchantId.
+# other masterMerchantId.
 MOCK_MERCHANT_ID = "33333333-3333-4333-8333-333333333333"
 MOCK_CLIENT_SECRET = "test-cielo-mock-client-secret"
 
@@ -198,7 +198,7 @@ def _with_agency_digit(seller: dict, agency_digit: str) -> dict:
 
 
 def _mock_bank_account(mock: RunningMock, document_number: str) -> dict:
-    """The BankAccount the mock stored for a seller."""
+    """The bankAccount the mock stored for a seller."""
     database = sqlite3.connect(f"file:{mock.database_file}?mode=ro", uri=True)
     try:
         (data,) = database.execute(
@@ -207,7 +207,7 @@ def _mock_bank_account(mock: RunningMock, document_number: str) -> dict:
         ).fetchone()
     finally:
         database.close()
-    return json.loads(data)["BankAccount"]
+    return json.loads(data)["bankAccount"]
 
 
 # Each case uses its own document: the mock rejects documents it already has.
@@ -257,9 +257,9 @@ def test_onboard_against_the_mock(
     assert (membership.seller_id, membership.user_id) == (seller_id, user.id)
 
     bank_account = _mock_bank_account(cielo_mock, document_number)
-    assert bank_account["AgencyDigit"] == agency_digit
-    assert bank_account["DocumentType"] == document_type
-    assert bank_account["DocumentNumber"] == document_number
+    assert bank_account["agencyDigit"] == agency_digit
+    assert bank_account["documentType"] == document_type
+    assert bank_account["documentNumber"] == document_number
 
 
 def test_the_mocks_agency_digit_error_is_relayed(
@@ -273,7 +273,7 @@ def test_the_mocks_agency_digit_error_is_relayed(
     assert response.json() == [
         {
             "Code": "RequestValidationError",
-            "Message": 'BankAccount.AgencyDigit: must contain one digit or "x".',
+            "Message": 'bankAccount.agencyDigit: must contain one digit or "x".',
         }
     ]
     with app.state.session_factory() as session:

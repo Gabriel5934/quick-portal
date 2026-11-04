@@ -101,45 +101,45 @@ function validateBankAccount(
   if (!isRecord(input)) {
     errors.push({
       Code: "RequestValidationError",
-      Message: "The BankAccount field is required.",
+      Message: "The bankAccount field is required.",
     });
     return undefined;
   }
 
-  const bank = requiredString(input, "Bank", 3, errors);
-  const accountType = requiredString(input, "BankAccountType", 20, errors);
-  const number = requiredString(input, "Number", 10, errors);
-  const verifierDigit = requiredString(input, "VerifierDigit", 1, errors);
-  const agencyNumber = requiredString(input, "AgencyNumber", 4, errors);
-  const agencyDigit = optionalString(input, "AgencyDigit", 1, errors);
-  const documentType = requiredString(input, "DocumentType", 4, errors);
-  const documentNumber = requiredString(input, "DocumentNumber", 14, errors);
+  const bank = requiredString(input, "bank", 3, errors);
+  const accountType = requiredString(input, "bankAccountType", 20, errors);
+  const number = requiredString(input, "number", 10, errors);
+  const verifierDigit = requiredString(input, "verifierDigit", 1, errors);
+  const agencyNumber = requiredString(input, "agencyNumber", 4, errors);
+  const agencyDigit = optionalString(input, "agencyDigit", 1, errors);
+  const documentType = requiredString(input, "documentType", 4, errors);
+  const documentNumber = requiredString(input, "documentNumber", 14, errors);
 
   requirePattern(
     bank,
     /^\d{3}$/,
-    "BankAccount.Bank",
+    "bankAccount.bank",
     "must contain three digits.",
     errors,
   );
   requirePattern(
     number,
     /^\d{1,10}$/,
-    "BankAccount.Number",
+    "bankAccount.number",
     "must contain only digits.",
     errors,
   );
   requirePattern(
     verifierDigit,
     /^\d$/,
-    "BankAccount.VerifierDigit",
+    "bankAccount.verifierDigit",
     "must contain one digit.",
     errors,
   );
   requirePattern(
     agencyNumber,
     /^(?!0+$)\d{1,4}$/,
-    "BankAccount.AgencyNumber",
+    "bankAccount.agencyNumber",
     "must contain up to four digits and cannot be zero.",
     errors,
   );
@@ -147,7 +147,7 @@ function validateBankAccount(
   requirePattern(
     agencyDigit,
     /^(?:\d|x)$/,
-    "BankAccount.AgencyDigit",
+    "bankAccount.agencyDigit",
     'must contain one digit or "x".',
     errors,
   );
@@ -158,20 +158,20 @@ function validateBankAccount(
   ) {
     errors.push({
       Code: "RequestValidationError",
-      Message: "BankAccount.BankAccountType is invalid.",
+      Message: "bankAccount.bankAccountType is invalid.",
     });
   }
   if (documentType && !["CPF", "CNPJ"].includes(documentType)) {
     errors.push({
       Code: "RequestValidationError",
-      Message: "BankAccount.DocumentType is invalid.",
+      Message: "bankAccount.documentType is invalid.",
     });
   }
   if (documentType === "CPF") {
     requirePattern(
       documentNumber,
       /^\d{11}$/,
-      "BankAccount.DocumentNumber",
+      "bankAccount.documentNumber",
       "must contain 11 digits for CPF.",
       errors,
     );
@@ -179,7 +179,7 @@ function validateBankAccount(
     requirePattern(
       documentNumber,
       /^[A-Z0-9]{12}\d{2}$/,
-      "BankAccount.DocumentNumber",
+      "bankAccount.documentNumber",
       "must contain 14 canonical characters for CNPJ.",
       errors,
     );
@@ -198,14 +198,14 @@ function validateBankAccount(
   }
 
   return {
-    Bank: bank,
-    BankAccountType: accountType as BankAccountPayload["BankAccountType"],
-    Number: number,
-    VerifierDigit: verifierDigit,
-    AgencyNumber: agencyNumber,
-    ...(agencyDigit ? { AgencyDigit: agencyDigit } : {}),
-    DocumentType: documentType as BankAccountPayload["DocumentType"],
-    DocumentNumber: documentNumber,
+    bank: bank,
+    bankAccountType: accountType as BankAccountPayload["bankAccountType"],
+    number: number,
+    verifierDigit: verifierDigit,
+    agencyNumber: agencyNumber,
+    ...(agencyDigit ? { agencyDigit: agencyDigit } : {}),
+    documentType: documentType as BankAccountPayload["documentType"],
+    documentNumber: documentNumber,
   };
 }
 
@@ -216,37 +216,37 @@ function validateAddress(
   if (!isRecord(input)) {
     errors.push({
       Code: "RequestValidationError",
-      Message: "The Address field is required.",
+      Message: "The address field is required.",
     });
     return undefined;
   }
 
-  const number = requiredString(input, "Number", 15, errors);
-  const complement = optionalString(input, "Complement", 80, errors);
-  const zipCode = requiredString(input, "ZipCode", 9, errors);
-  const street = requiredString(input, "Street", 100, errors);
-  const neighborhood = requiredString(input, "Neighborhood", 50, errors);
-  const city = requiredString(input, "City", 50, errors);
-  const state = requiredString(input, "State", 2, errors);
+  const number = requiredString(input, "number", 15, errors);
+  const complement = optionalString(input, "complement", 80, errors);
+  const zipCode = requiredString(input, "zipCode", 9, errors);
+  const street = requiredString(input, "street", 100, errors);
+  const neighborhood = requiredString(input, "neighborhood", 50, errors);
+  const city = requiredString(input, "city", 50, errors);
+  const state = requiredString(input, "state", 2, errors);
 
   requirePattern(
     number,
     /^\d{1,15}$/,
-    "Address.Number",
+    "address.number",
     "must contain only digits.",
     errors,
   );
   requirePattern(
     zipCode,
     /^\d{8,9}$/,
-    "Address.ZipCode",
+    "address.zipCode",
     "must contain 8 or 9 digits.",
     errors,
   );
   requirePattern(
     state,
     /^[A-Z]{2}$/,
-    "Address.State",
+    "address.state",
     "must contain a two-letter state code.",
     errors,
   );
@@ -255,13 +255,13 @@ function validateAddress(
     return undefined;
   }
   return {
-    Number: number,
-    ...(complement !== undefined ? { Complement: complement } : {}),
-    ZipCode: zipCode,
-    Street: street,
-    Neighborhood: neighborhood,
-    City: city,
-    State: state,
+    number: number,
+    ...(complement !== undefined ? { complement: complement } : {}),
+    zipCode: zipCode,
+    street: street,
+    neighborhood: neighborhood,
+    city: city,
+    state: state,
   };
 }
 
@@ -283,54 +283,54 @@ export function validateSellerPayload(
     };
   }
 
-  const type = requiredString(input, "Type", 15, errors);
+  const type = requiredString(input, "type", 15, errors);
   const masterMerchantId = requiredString(
     input,
-    "MasterMerchantId",
+    "masterMerchantId",
     36,
     errors,
   );
-  const contactPhone = requiredString(input, "ContactPhone", 11, errors);
-  const contactName = requiredString(input, "ContactName", 100, errors);
-  const mailAddress = requiredString(input, "MailAddress", 50, errors);
-  const website = optionalString(input, "Website", 200, errors);
-  const documentType = requiredString(input, "DocumentType", 4, errors);
-  const documentNumber = requiredString(input, "DocumentNumber", 14, errors);
-  const corporateName = requiredString(input, "CorporateName", 100, errors);
-  const fancyName = requiredStringAllowEmpty(input, "FancyName", 50, errors);
-  const birthdayDate = optionalString(input, "BirthdayDate", 10, errors);
+  const contactPhone = requiredString(input, "contactPhone", 11, errors);
+  const contactName = requiredString(input, "contactName", 100, errors);
+  const mailAddress = requiredString(input, "mailAddress", 50, errors);
+  const website = optionalString(input, "website", 200, errors);
+  const documentType = requiredString(input, "documentType", 4, errors);
+  const documentNumber = requiredString(input, "documentNumber", 14, errors);
+  const corporateName = requiredString(input, "corporateName", 100, errors);
+  const fancyName = requiredStringAllowEmpty(input, "fancyName", 50, errors);
+  const birthdayDate = optionalString(input, "birthdayDate", 10, errors);
   const businessActivityId = optionalString(
     input,
-    "BusinessActivityId",
+    "businessActivityId",
     3,
     errors,
   );
-  const bankAccount = validateBankAccount(input.BankAccount, errors);
-  const address = validateAddress(input.Address, errors);
+  const bankAccount = validateBankAccount(input.bankAccount, errors);
+  const address = validateAddress(input.address, errors);
 
   if (type && type !== "Subordinate") {
     errors.push({
       Code: "RequestValidationError",
-      Message: "Type must be Subordinate.",
+      Message: "type must be Subordinate.",
     });
   }
   if (masterMerchantId && masterMerchantId !== MOCK_MERCHANT_ID) {
     errors.push({
       Code: "RequestValidationError",
-      Message: "MasterMerchantId does not match the authenticated master.",
+      Message: "masterMerchantId does not match the authenticated master.",
     });
   }
   requirePattern(
     contactPhone,
     /^\d{10,11}$/,
-    "ContactPhone",
+    "contactPhone",
     "must contain 10 or 11 digits.",
     errors,
   );
   requirePattern(
     mailAddress,
     /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
-    "MailAddress",
+    "mailAddress",
     "must be a valid email address.",
     errors,
   );
@@ -338,14 +338,14 @@ export function validateSellerPayload(
   if (documentType && !["CPF", "CNPJ"].includes(documentType)) {
     errors.push({
       Code: "RequestValidationError",
-      Message: "DocumentType is invalid.",
+      Message: "documentType is invalid.",
     });
   }
   if (documentType === "CPF") {
     requirePattern(
       documentNumber,
       /^\d{11}$/,
-      "DocumentNumber",
+      "documentNumber",
       "must contain 11 digits for CPF.",
       errors,
     );
@@ -354,27 +354,27 @@ export function validateSellerPayload(
     requirePattern(
       birthdayDate,
       /^\d{4}([/-])\d{2}\1\d{2}$/,
-      "BirthdayDate",
+      "birthdayDate",
       "must use yyyy/MM/dd.",
       errors,
     );
     if (!birthdayDate) {
       errors.push({
         Code: "RequestValidationError",
-        Message: "The BirthdayDate field is required for CPF.",
+        Message: "The birthdayDate field is required for CPF.",
       });
     }
     if (!businessActivityId) {
       errors.push({
         Code: "RequestValidationError",
-        Message: "The BusinessActivityId field is required for CPF.",
+        Message: "The businessActivityId field is required for CPF.",
       });
     }
   } else if (documentType === "CNPJ") {
     requirePattern(
       documentNumber,
       /^[A-Z0-9]{12}\d{2}$/,
-      "DocumentNumber",
+      "documentNumber",
       "must contain 14 canonical characters for CNPJ.",
       errors,
     );
@@ -400,20 +400,20 @@ export function validateSellerPayload(
   return {
     success: true,
     data: {
-      Type: "Subordinate",
-      MasterMerchantId: masterMerchantId,
-      ContactPhone: contactPhone,
-      ContactName: contactName,
-      MailAddress: mailAddress,
-      ...(website !== undefined ? { Website: website } : {}),
-      DocumentType: documentType as SellerPayload["DocumentType"],
-      DocumentNumber: documentNumber,
-      CorporateName: corporateName,
-      FancyName: fancyName,
-      ...(birthdayDate ? { BirthdayDate: birthdayDate } : {}),
-      ...(businessActivityId ? { BusinessActivityId: businessActivityId } : {}),
-      BankAccount: bankAccount,
-      Address: address,
+      type: "Subordinate",
+      masterMerchantId: masterMerchantId,
+      contactPhone: contactPhone,
+      contactName: contactName,
+      mailAddress: mailAddress,
+      ...(website !== undefined ? { website: website } : {}),
+      documentType: documentType as SellerPayload["documentType"],
+      documentNumber: documentNumber,
+      corporateName: corporateName,
+      fancyName: fancyName,
+      ...(birthdayDate ? { birthdayDate: birthdayDate } : {}),
+      ...(businessActivityId ? { businessActivityId: businessActivityId } : {}),
+      bankAccount: bankAccount,
+      address: address,
     },
   };
 }

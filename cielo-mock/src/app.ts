@@ -122,7 +122,7 @@ export function createApp(store: SqliteStore) {
       return;
     }
     if (onboardingMode === "malformed_success") {
-      const body = { Status: "Pending" };
+      const body = { status: "Pending" };
       store.recordResponse(request.body, 201, body);
       response.status(201).json(body);
       return;
@@ -146,7 +146,7 @@ export function createApp(store: SqliteStore) {
       return;
     }
     response.status(201).json(result.response);
-    scheduleOnboardingNotifications(result.seller.MerchantId);
+    scheduleOnboardingNotifications(result.seller.merchantId);
   });
 
   app.get("/1/sales/:paymentId", requireBearerToken, (request, response) => {

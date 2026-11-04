@@ -69,7 +69,7 @@ class Settings:
     database_path: Path
     # Cielo Split API. All required: create_app refuses to start when any is
     # empty. Merchant ID and client secret build the token request's Basic
-    # header; the master merchant ID is sent as MasterMerchantId when
+    # header; the master merchant ID is sent as masterMerchantId when
     # onboarding sellers.
     cielo_merchant_id: str
     cielo_client_secret: str = field(repr=False)

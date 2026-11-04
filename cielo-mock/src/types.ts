@@ -1,39 +1,39 @@
 export interface BankAccountPayload {
-  Bank: string;
-  BankAccountType: "CheckingAccount" | "SavingsAccount";
-  Number: string;
-  VerifierDigit: string;
-  AgencyNumber: string;
-  AgencyDigit?: string;
-  DocumentType: "CPF" | "CNPJ";
-  DocumentNumber: string;
+  bank: string;
+  bankAccountType: "CheckingAccount" | "SavingsAccount";
+  number: string;
+  verifierDigit: string;
+  agencyNumber: string;
+  agencyDigit?: string;
+  documentType: "CPF" | "CNPJ";
+  documentNumber: string;
 }
 
 export interface AddressPayload {
-  Number: string;
-  Complement?: string;
-  ZipCode: string;
-  Street: string;
-  Neighborhood: string;
-  City: string;
-  State: string;
+  number: string;
+  complement?: string;
+  zipCode: string;
+  street: string;
+  neighborhood: string;
+  city: string;
+  state: string;
 }
 
 export interface SellerPayload {
-  Type: "Subordinate";
-  MasterMerchantId: string;
-  ContactPhone: string;
-  ContactName: string;
-  MailAddress: string;
-  Website?: string;
-  DocumentType: "CPF" | "CNPJ";
-  DocumentNumber: string;
-  CorporateName: string;
-  FancyName: string;
-  BirthdayDate?: string;
-  BusinessActivityId?: string;
-  BankAccount: BankAccountPayload;
-  Address: AddressPayload;
+  type: "Subordinate";
+  masterMerchantId: string;
+  contactPhone: string;
+  contactName: string;
+  mailAddress: string;
+  website?: string;
+  documentType: "CPF" | "CNPJ";
+  documentNumber: string;
+  corporateName: string;
+  fancyName: string;
+  birthdayDate?: string;
+  businessActivityId?: string;
+  bankAccount: BankAccountPayload;
+  address: AddressPayload;
 }
 
 export interface CieloError {
@@ -42,27 +42,27 @@ export interface CieloError {
 }
 
 export interface StoredSeller {
-  MerchantId: string;
-  Status: "Pending";
-  CreatedAt: string;
-  OnboardingData: SellerPayload;
+  merchantId: string;
+  status: "Pending";
+  createdAt: string;
+  onboardingData: SellerPayload;
 }
 
 /**
  * The `201` body of `POST /api/merchants`, a subset of Cielo's documented
- * response. Cielo's `DocumentType` is numeric (1 = CPF, 2 = CNPJ), unlike the
- * request's string. `MerchantId` repeats `Id` for quick-portal-api, which
+ * response. Cielo's `documentType` is numeric (1 = CPF, 2 = CNPJ), unlike the
+ * request's string. `merchantId` repeats `id` for quick-portal-api, which
  * reads that key.
  */
 export interface SellerCreatedResponse {
-  Id: string;
-  MerchantId: string;
-  Type: "Subordinate";
-  MasterMerchantId: string;
-  CorporateName: string;
-  FancyName: string;
-  DocumentType: 1 | 2;
-  DocumentNumber: string;
+  id: string;
+  merchantId: string;
+  type: "Subordinate";
+  masterMerchantId: string;
+  corporateName: string;
+  fancyName: string;
+  documentType: 1 | 2;
+  documentNumber: string;
 }
 
 export type TransactionPaymentType = "CreditCard" | "DebitCard" | "Pix" | "Boleto";

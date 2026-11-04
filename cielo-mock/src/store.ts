@@ -16,16 +16,16 @@ const cieloDocumentTypes = { CPF: 1, CNPJ: 2 } as const;
 export function sellerCreatedResponse(
   seller: StoredSeller,
 ): SellerCreatedResponse {
-  const data = seller.OnboardingData;
+  const data = seller.onboardingData;
   return {
-    Id: seller.MerchantId,
-    MerchantId: seller.MerchantId,
-    Type: data.Type,
-    MasterMerchantId: data.MasterMerchantId,
-    CorporateName: data.CorporateName,
-    FancyName: data.FancyName,
-    DocumentType: cieloDocumentTypes[data.DocumentType],
-    DocumentNumber: data.DocumentNumber,
+    id: seller.merchantId,
+    merchantId: seller.merchantId,
+    type: data.type,
+    masterMerchantId: data.masterMerchantId,
+    corporateName: data.corporateName,
+    fancyName: data.fancyName,
+    documentType: cieloDocumentTypes[data.documentType],
+    documentNumber: data.documentNumber,
   };
 }
 
@@ -101,7 +101,7 @@ export class SqliteStore {
     return this.transaction(() => {
       const existing = this.database
         .prepare("SELECT merchant_id FROM sellers WHERE document_number = ?")
-        .get(payload.DocumentNumber) as { merchant_id: string } | undefined;
+        .get(payload.documentNumber) as { merchant_id: string } | undefined;
 
       if (existing) {
         this.insertAttempt(payload, 400, [
@@ -114,10 +114,10 @@ export class SqliteStore {
       }
 
       const seller: StoredSeller = {
-        MerchantId: randomUUID(),
-        Status: "Pending",
-        CreatedAt: new Date().toISOString(),
-        OnboardingData: payload,
+        merchantId: randomUUID(),
+        status: "Pending",
+        createdAt: new Date().toISOString(),
+        onboardingData: payload,
       };
       this.database
         .prepare(
@@ -126,10 +126,10 @@ export class SqliteStore {
            VALUES (?, ?, ?, ?, ?)`,
         )
         .run(
-          seller.MerchantId,
-          payload.DocumentNumber,
-          seller.Status,
-          seller.CreatedAt,
+          seller.merchantId,
+          payload.documentNumber,
+          seller.status,
+          seller.createdAt,
           JSON.stringify(payload),
         );
       const response = sellerCreatedResponse(seller);
@@ -139,14 +139,14 @@ export class SqliteStore {
   }
 
   /**
-   * Insert a seller under a fixed MerchantId, replacing any seller that has
-   * the same MerchantId or document.
+   * Insert a seller under a fixed merchantId, replacing any seller that has
+   * the same merchantId or document.
    */
   seedSeller(merchantId: string, payload: SellerPayload): { replaced: number } {
     return this.transaction(() => {
       const { changes } = this.database
         .prepare("DELETE FROM sellers WHERE merchant_id = ? OR document_number = ?")
-        .run(merchantId, payload.DocumentNumber);
+        .run(merchantId, payload.documentNumber);
 
       this.database
         .prepare(
@@ -156,7 +156,7 @@ export class SqliteStore {
         )
         .run(
           merchantId,
-          payload.DocumentNumber,
+          payload.documentNumber,
           "Pending",
           new Date().toISOString(),
           JSON.stringify(payload),
@@ -229,9 +229,9 @@ export class SqliteStore {
     const documentNumber =
       typeof request === "object" &&
       request !== null &&
-      "DocumentNumber" in request &&
-      typeof request.DocumentNumber === "string"
-        ? request.DocumentNumber
+      "documentNumber" in request &&
+      typeof request.documentNumber === "string"
+        ? request.documentNumber
         : null;
 
     this.database

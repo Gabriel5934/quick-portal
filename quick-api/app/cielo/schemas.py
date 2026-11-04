@@ -1,11 +1,11 @@
 """Request and response bodies for /cielo, and the parts of Cielo's responses
 Quick API reads.
 
-Clients send snake_case; ``to_cielo`` renders the PascalCase payload Cielo
+Clients send snake_case; ``to_cielo`` renders the camelCase payload Cielo
 expects. Limits mirror Cielo's seller onboarding reference; anything else
 (formats, bank codes, CPF/CNPJ digits) is left for Cielo to validate, and its
-400 is relayed to the client. Unknown fields, including MasterMerchantId and
-Type, are ignored rather than forwarded.
+400 is relayed to the client. Unknown fields, including masterMerchantId and
+type, are ignored rather than forwarded.
 """
 
 import uuid
@@ -19,7 +19,7 @@ from pydantic import (
     field_validator,
     model_validator,
 )
-from pydantic.alias_generators import to_pascal
+from pydantic.alias_generators import to_camel
 
 from app.cielo.models import (
     DOCUMENT_NUMBER_MAX_LENGTH,
@@ -45,9 +45,9 @@ def _optional(max_length: int) -> Any:
 
 
 class _CieloPayload(BaseModel):
-    # snake_case on the way in, PascalCase when dumped by alias.
+    # snake_case on the way in, camelCase when dumped by alias.
     model_config = ConfigDict(
-        alias_generator=AliasGenerator(serialization_alias=to_pascal)
+        alias_generator=AliasGenerator(serialization_alias=to_camel)
     )
 
 
@@ -127,17 +127,17 @@ class OnboardIn(_CieloPayload):
     def to_cielo(self, master_merchant_id: str) -> dict[str, Any]:
         """The Cielo payload.
 
-        Type and MasterMerchantId are set by the server, and the bank account's
+        type and masterMerchantId are set by the server, and the bank account's
         document is the seller's own.
         """
         payload = {
-            "Type": SELLER_TYPE,
-            "MasterMerchantId": master_merchant_id,
+            "type": SELLER_TYPE,
+            "masterMerchantId": master_merchant_id,
             **self.model_dump(by_alias=True, exclude_none=True),
         }
-        if "BankAccount" in payload:
-            payload["BankAccount"]["DocumentNumber"] = self.document_number
-            payload["BankAccount"]["DocumentType"] = self.document_type
+        if "bankAccount" in payload:
+            payload["bankAccount"]["documentNumber"] = self.document_number
+            payload["bankAccount"]["documentType"] = self.document_type
         return payload
 
 
@@ -163,17 +163,18 @@ class OnboardOut(BaseModel):
 class CieloSellerCreated(BaseModel):
     """What Quick API keeps from Cielo's 2xx onboarding response.
 
-    Strict, so ``"1"`` or ``true`` is not a DocumentType and a number is not an
-    Id. Other response fields are ignored.
+    Read from camelCase keys (``id``, ``documentType``, ``documentNumber``).
+    Strict, so ``"1"`` or ``true`` is not a documentType and a number is not an
+    id. Other response fields are ignored.
     """
 
-    model_config = ConfigDict(strict=True)
-
-    id: uuid.UUID = Field(alias="Id")
-    document_type: CieloDocumentType = Field(alias="DocumentType")
-    document_number: str = Field(
-        alias="DocumentNumber", min_length=1, max_length=DOCUMENT_NUMBER_MAX_LENGTH
+    model_config = ConfigDict(
+        strict=True, alias_generator=AliasGenerator(validation_alias=to_camel)
     )
+
+    id: uuid.UUID
+    document_type: CieloDocumentType
+    document_number: str = Field(min_length=1, max_length=DOCUMENT_NUMBER_MAX_LENGTH)
 
     @field_validator("document_type", mode="before")
     @classmethod
