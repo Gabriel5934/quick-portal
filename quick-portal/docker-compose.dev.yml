@@ -13,6 +13,9 @@ services:
       QUICK_API_URL: http://quick-api:8000
     depends_on:
       - quick-api
+    # The node_modules volume outlives image rebuilds, so install on every start
+    # to pick up dependency changes in package-lock.json.
+    command: ["sh", "-c", "npm install --no-audit --no-fund && npm run dev -- --host 0.0.0.0 --port 3000"]
     ports:
       - "3000:3000"
     volumes:
@@ -26,7 +29,12 @@ services:
       target: dev
     restart: unless-stopped
     # Stories use fixtures and .storybook/mocks, so Storybook needs no backend.
-    command: ["npm", "run", "storybook", "--", "--host", "0.0.0.0", "--ci", "--no-open"]
+    command:
+      [
+        "sh",
+        "-c",
+        "npm install --no-audit --no-fund && npm run storybook -- --host 0.0.0.0 --ci --no-open",
+      ]
     ports:
       - "6006:6006"
     volumes:

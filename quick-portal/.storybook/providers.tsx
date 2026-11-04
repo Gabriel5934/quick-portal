@@ -3,6 +3,7 @@ import type { Decorator } from '@storybook/react-vite';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import {
   createMemoryHistory,
+  createRoute,
   createRootRouteWithContext,
   createRouter,
   RouterProvider,
@@ -45,14 +46,18 @@ function StoryProviders({
     client.setQueryData(sellersQueryKey, options.sellers ?? mockSellers);
     return client;
   });
-  // A one-route memory router, so Link and useNavigate work inside stories.
-  const [router] = useState(() =>
-    createRouter({
-      routeTree: createRootRouteWithContext<RouterContext>()({ component: RenderStory }),
+  // A memory router so Link and useNavigate work inside stories. Its routes
+  // match any path, because stories navigate to app routes such as /inicio.
+  const [router] = useState(() => {
+    const rootRoute = createRootRouteWithContext<RouterContext>()({ component: RenderStory });
+    const indexRoute = createRoute({ getParentRoute: () => rootRoute, path: '/' });
+    const anyPathRoute = createRoute({ getParentRoute: () => rootRoute, path: '$' });
+    return createRouter({
+      routeTree: rootRoute.addChildren([indexRoute, anyPathRoute]),
       history: createMemoryHistory({ initialEntries: ['/'] }),
       context: { queryClient },
-    })
-  );
+    });
+  });
 
   return (
     <QueryClientProvider client={queryClient}>
