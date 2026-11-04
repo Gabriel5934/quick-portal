@@ -43,6 +43,13 @@ const NOT_EDITABLE: Record<ManagedAddressField, boolean> = {
   state: false,
 };
 
+const ALL_EDITABLE: Record<ManagedAddressField, boolean> = {
+  street: true,
+  neighborhood: true,
+  city: true,
+  state: true,
+};
+
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <Paper withBorder radius="md" p={{ base: 'md', sm: 'lg' }}>
@@ -72,8 +79,8 @@ export function OnboardingPage() {
   const documentType = useWatch({ control, name: 'document_type' }) as DocumentType | undefined;
   const zipCode = useWatch({ control, name: 'address.zip_code' });
   const cep = useCep(zipCode);
-  // A managed field becomes editable only when BrasilAPI has no value for it
-  // (e.g. a city-wide CEP without street or neighborhood).
+  // A managed field becomes editable when BrasilAPI has no value for it (e.g. a
+  // city-wide CEP without street or neighborhood), or when the lookup failed.
   const [editable, setEditable] = useState(NOT_EDITABLE);
 
   useEffect(() => {
@@ -85,16 +92,18 @@ export function OnboardingPage() {
       }
     }
     setEditable(
-      data
-        ? {
-            street: !data.street,
-            neighborhood: !data.neighborhood,
-            city: !data.city,
-            state: !data.state,
-          }
-        : NOT_EDITABLE
+      cep.isError
+        ? ALL_EDITABLE
+        : data
+          ? {
+              street: !data.street,
+              neighborhood: !data.neighborhood,
+              city: !data.city,
+              state: !data.state,
+            }
+          : NOT_EDITABLE
     );
-  }, [cep.data, getValues, setValue]);
+  }, [cep.data, cep.isError, getValues, setValue]);
 
   const onSubmit = handleSubmit((values) =>
     onboard.mutate(toOnboardPayload(values), {

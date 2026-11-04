@@ -24,8 +24,9 @@ const QUICK_API_REFRESH_COOKIE = 'refresh_token';
 // Required by /auth/refresh and /auth/logout (quick-api/app/auth/deps.py).
 const CSRF_HEADERS = { 'X-Requested-With': 'quick-portal' };
 const DEFAULT_TIMEOUT_MS = 15_000;
-// Quick API waits up to 120 s for Cielo.
-const ONBOARD_TIMEOUT_MS = 130_000;
+// Quick API waits up to 120 s per Cielo call. Worst case: a token refresh times
+// out, a waiting request retries the token (120 s), then the create call (120 s).
+const ONBOARD_TIMEOUT_MS = 360_000;
 
 function apiUrl(path: string): string {
   const base = (process.env.QUICK_API_URL || 'http://localhost:8100').replace(/\/+$/, '');
