@@ -59,7 +59,7 @@ export default defineConfig({
     socialLinks: [
       {
         icon: "github",
-        link: "https://github.com/Gabriel5934/quick-portal-web",
+        link: "https://github.com/Gabriel5934/quick-portal",
       },
     ],
   },

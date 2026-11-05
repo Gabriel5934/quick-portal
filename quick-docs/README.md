@@ -1,7 +1,7 @@
 # Quick Portal documentation
 
 The VitePress documentation site lives in this workspace-level `quick-docs` folder.
-It contains the documentation migrated from `quick-portal-web/quick-docs`.
+It contains the documentation migrated from the legacy frontend repository's `quick-docs` folder.
 
 ## Development
 

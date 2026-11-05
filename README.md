@@ -36,8 +36,8 @@ that application directory with the same Compose file used to start it.
 
 ## Deployment and CI
 
-The frontend and API retain their own Dockerfiles, Compose files, and independent
-deployments. Configure each deployment's root/build context to its application
+Each application keeps its own Dockerfile, Compose file, and independent
+deployment. Configure each deployment's root/build context to its application
 directory. Keep environment variables in the deployment service or local ignored
 files. No shared Node workspace or build orchestrator is required.
 
@@ -67,7 +67,7 @@ not be committed. Keep a separate durable copy before removing that folder.
 To inspect an original repository independently, clone its bundle, for example:
 
 ```sh
-git clone .monorepo-backup/quick-portal-web.bundle /tmp/quick-web-original
+git clone .monorepo-backup/<application>.bundle /tmp/<application>-original
 ```
 
 The monorepo has no remote yet. Create an empty destination repository, add it as

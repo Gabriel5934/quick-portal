@@ -1,6 +1,6 @@
 # Auth
 
-Related doc: `quick-portal-api/AUTH_SPEC.md` (legacy behaviour this mirrors)
+Related doc: the legacy `AUTH_SPEC.md`, removed with the Django API in commit `71ae43d` and available in Git history (legacy behaviour this mirrors)
 
 Quick API authenticates users by email and password. A login returns a short-lived access token in the response body and sets a refresh token in an HttpOnly cookie. Refresh tokens are rotated on every use, and replaying an old one logs the user out everywhere.
 
