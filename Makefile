@@ -4,10 +4,13 @@ COMPOSE ?= docker compose -f docker-compose.dev.yml
 
 # Fill the dev env files, start the root dev stack and wait until it is
 # healthy, then seed the admin seller in cielo-mock. The seed overwrites its
-# own record, so running make dev again is safe.
+# own record, so running make dev again is safe. Then create the dev login
+# user (user@example.com, password "password") in quick-api; an existing user
+# is left unchanged, so this step is safe to repeat too.
 dev: dev-env
 	$(COMPOSE) up --build --detach --wait
 	$(COMPOSE) exec -T cielo-mock npm run seed:admin-business
+	$(COMPOSE) exec -T quick-api python -m app.scripts.create_dev_user
 
 # Create or complete the untracked root env files the dev stack reads, with
 # scripts/dev-env.sh (POSIX sh; see its header for usage). Only keys that are
