@@ -56,3 +56,6 @@ sbs: # ssh into beacon sandbox
 
 sps: # ssh into portal sandbox
 	ssh -i lightsail-key.pem ubuntu@56.126.92.35
+
+llm: # update llms.txt
+	$(COMPOSE) exec docs npm run docs:build

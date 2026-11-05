@@ -1,3 +1,7 @@
+---
+description: Authentication in the Quick API
+---
+
 # Auth
 
 Related doc: the legacy `AUTH_SPEC.md`, removed with the Django API in commit `71ae43d` and available in Git history (legacy behaviour this mirrors)

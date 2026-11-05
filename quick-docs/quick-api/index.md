@@ -1,3 +1,7 @@
+---
+description: Overview of the Quick API, the lightweight replacement for the Django API
+---
+
 # Quick API
 
 Quick API is a lightweight version of the legacy Django API that aims to replace it.

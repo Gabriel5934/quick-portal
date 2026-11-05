@@ -1,3 +1,7 @@
+---
+description: Cielo authentication in the Quick API
+---
+
 # Cielo Authentication
 
 Related doc: [Cielo/Auth Token](../cielo/auth-token)

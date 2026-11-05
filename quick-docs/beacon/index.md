@@ -1,3 +1,7 @@
+---
+description: Overview of the Beacon time-sensitive financial operations service
+---
+
 # Beacon
 
 Beacon is a Quick Digital service that handles time-sensitive operations that have financial impact on the company.

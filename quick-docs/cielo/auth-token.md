@@ -1,3 +1,7 @@
+---
+description: Obtaining a Cielo access token
+---
+
 # Auth Token
 
 Use this endpoint to obtain an access token. In prod env this token expires after 20 minutes.

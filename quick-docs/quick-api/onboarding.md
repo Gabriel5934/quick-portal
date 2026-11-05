@@ -1,3 +1,7 @@
+---
+description: Onboarding sellers through the Quick API
+---
+
 # Onboarding
 
 Related doc: [Cielo Seller Onboarding](../cielo/seller-onboarding)

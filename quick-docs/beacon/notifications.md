@@ -1,3 +1,7 @@
+---
+description: Cielo notifications received by Beacon
+---
+
 # Notifications
 
 Related doc: [Cielo/Notifications](../cielo/notifications)
