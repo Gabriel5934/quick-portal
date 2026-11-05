@@ -1,5 +1,6 @@
 # Local development. Included by the root docker-compose.yml (`make dev`).
 # Beacon is served at http://localhost:8090/cielo/notifications.
+# Settings are hard-coded below; only CIELO_WEBHOOK_TOKEN comes from beacon/.env.
 services:
   beacon:
     build: .
@@ -9,6 +10,11 @@ services:
       # CIELO_WEBHOOK_TOKEN every notification is rejected with 401.
       - path: .env
         required: false
+    environment:
+      # Relative to the container WORKDIR (/app), where ./data is bind mounted.
+      DATABASE_PATH: data/beacon.sqlite3
+      # 1 MiB, the code default.
+      MAX_REQUEST_BODY_BYTES: "1048576"
     # Single process; --reload restarts it when ./app or ./alembic change.
     command: >
       sh -c "alembic upgrade head &&

@@ -4,7 +4,8 @@
 # Includes Quick API's build compose, so one command starts the whole stack on
 # a single compose network. Quick API is internal only: nothing publishes its
 # port, and only the portal's server functions call it.
-# Requires quick-api/.env (see its .env.example).
+# Requires the untracked root .env.portal (keys listed in
+# quick-api/.env.example).
 #   docker compose -f quick-portal/docker-compose.yml up --build --detach
 # Not included by the root docker-compose.yml (local development).
 
@@ -13,8 +14,12 @@
 name: quick-portal-deploy
 
 include:
-  # Interpolated with quick-api/.env, so JWT_SECRET is required there.
-  - ../quick-api/docker-compose.yml
+  # Quick API's compose interpolates ${JWT_SECRET}. Without env_file here it
+  # would read quick-api/.env (the included file's own directory), so point it
+  # at the root .env.portal, which also feeds the service's env_file. Relative
+  # to this file.
+  - path: ../quick-api/docker-compose.yml
+    env_file: ../.env.portal
 
 services:
   portal:

@@ -2,7 +2,9 @@
 # only, with no port published on the host. quick-portal/docker-compose.yml
 # includes this file and puts Caddy in front of Quick Portal, whose server
 # functions call Quick API at http://quick-api:8000.
-# Requires quick-api/.env (see .env.example).
+# Requires the untracked root .env.portal (keys listed in quick-api/.env.example)
+# for JWT_SECRET and the CIELO_* settings; the other settings are set under
+# environment below.
 services:
   quick-api:
     build: .
@@ -10,11 +12,17 @@ services:
     env_file:
       # Optional file, but JWT_SECRET below is required: compose (including
       # `docker compose config`) fails when it is missing or empty in both the
-      # shell and quick-api/.env.
-      - path: .env
+      # shell and .env.portal. The path is relative to this file.
+      - path: ../.env.portal
         required: false
     environment:
-      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set in quick-api/.env}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set in .env.portal}
+      ACCESS_TOKEN_TTL_SECONDS: "300"
+      REFRESH_TOKEN_TTL_SECONDS: "86400"
+      # Relative to the working directory /app, so the database lives in the
+      # ./data bind mount below.
+      DATABASE_PATH: data/quick-api.sqlite3
+      API_DOCS_ENABLED: "false"
     # The image's CMD runs migrations, then uvicorn with exactly one worker.
     expose:
       - "8000"

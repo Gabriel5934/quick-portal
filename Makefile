@@ -1,9 +1,9 @@
 COMPOSE ?= docker compose
 
-ENV_FILES := cielo-mock/.env quick-api/.env
+ENV_FILES := cielo-mock/.env .env.portal
 
-# Lightsail instance IPs, see .env.example.
--include .env
+# Lightsail instance IPs, see .env.portal.
+-include .env.portal
 
 .PHONY: dev ssh-beacon-sandbox ssh-portal-sandbox
 
@@ -25,18 +25,21 @@ ssh-portal-sandbox:
 	ssh -i lightsail-key.pem ubuntu@$(or $(QUICK_PORTAL_SANDBOX),$(error QUICK_PORTAL_SANDBOX is not set in .env))
 
 # Order-only prerequisites: copy only when the env file is missing, even if the
-# example is newer.
+# example is newer. cielo-mock/.env holds only the notification token; the
+# mock's other settings are hard-coded in its compose files.
 cielo-mock/.env: | cielo-mock/.env.example
 	cp $| $@
 
-# Generated, not copied: the example leaves JWT_SECRET and the Cielo settings
-# empty, and Quick API refuses to start without them. The Cielo settings point
-# at cielo-mock over the compose network and reuse the credentials hard-coded in
-# cielo-mock/src/config.ts. Quick API also sends CIELO_MERCHANT_ID as
-# MasterMerchantId, which the mock only accepts as its own. Only created when
-# missing, like the rules above: delete quick-api/.env to regenerate it (an
-# older one without the Cielo settings stops Quick API from starting).
-quick-api/.env: | quick-api/.env.example
+# Generated, not copied: quick-api/.env.example leaves JWT_SECRET and the Cielo
+# settings empty, and Quick API refuses to start without them. .env.portal is
+# the untracked root file that quick-api's compose files read (dev and portal
+# stacks). The Cielo settings point at cielo-mock over the compose network and
+# reuse the credentials hard-coded in cielo-mock/src/config.ts. Quick API also
+# sends CIELO_MERCHANT_ID as MasterMerchantId, which the mock only accepts as
+# its own. Only created when missing, like the rules above: delete .env.portal
+# to regenerate it (an existing one is never overwritten, so one with empty or
+# missing settings stops Quick API from starting).
+.env.portal: | quick-api/.env.example
 	secret="$$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')" \
 	  && merchant=00000000-0000-0000-0000-000000000000 \
 	  && client_secret=mock-cielo-secret \

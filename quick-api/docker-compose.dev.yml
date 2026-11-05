@@ -5,11 +5,20 @@ services:
     build: .
     restart: unless-stopped
     env_file:
-      # Holds JWT_SECRET; the root Makefile generates it with a random secret.
-      # Without it the app refuses to start.
-      - path: .env
+      # The untracked root .env.portal holds JWT_SECRET and the CIELO_*
+      # settings; the root Makefile generates it (with a random JWT_SECRET)
+      # when missing. Without them the app refuses to start. The path is
+      # relative to this file. The other settings are set under environment
+      # below.
+      - path: ../.env.portal
         required: false
     environment:
+      ACCESS_TOKEN_TTL_SECONDS: "300"
+      REFRESH_TOKEN_TTL_SECONDS: "86400"
+      # Relative to the working directory /app, so the database lives in the
+      # ./data bind mount below.
+      DATABASE_PATH: data/quick-api.sqlite3
+      # Serves /docs, /redoc and /openapi.json in development only.
       API_DOCS_ENABLED: "true"
     # Single process; --reload restarts it when ./app or ./alembic change.
     command: >

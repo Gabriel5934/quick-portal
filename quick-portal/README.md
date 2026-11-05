@@ -29,7 +29,8 @@ while the template uses Vite+ 1.0.
 `production` image behind Caddy, which serves `PORTAL_HOST` over HTTPS
 (`quick-portal-sandbox.duckdns.org`, set on the `caddy` service in `docker-compose.yml`), and
 includes `../quick-api/docker-compose.yml` so Quick API runs on the same network without a
-published port. Create `../quick-api/.env`, then from the monorepo root:
+published port. Create the untracked root `../.env.portal` (keys listed in
+`../quick-api/.env.example`; `make dev` generates a local one), then from the monorepo root:
 
 ```bash
 docker compose -f quick-portal/docker-compose.yml up --build --detach

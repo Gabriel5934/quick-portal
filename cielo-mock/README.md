@@ -15,15 +15,20 @@ survive restarts; see [Persistence](#persistence).
 
 ## Configuration
 
-Copy `.env.example` to `.env` in this directory and adjust it:
+The mock's settings are hard-coded in the `cielo-mock` service of
+`docker-compose.dev.yml`; change them there. The mock runs only in local
+development: the production stack (`../docker-compose.portal.yml`) does not
+include it. The only secret,
+`MOCK_CIELO_NOTIFICATION_TOKEN`, lives in `.env` in this directory. Copy
+`.env.example` to create it (`make dev` does this when it is missing):
 
 ```bash
 cp cielo-mock/.env.example cielo-mock/.env
 ```
 
-Docker Compose reads that file to fill the variables in
-`docker-compose.dev.yml`, both standalone and through the root
-`docker-compose.yml`. Shell variables take precedence over it.
+Docker Compose reads that file to fill the token in `docker-compose.dev.yml`,
+both standalone and through the root `docker-compose.yml`. A shell variable
+takes precedence over it.
 
 ## Run
 
@@ -90,7 +95,7 @@ a registration request:
 
 | Variable                                | Purpose                                                                                                     |
 | --------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| `MOCK_CIELO_NOTIFICATION_URL`           | Destination, for example `http://web:8000/cielo/onboarding/notifications/`. Transaction notifications use it too. Onboarding notifications are disabled when unset. |
+| `MOCK_CIELO_NOTIFICATION_URL`           | Destination; `http://beacon:8000/cielo/notifications/` in development. Transaction notifications use it too. Onboarding notifications are disabled when unset. |
 | `MOCK_CIELO_NOTIFICATION_TOKEN`         | Sent as `X-Cielo-Webhook-Token`. Must match the backend's `CIELO_WEBHOOK_TOKEN`.                            |
 | `MOCK_CIELO_NOTIFICATION_DELAY_SECONDS` | Delay before each notification. Defaults to `5`.                                                            |
 | `MOCK_CIELO_NOTIFICATION_SCENARIO`      | Statuses sent: `approved` (default), `kyc_rejected`, `bank_error`, or `under_analysis`.                     |
@@ -115,14 +120,23 @@ that does not receive `200` is retried twice more. Every attempt is logged as a
 `notification.delivery` entry; the token is never logged. Scheduled
 notifications live in memory and are lost when the mock restarts.
 
-The backend must accept the `web` host name; the development `ALLOWED_HOSTS`
-default includes it. Set the variables in `.env`, or override them for one run:
+Set the token in `.env` and change the other variables in
+`docker-compose.dev.yml`. For example, set `MOCK_CIELO_NOTIFICATION_SCENARIO`
+to `bank_error` there and restart the mock:
 
 ```bash
-MOCK_CIELO_NOTIFICATION_URL=http://web:8000/cielo/onboarding/notifications/ \
+docker compose up --build --detach cielo-mock
+```
+
+Outside Docker (`npm run notify:transaction` on the host, for example), `.env`
+is not read; pass the variables in the shell, with a host address for the
+destination:
+
+```bash
+MOCK_CIELO_NOTIFICATION_URL=http://localhost:8090/cielo/notifications/ \
 MOCK_CIELO_NOTIFICATION_TOKEN=<same value as CIELO_WEBHOOK_TOKEN> \
-MOCK_CIELO_NOTIFICATION_SCENARIO=bank_error \
-docker compose up --build cielo-mock web
+MOCK_CIELO_TRANSACTION_MERCHANT_ID=<seller merchant ID> \
+npm run notify:transaction
 ```
 
 ## Transaction notifications
@@ -239,8 +253,8 @@ with a temporary database, so they never touch the persisted data.
 
 ## Response modes
 
-Set `MOCK_CIELO_ONBOARDING_MODE` before starting the service to exercise Quick
-Portal's result handling:
+Set `MOCK_CIELO_ONBOARDING_MODE` in `docker-compose.dev.yml` before starting the
+service to exercise Quick Portal's result handling:
 
 | Mode                | Onboarding response                                                  |
 | ------------------- | -------------------------------------------------------------------- |
@@ -249,8 +263,8 @@ Portal's result handling:
 | `server_error`      | Returns a Cielo-style `500` service error.                           |
 | `malformed_success` | Returns `201` without `id`, `merchantId`, or the document fields.    |
 
-For example:
+After changing it, restart the mock:
 
 ```bash
-MOCK_CIELO_ONBOARDING_MODE=server_error docker compose up --build cielo-mock web
+docker compose up --build --detach cielo-mock
 ```

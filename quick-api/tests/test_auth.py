@@ -4,6 +4,7 @@ import uuid
 from collections.abc import Callable
 from dataclasses import replace
 from datetime import timedelta
+from pathlib import Path
 
 import jwt
 import pytest
@@ -431,11 +432,22 @@ def test_docs_can_be_enabled(app: FastAPI, settings: Settings) -> None:
 
 
 def test_settings_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Only JWT_SECRET and the CIELO_* settings come from .env.portal; the
+    # compose files hard-code the rest to these defaults.
     monkeypatch.setenv("JWT_SECRET", JWT_SECRET)
-    monkeypatch.setenv("REFRESH_TOKEN_TTL_SECONDS", "60")
+    for name in (
+        "ACCESS_TOKEN_TTL_SECONDS",
+        "REFRESH_TOKEN_TTL_SECONDS",
+        "DATABASE_PATH",
+        "API_DOCS_ENABLED",
+    ):
+        monkeypatch.delenv(name, raising=False)
     settings = Settings.from_env()
-    assert settings.refresh_token_ttl_seconds == 60
+    assert settings.jwt_secret == JWT_SECRET
     assert settings.access_token_ttl_seconds == 300
+    assert settings.refresh_token_ttl_seconds == 86400
+    assert settings.database_path == Path("data/quick-api.sqlite3")
+    assert settings.api_docs_enabled is False
 
 
 def test_health(client: TestClient) -> None:
