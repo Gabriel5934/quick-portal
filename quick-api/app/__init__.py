@@ -1,1 +1,1 @@
-"""Quick API: lightweight replacement for quick-portal-api."""
+"""Quick API: lightweight replacement for the legacy Django API."""

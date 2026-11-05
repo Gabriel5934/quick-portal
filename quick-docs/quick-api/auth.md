@@ -1,6 +1,10 @@
+---
+description: Authentication in the Quick API
+---
+
 # Auth
 
-Related doc: `quick-portal-api/AUTH_SPEC.md` (legacy behaviour this mirrors)
+Related doc: the legacy `AUTH_SPEC.md`, removed with the Django API in commit `71ae43d` and available in Git history (legacy behaviour this mirrors)
 
 Quick API authenticates users by email and password. A login returns a short-lived access token in the response body and sets a refresh token in an HttpOnly cookie. Refresh tokens are rotated on every use, and replaying an old one logs the user out everywhere.
 
@@ -29,9 +33,9 @@ Every 401 from `/auth/refresh` also clears the cookie. The `detail` is one of `R
 **Refresh token**: an opaque random string, not a JWT, valid for `REFRESH_TOKEN_TTL_SECONDS` (default 1 day). Only its SHA-256 hash is stored in `refresh_tokens`, so a database leak yields no usable tokens. It is only ever sent in the cookie:
 
 - Name `refresh_token`, `HttpOnly`, `Path=/auth`, `Max-Age` = refresh TTL.
-- `Secure` and `SameSite` come from `COOKIE_SECURE` (default true) and `COOKIE_SAMESITE` (default `lax`). The dev compose sets `COOKIE_SECURE=false` for `http://localhost`. A frontend on another site needs `SameSite=none`, which requires `Secure`.
+- No `Secure` or `SameSite` attribute is set, so the browser's default `SameSite` behaviour applies.
 
-`JWT_SECRET` is required and must be at least 32 bytes; the app refuses to start otherwise. `make dev` generates `quick-api/.env` with a random one. Changing it invalidates every access token but no refresh tokens.
+`JWT_SECRET` is required and must be at least 32 bytes; the app refuses to start otherwise. `make dev` generates the untracked root `.env.portal` with a random one. Changing it invalidates every access token but no refresh tokens.
 
 ## Rotation and blacklist
 
@@ -59,7 +63,7 @@ The user has to log in again on every device. Other users are not affected. Logg
 
 ## CSRF
 
-`/auth/refresh` and `/auth/logout` require the header `X-Requested-With: quick-portal`; without it they return 403. A cross-site form cannot set custom headers, and a cross-origin `fetch` that sets one needs a CORS preflight, which only `CORS_ALLOWED_ORIGINS` (default `http://localhost:5173`) passes. CORS allows credentials, so the app refuses to start if that list contains `*`. Unlike legacy, the `Origin` header is not checked.
+`/auth/refresh` and `/auth/logout` require the header `X-Requested-With: quick-portal`; without it they return 403. A cross-site form cannot set custom headers, and a cross-origin `fetch` that sets one needs a CORS preflight, which fails because the CORS middleware allows no origins. Unlike legacy, the `Origin` header is not checked.
 
 ## Known gaps
 

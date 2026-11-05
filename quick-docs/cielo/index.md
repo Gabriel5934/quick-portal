@@ -1,3 +1,7 @@
+---
+description: Overview of the Cielo Split API
+---
+
 # Cielo
 
 Cielo Split API documentation. Sourced from: https://docs.cielo.com.br/split/docs/visao-geral-split. Rewritten for our use case.

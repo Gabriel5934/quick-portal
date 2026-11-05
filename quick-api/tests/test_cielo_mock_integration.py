@@ -36,11 +36,11 @@ from tests.test_cielo import cnpj_seller, cpf_seller
 MOCK_DIR = QUICK_API_DIR.parent / "cielo-mock"
 MIN_NODE_MAJOR = 24
 STARTUP_TIMEOUT_SECONDS = 20
-# Test values for the mock's required environment (see cielo-mock/.env.example).
-# The master merchant ID must equal the mock's merchant ID: the mock rejects any
-# other masterMerchantId.
-MOCK_MERCHANT_ID = "33333333-3333-4333-8333-333333333333"
-MOCK_CLIENT_SECRET = "test-cielo-mock-client-secret"
+# The mock's credentials, hard-coded in cielo-mock/src/config.ts. The master
+# merchant ID must equal the mock's merchant ID: the mock rejects any other
+# masterMerchantId.
+MOCK_MERCHANT_ID = "00000000-0000-0000-0000-000000000000"
+MOCK_CLIENT_SECRET = "mock-cielo-secret"
 
 
 @dataclass(frozen=True)
@@ -103,14 +103,12 @@ def cielo_mock() -> Iterator[RunningMock]:
     with tempfile.TemporaryDirectory(prefix="cielo-mock-it-") as directory:
         database_file = Path(directory) / "cielo.sqlite3"
         port = _free_port()
-        # A minimal environment: nothing from cielo-mock/.env or the caller's
+        # A minimal environment: nothing from .env.cielo-mock or the caller's
         # MOCK_CIELO_* variables, and onboarding notifications disabled.
         env = {
             "PATH": os.environ.get("PATH", ""),
             "PORT": str(port),
             "MOCK_CIELO_DATABASE_FILE": str(database_file),
-            "MOCK_CIELO_MERCHANT_ID": MOCK_MERCHANT_ID,
-            "MOCK_CIELO_CLIENT_SECRET": MOCK_CLIENT_SECRET,
             "MOCK_CIELO_TOKEN_LIFETIME_SECONDS": "1200",
             "MOCK_CIELO_ONBOARDING_MODE": "success",
             "MOCK_CIELO_NOTIFICATION_URL": "",
@@ -180,7 +178,6 @@ def settings(settings: Settings, cielo_mock: RunningMock) -> Settings:
         cielo_client_secret=MOCK_CLIENT_SECRET,
         cielo_auth_base_url=cielo_mock.base_url,
         cielo_onboarding_base_url=cielo_mock.base_url,
-        cielo_master_merchant_id=MOCK_MERCHANT_ID,
     )
 
 

@@ -1,3 +1,7 @@
+---
+description: Business activity codes accepted by Cielo during seller onboarding
+---
+
 # Business Activities
 The table below lists all the accepted business activities codes accepted by Cielo during the seller onboarding and their description in Portuguese.
 

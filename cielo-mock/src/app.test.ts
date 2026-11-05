@@ -7,14 +7,13 @@ import { after, before, describe, test } from "node:test";
 import { DatabaseSync } from "node:sqlite";
 import type { Server } from "node:http";
 
-const MASTER_MERCHANT_ID = "11111111-1111-4111-8111-111111111111";
-const CLIENT_SECRET = "test-client-secret";
+// Hard-coded in config.ts.
+const MASTER_MERCHANT_ID = "00000000-0000-0000-0000-000000000000";
+const CLIENT_SECRET = "mock-cielo-secret";
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 // config.ts reads the environment when it is first imported.
-process.env.MOCK_CIELO_MERCHANT_ID = MASTER_MERCHANT_ID;
-process.env.MOCK_CIELO_CLIENT_SECRET = CLIENT_SECRET;
 process.env.MOCK_CIELO_ONBOARDING_MODE = "success";
 process.env.MOCK_CIELO_NOTIFICATION_URL = "";
 

@@ -51,8 +51,8 @@ export interface StoredSeller {
 /**
  * The `201` body of `POST /api/merchants`, a subset of Cielo's documented
  * response. Cielo's `documentType` is numeric (1 = CPF, 2 = CNPJ), unlike the
- * request's string. `merchantId` repeats `id` for quick-portal-api, which
- * reads that key.
+ * request's string. `merchantId` repeats `id` because clients of this
+ * contract read that key.
  */
 export interface SellerCreatedResponse {
   id: string;

@@ -35,7 +35,6 @@ from app.main import create_app
 from tests.conftest import (
     CIELO_AUTH_BASE_URL,
     CIELO_CLIENT_SECRET,
-    CIELO_MASTER_MERCHANT_ID,
     CIELO_MERCHANT_ID,
     CIELO_ONBOARDING_BASE_URL,
     bearer,
@@ -113,7 +112,7 @@ def created_body(**overrides) -> dict:
     body = {
         "id": SELLER_ID,
         "type": "Subordinate",
-        "masterMerchantId": CIELO_MASTER_MERCHANT_ID,
+        "masterMerchantId": CIELO_MERCHANT_ID,
         "documentType": 2,
         "documentNumber": CNPJ,
         "contactName": CONTACT_NAME,
@@ -352,7 +351,7 @@ def test_onboard_forwards_camel_case_with_server_fields(
     assert call.request.req_kwargs["timeout"] == 120
     assert json.loads(call.request.body) == {
         "type": "Subordinate",
-        "masterMerchantId": CIELO_MASTER_MERCHANT_ID,
+        "masterMerchantId": CIELO_MERCHANT_ID,
         "contactName": CONTACT_NAME,
         "contactPhone": CONTACT_PHONE,
         "corporateName": "Seller Corporativo Ltda",
@@ -955,7 +954,6 @@ CIELO_ENV = {
     "CIELO_CLIENT_SECRET": "cielo_client_secret",
     "CIELO_AUTH_BASE_URL": "cielo_auth_base_url",
     "CIELO_ONBOARDING_BASE_URL": "cielo_onboarding_base_url",
-    "CIELO_MASTER_MERCHANT_ID": "cielo_master_merchant_id",
 }
 
 
@@ -1004,9 +1002,9 @@ def test_base_urls_accept_scheme_and_host(
     create_app(replace(settings, **{field: url}))
 
 
-def test_master_merchant_id_must_be_a_uuid(settings: Settings) -> None:
-    with pytest.raises(ValueError, match="CIELO_MASTER_MERCHANT_ID"):
-        create_app(replace(settings, cielo_master_merchant_id="master"))
+def test_merchant_id_must_be_a_uuid(settings: Settings) -> None:
+    with pytest.raises(ValueError, match="CIELO_MERCHANT_ID"):
+        create_app(replace(settings, cielo_merchant_id="merchant"))
 
 
 def test_cielo_settings_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -1014,7 +1012,6 @@ def test_cielo_settings_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("CIELO_CLIENT_SECRET", CIELO_CLIENT_SECRET)
     monkeypatch.setenv("CIELO_AUTH_BASE_URL", "http://cielo-mock:3000/")
     monkeypatch.setenv("CIELO_ONBOARDING_BASE_URL", "http://cielo-mock:3000//")
-    monkeypatch.setenv("CIELO_MASTER_MERCHANT_ID", CIELO_MASTER_MERCHANT_ID)
     settings = Settings.from_env()
     assert settings.cielo_merchant_id == CIELO_MERCHANT_ID
     assert settings.cielo_auth_base_url == "http://cielo-mock:3000"

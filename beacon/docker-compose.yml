@@ -1,19 +1,23 @@
 # Build environments (sandbox and production): Beacon behind Caddy, which
 # serves API_HOST over HTTPS on port 443 and redirects HTTP to HTTPS.
-# Requires beacon/.env (see .env.example).
+# Settings are hard-coded below; only CIELO_WEBHOOK_TOKEN comes from the
+# repository root .env.beacon (see .env.beacon.example), which is required.
 services:
   beacon:
     build: .
     restart: unless-stopped
     env_file:
-      # Optional file, but CIELO_WEBHOOK_TOKEN below is required: compose
-      # (including `docker compose config`) fails when it is missing or empty
-      # in both the shell and beacon/.env. Caddy refuses to start without
-      # API_HOST.
-      - path: .env
-        required: false
+      # Required: compose (including `docker compose config`) fails when the
+      # file is missing. The path is relative to this file. Beacon starts with
+      # an empty CIELO_WEBHOOK_TOKEN but logs a warning and rejects every
+      # notification with 401.
+      - path: ../.env.beacon
+        required: true
     environment:
-      CIELO_WEBHOOK_TOKEN: ${CIELO_WEBHOOK_TOKEN:?CIELO_WEBHOOK_TOKEN must be set in beacon/.env}
+      # Relative to the container WORKDIR (/app), where ./data is bind mounted.
+      DATABASE_PATH: data/beacon.sqlite3
+      # 1 MiB, the code default; must match max_size in the Caddyfile.
+      MAX_REQUEST_BODY_BYTES: "1048576"
     # The image's CMD runs migrations, then uvicorn with exactly one worker.
     expose:
       - "8000"
@@ -26,7 +30,8 @@ services:
     depends_on:
       - beacon
     environment:
-      API_HOST: ${API_HOST}
+      # Public hostname Caddy serves over HTTPS.
+      API_HOST: quick-beacon-sandbox.duckdns.org
     ports:
       - "80:80"
       - "443:443"

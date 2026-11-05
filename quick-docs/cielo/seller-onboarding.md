@@ -1,3 +1,7 @@
+---
+description: Signing up sellers with the Cielo Split API
+---
+
 # Seller Onboarding
 
 Cielo Split API allows for the signup of sellers who can then be included in the split of transactions.

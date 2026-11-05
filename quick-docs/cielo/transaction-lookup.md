@@ -1,3 +1,7 @@
+---
+description: Looking up Cielo transaction details by PaymentId
+---
+
 # Transaction Lookup
 
 After obtaining `PaymentId` through a transaction notification, you can look up transaction details through this endpoint. This data can then be used to request a payment split.

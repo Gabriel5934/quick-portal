@@ -33,7 +33,7 @@ class CieloClient:
         token = self.tokens.get_token()
         response = http.post(
             self._settings.cielo_onboarding_url,
-            json=seller.to_cielo(self._settings.cielo_master_merchant_id),
+            json=seller.to_cielo(self._settings.cielo_merchant_id),
             headers={"Authorization": f"Bearer {token}", "Accept": "application/json"},
         )
         if response.status_code == status.HTTP_401_UNAUTHORIZED:

@@ -1,54 +1,61 @@
-COMPOSE ?= docker compose
+COMPOSE ?= docker compose -f docker-compose.dev.yml
 
-ENV_FILES := quick-portal-api/.env.dev cielo-mock/.env quick-api/.env
+.PHONY: dev dev-env test-api test-beacon test-portal sbs sps
 
-# Lightsail instance IPs, see .env.example.
--include .env
-
-.PHONY: dev ssh-beacon-sandbox ssh-portal-sandbox
-
-# Create missing env files from their examples, start the stack and wait until
-# it is healthy, create or update the dev superuser, then create Quick Digital
-# in Quick Portal and register the same seller in the mock Cielo API. Existing
-# env files are never overwritten; conflicting Quick Digital records on both
-# sides are.
-dev: $(ENV_FILES)
+# Fill the dev env files, start the root dev stack and wait until it is
+# healthy, then seed the admin seller in cielo-mock. The seed overwrites its
+# own record, so running make dev again is safe. Then create the dev login
+# user (user@example.com, password "password") in quick-api; an existing user
+# is left unchanged, so this step is safe to repeat too.
+dev: dev-env
 	$(COMPOSE) up --build --detach --wait
-	$(COMPOSE) exec -T web python manage.py create_dev_user root@email.com 'JustTesting593!' --superuser
-	$(COMPOSE) exec -T web python manage.py create_admin_business
 	$(COMPOSE) exec -T cielo-mock npm run seed:admin-business
+	$(COMPOSE) exec -T quick-api python -m app.scripts.create_dev_user
 
-ssh-beacon-sandbox:
-	ssh -i lightsail-key.pem ubuntu@$(or $(QUICK_BEACON_SANDBOX),$(error QUICK_BEACON_SANDBOX is not set in .env))
+# Create or complete the untracked root env files the dev stack reads, with
+# scripts/dev-env.sh (POSIX sh; see its header for usage). Each KEY=VALUE is
+# always set, overwriting its current value; a bare KEY (JWT_SECRET) gets a
+# random hex value only when missing or empty. Other keys and comments are kept,
+# so running it again changes nothing. A missing file starts from its
+# .example, and each file is left with mode 600. Key names are printed, never values.
+# The root .env (Compose settings such as COMPOSE_FILE) is copied from
+# .env.example only when it is missing; an existing .env is never overwritten.
+# The webhook token must be the same on both sides: cielo-mock sends it to
+# beacon. The Cielo settings point Quick API at cielo-mock over the compose
+# network and match the credentials hard-coded in cielo-mock/src/config.ts.
+dev-env:
+	@[ -f .env ] || { cp .env.example .env && chmod 600 .env && echo "created .env"; }
+	@sh scripts/dev-env.sh .env.beacon .env.beacon.example \
+	  CIELO_WEBHOOK_TOKEN=cielo-webhook-token
+	@sh scripts/dev-env.sh .env.cielo-mock .env.cielo-mock.example \
+	  MOCK_CIELO_NOTIFICATION_TOKEN=cielo-webhook-token
+	@sh scripts/dev-env.sh .env.portal .env.portal.example \
+	  JWT_SECRET \
+	  CIELO_MERCHANT_ID=00000000-0000-0000-0000-000000000000 \
+	  CIELO_CLIENT_SECRET=mock-cielo-secret \
+	  CIELO_AUTH_BASE_URL=http://cielo-mock:3000 \
+	  CIELO_ONBOARDING_BASE_URL=http://cielo-mock:3000
 
-ssh-portal-sandbox:
-	ssh -i lightsail-key.pem ubuntu@$(or $(QUICK_PORTAL_SANDBOX),$(error QUICK_PORTAL_SANDBOX is not set in .env))
+# Lint and test quick-api in a one-off container built from the Dockerfile's
+# test stage; nothing is installed on the host and the container is removed.
+test-api:
+	$(COMPOSE) --profile test run --rm --build quick-api-test sh -c "ruff check . && ruff format --check . && pytest -q"
 
-# Order-only prerequisites: copy only when the env file is missing, even if the
-# example is newer.
-quick-portal-api/.env.dev: | quick-portal-api/.env.dev.example
-	cp $| $@
+# Lint and test beacon the same way, from beacon's Dockerfile test stage.
+test-beacon:
+	$(COMPOSE) --profile test run --rm --build beacon-test sh -c "ruff check . && ruff format --check . && pytest -q"
 
-cielo-mock/.env: | cielo-mock/.env.example
-	cp $| $@
+# Typecheck, lint, style-check and unit-test the frontend in the running portal
+# dev container (start the stack with make dev first). The build is left out:
+# it would overwrite the bind-mounted dist/ on the host.
+test-portal:
+	$(COMPOSE) exec -T portal sh -c "npm run check && npm run stylelint && npm run vitest"
 
-# Generated, not copied: the example leaves JWT_SECRET and the Cielo settings
-# empty, and Quick API refuses to start without them. The Cielo settings point
-# at cielo-mock over the compose network and reuse its credentials from
-# cielo-mock/.env; the mock only accepts its own merchant ID as
-# MasterMerchantId, so that is CIELO_MASTER_MERCHANT_ID too. Only created when
-# missing, like the rules above: delete quick-api/.env to regenerate it (an
-# older one without the Cielo settings stops Quick API from starting).
-quick-api/.env: | quick-api/.env.example cielo-mock/.env
-	secret="$$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')" \
-	  && merchant="$$(sed -n 's/^MOCK_CIELO_MERCHANT_ID=//p' cielo-mock/.env | tail -n 1)" \
-	  && client_secret="$$(sed -n 's/^MOCK_CIELO_CLIENT_SECRET=//p' cielo-mock/.env | tail -n 1)" \
-	  && test -n "$$secret" && test -n "$$merchant" && test -n "$$client_secret" \
-	  && printf '%s\n' \
-	    '# Generated by make for local development.' \
-	    "JWT_SECRET=$$secret" \
-	    "CIELO_MERCHANT_ID=$$merchant" \
-	    "CIELO_CLIENT_SECRET=$$client_secret" \
-	    'CIELO_AUTH_BASE_URL=http://cielo-mock:3000' \
-	    'CIELO_ONBOARDING_BASE_URL=http://cielo-mock:3000' \
-	    "CIELO_MASTER_MERCHANT_ID=$$merchant" > $@
+sbs: # ssh into beacon sandbox
+	ssh -i lightsail-key.pem ubuntu@56.125.158.204
+
+sps: # ssh into portal sandbox
+	ssh -i lightsail-key.pem ubuntu@56.126.92.35
+
+llm: # update llms.txt
+	$(COMPOSE) exec docs npm run docs:build

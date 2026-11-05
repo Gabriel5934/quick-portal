@@ -15,8 +15,10 @@ npm run dev   # http://localhost:3000
 ```
 
 Quick API must be running (`make dev` from the monorepo root serves it at
-`http://localhost:8100`). To point elsewhere, set the `QUICK_API_URL` environment variable for
-the server process (see `.env.example`), e.g. `QUICK_API_URL=https://api.example.com npm run dev`.
+`http://localhost:8100`), which is the default, so no environment setup is needed. To point
+elsewhere, set the `QUICK_API_URL` environment variable for the server process, e.g.
+`QUICK_API_URL=https://api.example.com npm run dev`. Both compose files set it to
+`http://quick-api:8000` themselves.
 
 `.npmrc` sets `legacy-peer-deps`: Storybook 10 declares an optional peer on `vite-plus@^0.2`
 while the template uses Vite+ 1.0.
@@ -25,9 +27,10 @@ while the template uses Vite+ 1.0.
 
 `docker-compose.yml` is the build-environment compose (sandbox and production). It runs the
 `production` image behind Caddy, which serves `PORTAL_HOST` over HTTPS
-(`quick-portal-sandbox.duckdns.org` in the sandbox), and includes `../quick-api/docker-compose.yml`
-so Quick API runs on the same network without a published port. Create `.env` (with
-`PORTAL_HOST`, see `.env.example`) and `../quick-api/.env`, then from the monorepo root:
+(`quick-portal-sandbox.duckdns.org`, set on the `caddy` service in `docker-compose.yml`), and
+includes `../quick-api/docker-compose.yml` so Quick API runs on the same network without a
+published port. Create the untracked root `../.env.portal` (keys listed in
+`../quick-api/.env.example`; `make dev` generates a local one), then from the monorepo root:
 
 ```bash
 docker compose -f quick-portal/docker-compose.yml up --build --detach

@@ -1,3 +1,7 @@
+---
+description: Cielo authentication in Beacon
+---
+
 # Cielo Authentication
 
 Related doc: [Cielo/Auth Token](../cielo/auth-token)

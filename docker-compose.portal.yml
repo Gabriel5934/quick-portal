@@ -1,11 +1,9 @@
-# Production: Quick Portal behind Caddy, Quick API and the mock Cielo API on one
-# compose network. Only Caddy publishes ports; Quick API and the mock are
-# internal. To use the mock, point Quick API's Cielo settings at it in
-# quick-api/.env: both base URLs at http://cielo-mock:3000 and the merchant ID
-# and client secret matching cielo-mock/.env.
-# Requires quick-portal/.env, quick-api/.env and cielo-mock/.env (see their
-# .env.example).
-#   docker compose -f docker-compose.prod.yml up --build --detach
+# Production: Quick Portal behind Caddy and Quick API on one compose network.
+# Only Caddy publishes ports; Quick API is internal. Quick API's Cielo settings
+# in the untracked root .env.portal must point at a Cielo API reachable from
+# this stack: the mock Cielo API (cielo-mock) is not part of it.
+# Requires .env.portal (keys listed in quick-api/.env.example).
+#   docker compose -f docker-compose.portal.yml up --build --detach
 # Not included by the root docker-compose.yml (local development).
 
 # Same project as quick-portal/docker-compose.yml, so Caddy keeps its
@@ -15,35 +13,3 @@ name: quick-portal-deploy
 include:
   # Portal and Caddy; includes Quick API's build compose in turn.
   - ./quick-portal/docker-compose.yml
-
-services:
-  cielo-mock:
-    build: ./cielo-mock
-    restart: unless-stopped
-    env_file:
-      # Holds the credentials the mock refuses to start without.
-      - ./cielo-mock/.env
-    environment:
-      PORT: 3000
-      MOCK_CIELO_DATABASE_FILE: /app/data/cielo.sqlite3
-      # Both default to Django's web service, which is not part of this stack.
-      MOCK_CIELO_NOTIFICATION_URL: ""
-      MOCK_CIELO_TRANSACTION_NOTIFICATION_URL: ""
-    expose:
-      - "3000"
-    volumes:
-      - mock_cielo_data:/app/data
-    healthcheck:
-      test:
-        [
-          "CMD",
-          "node",
-          "-e",
-          "fetch('http://127.0.0.1:3000/health').then(response => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))",
-        ]
-      interval: 5s
-      timeout: 3s
-      retries: 5
-
-volumes:
-  mock_cielo_data:

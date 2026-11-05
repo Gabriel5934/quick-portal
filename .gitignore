@@ -6,3 +6,6 @@
 
 # env
 .env
+.env.portal
+.env.beacon
+.env.cielo-mock

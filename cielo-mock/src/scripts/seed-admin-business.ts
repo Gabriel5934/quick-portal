@@ -2,8 +2,8 @@ import { databaseFile, MOCK_MERCHANT_ID } from "../config.js";
 import { SqliteStore } from "../store.js";
 import { validateSellerPayload } from "../validation.js";
 
-// Keep in sync with quick-portal-api's create_admin_business command, which
-// creates the same seller in Quick Portal. Both overwrite conflicting records.
+// Seeds a fixed admin seller with a known merchant ID and document.
+// Seeding overwrites any conflicting records.
 const ADMIN_MERCHANT_ID = "00000000-0000-0000-0000-000000000000";
 const ADMIN_DOCUMENT = "11222333000181";
 

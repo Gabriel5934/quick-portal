@@ -1,14 +1,22 @@
 # Local development. Included by the root docker-compose.yml (`make dev`).
 # Beacon is served at http://localhost:8090/cielo/notifications.
+# Settings are hard-coded below; only CIELO_WEBHOOK_TOKEN comes from the
+# repository root .env.beacon (`make dev` creates it).
 services:
   beacon:
     build: .
     restart: unless-stopped
     env_file:
-      # Optional so the root stack still starts without beacon/.env; with no
-      # CIELO_WEBHOOK_TOKEN every notification is rejected with 401.
-      - path: .env
+      # Optional so the root stack still starts without .env.beacon; with no
+      # CIELO_WEBHOOK_TOKEN every notification is rejected with 401. The path
+      # is relative to this file.
+      - path: ../.env.beacon
         required: false
+    environment:
+      # Relative to the container WORKDIR (/app), where ./data is bind mounted.
+      DATABASE_PATH: data/beacon.sqlite3
+      # 1 MiB, the code default.
+      MAX_REQUEST_BODY_BYTES: "1048576"
     # Single process; --reload restarts it when ./app or ./alembic change.
     command: >
       sh -c "alembic upgrade head &&
@@ -19,3 +27,18 @@ services:
       - ./data:/app/data
       - ./app:/app/app
       - ./alembic:/app/alembic
+
+  # Tests and lint in a container (`make test-beacon`). Behind the `test`
+  # profile, so `make dev` and a plain `up` never start it. The tests build
+  # their own settings (including the webhook token), so no env_file; the
+  # database lives in a tmpfs, never in the ./data volume above.
+  beacon-test:
+    build:
+      context: .
+      target: test
+    profiles: ["test"]
+    environment:
+      DATABASE_PATH: /tmp/beacon-test/beacon.sqlite3
+      MAX_REQUEST_BODY_BYTES: "1048576"
+    tmpfs:
+      - /tmp

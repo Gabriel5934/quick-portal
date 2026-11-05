@@ -11,7 +11,6 @@ from sqlalchemy import URL
 DEFAULT_DATABASE_PATH = "data/quick-api.sqlite3"
 DEFAULT_ACCESS_TOKEN_TTL_SECONDS = 5 * 60
 DEFAULT_REFRESH_TOKEN_TTL_SECONDS = 24 * 60 * 60
-DEFAULT_CORS_ALLOWED_ORIGINS = "http://localhost:5173"
 # PyJWT warns about HS256 keys shorter than the 32-byte SHA-256 output.
 MIN_JWT_SECRET_BYTES = 32
 
@@ -54,11 +53,6 @@ def _is_base_url(value: str) -> bool:
     )
 
 
-def _split_origins(value: str) -> tuple[str, ...]:
-    """Origins separated by spaces and/or commas."""
-    return tuple(origin for origin in value.replace(",", " ").split() if origin)
-
-
 @dataclass(frozen=True)
 class Settings:
     # Signs access tokens (HS256). Required: create_app refuses to start when it
@@ -69,7 +63,7 @@ class Settings:
     database_path: Path
     # Cielo Split API. All required: create_app refuses to start when any is
     # empty. Merchant ID and client secret build the token request's Basic
-    # header; the master merchant ID is sent as masterMerchantId when
+    # header; the merchant ID (a UUID) is also sent as masterMerchantId when
     # onboarding sellers.
     cielo_merchant_id: str
     cielo_client_secret: str = field(repr=False)
@@ -77,14 +71,8 @@ class Settings:
     # endpoint paths are appended by app.cielo.
     cielo_auth_base_url: str
     cielo_onboarding_base_url: str
-    cielo_master_merchant_id: str
     access_token_ttl_seconds: int = DEFAULT_ACCESS_TOKEN_TTL_SECONDS
     refresh_token_ttl_seconds: int = DEFAULT_REFRESH_TOKEN_TTL_SECONDS
-    # Refresh cookie attributes. Secure must be off for plain-HTTP development;
-    # a cross-site frontend needs SameSite=none (which requires Secure).
-    cookie_secure: bool = True
-    cookie_samesite: str = "lax"
-    cors_allowed_origins: tuple[str, ...] = (DEFAULT_CORS_ALLOWED_ORIGINS,)
     # Serves /docs, /redoc and /openapi.json. Off unless explicitly enabled.
     api_docs_enabled: bool = False
 
@@ -99,17 +87,11 @@ class Settings:
             cielo_client_secret=_env_str("CIELO_CLIENT_SECRET"),
             cielo_auth_base_url=_env_base_url("CIELO_AUTH_BASE_URL"),
             cielo_onboarding_base_url=_env_base_url("CIELO_ONBOARDING_BASE_URL"),
-            cielo_master_merchant_id=_env_str("CIELO_MASTER_MERCHANT_ID"),
             access_token_ttl_seconds=_env_int(
                 "ACCESS_TOKEN_TTL_SECONDS", DEFAULT_ACCESS_TOKEN_TTL_SECONDS
             ),
             refresh_token_ttl_seconds=_env_int(
                 "REFRESH_TOKEN_TTL_SECONDS", DEFAULT_REFRESH_TOKEN_TTL_SECONDS
-            ),
-            cookie_secure=_env_bool("COOKIE_SECURE", True),
-            cookie_samesite=(os.environ.get("COOKIE_SAMESITE") or "lax").lower(),
-            cors_allowed_origins=_split_origins(
-                os.environ.get("CORS_ALLOWED_ORIGINS", DEFAULT_CORS_ALLOWED_ORIGINS)
             ),
             api_docs_enabled=_env_bool("API_DOCS_ENABLED", False),
         )
@@ -132,19 +114,8 @@ class Settings:
             raise ValueError(
                 f"JWT_SECRET must be set to at least {MIN_JWT_SECRET_BYTES} bytes"
             )
-        if self.cookie_samesite not in ("lax", "strict", "none"):
-            raise ValueError("COOKIE_SAMESITE must be lax, strict or none")
-        if self.cookie_samesite == "none" and not self.cookie_secure:
-            raise ValueError("COOKIE_SAMESITE=none requires COOKIE_SECURE=true")
         if self.access_token_ttl_seconds <= 0 or self.refresh_token_ttl_seconds <= 0:
             raise ValueError("token TTLs must be positive")
-        # CORS runs with credentials, so "*" would let any site make
-        # credentialed requests (the request origin is echoed back).
-        if "*" in self.cors_allowed_origins:
-            raise ValueError(
-                "CORS_ALLOWED_ORIGINS must not contain '*'; list the allowed "
-                "origins explicitly, e.g. https://app.example.com"
-            )
         self._validate_cielo()
 
     def _validate_cielo(self) -> None:
@@ -153,7 +124,6 @@ class Settings:
             "CIELO_CLIENT_SECRET": self.cielo_client_secret,
             "CIELO_AUTH_BASE_URL": self.cielo_auth_base_url,
             "CIELO_ONBOARDING_BASE_URL": self.cielo_onboarding_base_url,
-            "CIELO_MASTER_MERCHANT_ID": self.cielo_master_merchant_id,
         }
         missing = [name for name, value in required.items() if not value.strip()]
         if missing:
@@ -165,6 +135,6 @@ class Settings:
                     "query or fragment, e.g. https://authsandbox.braspag.com.br"
                 )
         try:
-            uuid.UUID(self.cielo_master_merchant_id)
+            uuid.UUID(self.cielo_merchant_id)
         except ValueError:
-            raise ValueError("CIELO_MASTER_MERCHANT_ID must be a UUID") from None
+            raise ValueError("CIELO_MERCHANT_ID must be a UUID") from None

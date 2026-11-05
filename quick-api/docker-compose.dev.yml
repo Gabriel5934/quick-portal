@@ -5,13 +5,20 @@ services:
     build: .
     restart: unless-stopped
     env_file:
-      # Holds JWT_SECRET; the root Makefile generates it with a random secret.
-      # Without it the app refuses to start.
-      - path: .env
+      # The untracked root .env.portal holds JWT_SECRET and the CIELO_*
+      # settings; the root Makefile generates it (with a random JWT_SECRET)
+      # when missing. Without them the app refuses to start. The path is
+      # relative to this file. The other settings are set under environment
+      # below.
+      - path: ../.env.portal
         required: false
     environment:
-      # Plain HTTP on localhost: a Secure cookie would never be sent back.
-      COOKIE_SECURE: "false"
+      ACCESS_TOKEN_TTL_SECONDS: "300"
+      REFRESH_TOKEN_TTL_SECONDS: "86400"
+      # Relative to the working directory /app, so the database lives in the
+      # ./data bind mount below.
+      DATABASE_PATH: data/quick-api.sqlite3
+      # Serves /docs, /redoc and /openapi.json in development only.
       API_DOCS_ENABLED: "true"
     # Single process; --reload restarts it when ./app or ./alembic change.
     command: >
@@ -23,3 +30,40 @@ services:
       - ./data:/app/data
       - ./app:/app/app
       - ./alembic:/app/alembic
+    # Healthy only once uvicorn answers /health, which is after `alembic
+    # upgrade head` has finished, so `make dev` (up --wait) does not run
+    # create_dev_user against a database without its tables. The slim image
+    # has no curl, so the probe uses Python's standard library; urlopen raises
+    # (exit 1) on a refused connection or a non-2xx status.
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2)",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # Tests and lint in a container (`make test-api`). Behind the `test`
+  # profile, so `make dev` and a plain `up` never start it. The tests build
+  # their own settings, so no env_file; the database lives in a tmpfs, never
+  # in the ./data volume above.
+  quick-api-test:
+    build:
+      context: .
+      target: test
+      # The test stage builds cielo-mock for its integration tests. A named
+      # context keeps the main context (and .dockerignore) at quick-api/.
+      additional_contexts:
+        cielo-mock: ../cielo-mock
+    profiles: ["test"]
+    environment:
+      ACCESS_TOKEN_TTL_SECONDS: "300"
+      REFRESH_TOKEN_TTL_SECONDS: "86400"
+      DATABASE_PATH: /tmp/quick-api-test/quick-api.sqlite3
+      API_DOCS_ENABLED: "true"
+    tmpfs:
+      - /tmp

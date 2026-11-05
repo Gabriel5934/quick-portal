@@ -1,3 +1,7 @@
+---
+description: Splitting a transaction's payment between multiple sellers
+---
+
 # Payment Split
 
 Payment Split divides the value of a transaction between multiple parties. After a payment is approved and receiving a `PaymentID` through a transaction notification you can request the transaction split. The master seller has until 1:00 am the day after the transaction to make the request.

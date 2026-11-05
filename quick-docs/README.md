@@ -1,7 +1,7 @@
 # Quick Portal documentation
 
 The VitePress documentation site lives in this workspace-level `quick-docs` folder.
-It contains the documentation migrated from `quick-portal-web/quick-docs`.
+It contains the documentation migrated from the legacy frontend repository's `quick-docs` folder.
 
 ## Development
 
@@ -13,8 +13,9 @@ npm run docs:dev
 ## Docker development
 
 From this directory, run `docker compose -f docker-compose.dev.yml up`.
-From the monorepo root, run `docker compose up` to start the documentation
-alongside the API and frontend, or `docker compose up docs` for documentation only.
+From the monorepo root, run `make dev` to start the documentation alongside the
+API and frontend, or `docker compose -f docker-compose.dev.yml up docs` for
+documentation only.
 
 Open http://localhost:5174. Source files are mounted for live reload, and
 dependencies are installed in a separate container volume.

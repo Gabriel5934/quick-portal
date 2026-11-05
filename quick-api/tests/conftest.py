@@ -22,7 +22,6 @@ CIELO_MERCHANT_ID = "11111111-1111-4111-8111-111111111111"
 CIELO_CLIENT_SECRET = "test-cielo-client-secret"
 CIELO_AUTH_BASE_URL = "https://cielo-auth.test"
 CIELO_ONBOARDING_BASE_URL = "https://cielo-onboarding.test"
-CIELO_MASTER_MERCHANT_ID = "22222222-2222-4222-8222-222222222222"
 
 
 def alembic_config(settings: Settings) -> Config:
@@ -43,9 +42,6 @@ def settings(tmp_path: Path) -> Settings:
         cielo_client_secret=CIELO_CLIENT_SECRET,
         cielo_auth_base_url=CIELO_AUTH_BASE_URL,
         cielo_onboarding_base_url=CIELO_ONBOARDING_BASE_URL,
-        cielo_master_merchant_id=CIELO_MASTER_MERCHANT_ID,
-        # httpx only sends Secure cookies over https; the client is http.
-        cookie_secure=False,
     )
 
 

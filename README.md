@@ -1,107 +1,47 @@
-# Quick Portal
+# About
 
-Quick Portal is a monorepo containing three independently built applications:
+To start your local enviroment run `make dev`
 
-| Directory | Application |
-| --- | --- |
-| `quick-portal-web/` | React / TypeScript frontend |
-| `quick-portal-api/` | Django REST API |
-| `quick-docs/` | VitePress documentation |
+## Repository boundaries
 
-Run Git commands from this root. Related API and frontend changes belong in the
-same branch and PR. Application commands run from their respective directories.
-See `AGENTS.md` and each application's `AGENTS.md` for development conventions.
+- `quick-docs/` — shared VitePress documentation
+- `beacon/` - notification service
+- `quick-api/` - API serving Quick Portal
+- `quick-portal/` - web portal
 
-## Local development
+<br>
 
-The root `docker-compose.yml` includes all three applications' development Compose
-files. Configure `quick-portal-api/.env.dev` using its `.env.example`, then run:
+- Run Git commands from this workspace root. The application directories are
+  regular directories in this repository, not nested Git repositories.
+- Keep related frontend and backend work in the same branch and PR.
+- Run integrated Docker Compose commands from this Git root.
+- Keep frontend and backend dependencies, builds, and deployments independent.
+- Check the root `git status` before finishing.
 
-```sh
-docker compose up --build
+## Integrated Docker Compose project
+
+The root `docker-compose.dev.yml` includes the child development Compose files and
+runs as the `quick-portal` project. Use it when checking the running monorepo
+stack. Its services are `portal`, `storybook`, `quick-api`, `cielo-mock`,
+`beacon`, and `docs` (VitePress).
+
+```bash
+# Run from this Git root
+docker compose ls --all
+docker compose ps
 ```
 
-Documentation is available at `http://localhost:5174` with live reload.
-Run `docker compose up docs` to start only the documentation service.
+Running `docker compose ps` inside an application directory checks a separate
+child project; an empty result there does **not** mean the
+root `quick-portal` services are stopped. If a sandboxed Docker command reports
+permission denied for the Docker socket, request elevated Docker access and
+retry before concluding that services are unavailable. Do not print container
+environment variables or credentials during diagnostics.
 
-The API is available at `http://localhost:8080` and the frontend at
-`http://localhost:5173`. To run the frontend outside Docker, run `npm ci` and
-`npm run dev` from `quick-portal-web/` with the backend development Compose
-stack running. Keep CORS origins consistent with the frontend URL.
+## Verification
 
-## Checks
+Run checks in the application you changed:
 
-From `quick-portal-web/`:
-
-```sh
-npm ci
-npm run lint
-npm test
-npm run build
-```
-
-From the root, with the root development Compose stack running:
-
-```sh
-docker compose exec web ruff check
-docker compose exec web python manage.py test quickportal
-```
-
-From `quick-docs/`:
-
-```sh
-npm ci
-npm run docs:build
-```
-
-If running an application Compose stack separately, run its Docker commands from
-that application directory with the same Compose file used to start it.
-
-## Deployment and CI
-
-The frontend and API retain their own Dockerfiles, Compose files, and independent
-deployments. Configure each deployment's root/build context to its application
-directory. Keep environment variables in the deployment service or local ignored
-files. No shared Node workspace or build orchestrator is required.
-
-There were no tracked GitHub Actions workflows to migrate. When adding CI, use
-application-specific working directories and path filters, including shared root
-configuration where relevant. Documentation checks should target `quick-docs/`.
-The CodeRabbit configuration now lives at the repository root and scopes Python
-review guidance to the backend.
-
-The existing local Elastic Beanstalk configuration files remain ignored in each
-application directory. Before using EB CLI deployment from this monorepo,
-configure an application-only deployment artifact; Git-based packaging may select
-the entire repository. From the root, create committed source bundles with:
-
-```sh
-git archive --format=zip --output=/tmp/quick-portal-web.zip HEAD:quick-portal-web
-git archive --format=zip --output=/tmp/quick-portal-api.zip HEAD:quick-portal-api
-```
-
-These archives put each application's files at the archive root. Configure the
-corresponding EB application's `deploy.artifact` setting to use its archive.
-Regenerate the archive after committing changes. Remote deployments have not
-been changed by this migration.
-
-## Migration and recovery
-
-Both original `main` histories were imported without squashing, including local
-commits that had not been pushed. Original commit IDs remain reachable. Tags
-`migration/quick-portal-web` and `migration/quick-portal-api` identify the imported
-tips. Older commits use the original repository-relative paths, so inspect a
-migration tag directly when browsing pre-migration history.
-
-Local `.monorepo-backup/` contains complete Git bundles, original Git directories,
-the previous root instructions, and a migration manifest. It is ignored and must
-not be committed. Keep a separate durable copy before removing that folder.
-To inspect an original repository independently, clone its bundle, for example:
-
-```sh
-git clone .monorepo-backup/quick-portal-web.bundle /tmp/quick-web-original
-```
-
-The monorepo has no remote yet. Create an empty destination repository, add it as
-`origin`, and push `main` plus the migration tags when ready. The old remote
-repositories have not been modified or archived.
+- beacon - `make test-beacon`
+- quick-api - `make test-api`
+- quick-portal - `make test-portal`

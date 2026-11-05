@@ -1,4 +1,4 @@
-# API_HOST comes from Caddy's environment (see docker-compose.yml). Caddy
+# API_HOST is hard-coded in Caddy's environment (see docker-compose.yml). Caddy
 # obtains the certificate and redirects HTTP to HTTPS automatically.
 {$API_HOST} {
 	# Must match Beacon's MAX_REQUEST_BODY_BYTES (default 1048576 bytes = 1MiB;

@@ -1,6 +1,10 @@
+---
+description: Overview of the Quick API, the lightweight replacement for the Django API
+---
+
 # Quick API
 
-Quick API is a lightweight version of the legacy quick-portal-api that aims to replace it.
+Quick API is a lightweight version of the legacy Django API that aims to replace it.
 
 Development server runs on port 8100.
 
