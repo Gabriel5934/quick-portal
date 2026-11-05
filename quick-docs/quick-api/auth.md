@@ -31,7 +31,7 @@ Every 401 from `/auth/refresh` also clears the cookie. The `detail` is one of `R
 - Name `refresh_token`, `HttpOnly`, `Path=/auth`, `Max-Age` = refresh TTL.
 - No `Secure` or `SameSite` attribute is set, so the browser's default `SameSite` behaviour applies.
 
-`JWT_SECRET` is required and must be at least 32 bytes; the app refuses to start otherwise. `make dev` generates `quick-api/.env` with a random one. Changing it invalidates every access token but no refresh tokens.
+`JWT_SECRET` is required and must be at least 32 bytes; the app refuses to start otherwise. `make dev` generates the untracked root `.env.portal` with a random one. Changing it invalidates every access token but no refresh tokens.
 
 ## Rotation and blacklist
 

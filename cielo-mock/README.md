@@ -19,16 +19,16 @@ The mock's settings are hard-coded in the `cielo-mock` service of
 `docker-compose.dev.yml`; change them there. The mock runs only in local
 development: the production stack (`../docker-compose.portal.yml`) does not
 include it. The only secret,
-`MOCK_CIELO_NOTIFICATION_TOKEN`, lives in `.env` in this directory. Copy
-`.env.example` to create it (`make dev` does this when it is missing):
+`MOCK_CIELO_NOTIFICATION_TOKEN`, lives in the untracked `.env.cielo-mock` at
+the repository root. Copy `.env.cielo-mock.example` to create it (`make dev`
+does this when it is missing), from the repository root:
 
 ```bash
-cp cielo-mock/.env.example cielo-mock/.env
+cp .env.cielo-mock.example .env.cielo-mock
 ```
 
-Docker Compose reads that file to fill the token in `docker-compose.dev.yml`,
-both standalone and through the root `docker-compose.yml`. A shell variable
-takes precedence over it.
+The `cielo-mock` service in `docker-compose.dev.yml` loads that file with
+`env_file`, both standalone and through the root `docker-compose.dev.yml`.
 
 ## Run
 

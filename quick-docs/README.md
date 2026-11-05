@@ -13,8 +13,9 @@ npm run docs:dev
 ## Docker development
 
 From this directory, run `docker compose -f docker-compose.dev.yml up`.
-From the monorepo root, run `docker compose up` to start the documentation
-alongside the API and frontend, or `docker compose up docs` for documentation only.
+From the monorepo root, run `make dev` to start the documentation alongside the
+API and frontend, or `docker compose -f docker-compose.dev.yml up docs` for
+documentation only.
 
 Open http://localhost:5174. Source files are mounted for live reload, and
 dependencies are installed in a separate container volume.

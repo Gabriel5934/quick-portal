@@ -4,6 +4,12 @@ services:
     restart: unless-stopped
     ports:
       - "3001:3000"
+    env_file:
+      # The only secret, MOCK_CIELO_NOTIFICATION_TOKEN, comes from the
+      # repository root .env.cielo-mock (`make dev` creates it). Optional; the
+      # path is relative to this file.
+      - path: ../.env.cielo-mock
+        required: false
     environment:
       PORT: 3000
       MOCK_CIELO_DATABASE_FILE: /app/data/cielo.sqlite3
@@ -11,8 +17,6 @@ services:
       MOCK_CIELO_ONBOARDING_MODE: success
       # Beacon's Cielo endpoint over the compose network.
       MOCK_CIELO_NOTIFICATION_URL: http://beacon:8000/cielo/notifications/
-      # The only secret; interpolated from cielo-mock/.env.
-      MOCK_CIELO_NOTIFICATION_TOKEN: ${MOCK_CIELO_NOTIFICATION_TOKEN:-}
       MOCK_CIELO_NOTIFICATION_DELAY_SECONDS: 5
       MOCK_CIELO_NOTIFICATION_SCENARIO: approved
       MOCK_CIELO_TRANSACTION_MERCHANT_ID: 00000000-0000-0000-0000-000000000000

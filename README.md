@@ -12,15 +12,21 @@ See `AGENTS.md` and each application's `AGENTS.md` for development conventions.
 
 ## Local development
 
-The root `docker-compose.yml` includes the applications' development Compose
-files. Run:
+The root `docker-compose.dev.yml` includes the applications' development
+Compose files. Run:
 
 ```sh
-docker compose up --build
+make dev
 ```
 
+`make dev` creates the untracked root `.env` from `.env.example` when it is
+missing (it sets `COMPOSE_FILE=docker-compose.dev.yml`), fills the root
+`.env.portal`, `.env.beacon` and `.env.cielo-mock`, then runs
+`docker compose -f docker-compose.dev.yml up --build --detach --wait`.
+
 Documentation is available at `http://localhost:5174` with live reload.
-Run `docker compose up docs` to start only the documentation service.
+Run `docker compose -f docker-compose.dev.yml up docs` to start only the
+documentation service.
 
 ## Checks
 

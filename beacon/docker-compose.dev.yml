@@ -1,14 +1,16 @@
 # Local development. Included by the root docker-compose.yml (`make dev`).
 # Beacon is served at http://localhost:8090/cielo/notifications.
-# Settings are hard-coded below; only CIELO_WEBHOOK_TOKEN comes from beacon/.env.
+# Settings are hard-coded below; only CIELO_WEBHOOK_TOKEN comes from the
+# repository root .env.beacon (`make dev` creates it).
 services:
   beacon:
     build: .
     restart: unless-stopped
     env_file:
-      # Optional so the root stack still starts without beacon/.env; with no
-      # CIELO_WEBHOOK_TOKEN every notification is rejected with 401.
-      - path: .env
+      # Optional so the root stack still starts without .env.beacon; with no
+      # CIELO_WEBHOOK_TOKEN every notification is rejected with 401. The path
+      # is relative to this file.
+      - path: ../.env.beacon
         required: false
     environment:
       # Relative to the container WORKDIR (/app), where ./data is bind mounted.

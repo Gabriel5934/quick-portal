@@ -103,7 +103,7 @@ def cielo_mock() -> Iterator[RunningMock]:
     with tempfile.TemporaryDirectory(prefix="cielo-mock-it-") as directory:
         database_file = Path(directory) / "cielo.sqlite3"
         port = _free_port()
-        # A minimal environment: nothing from cielo-mock/.env or the caller's
+        # A minimal environment: nothing from .env.cielo-mock or the caller's
         # MOCK_CIELO_* variables, and onboarding notifications disabled.
         env = {
             "PATH": os.environ.get("PATH", ""),
