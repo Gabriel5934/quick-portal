@@ -2,12 +2,13 @@
 # Usage: scripts/dev-env.sh FILE EXAMPLE KEY=VALUE... [KEY...]
 #
 # Creates or completes an env file for the local dev stack (see `make dev-env`).
-# Sets each KEY whose value in FILE is missing or empty; a bare KEY gets a
-# random value (`openssl rand -hex 32`). The last assignment of a KEY (with or
-# without a leading `export`) is the one checked and replaced, since it is the
-# one that takes effect; a value counts as empty after trimming whitespace and
-# surrounding quotes. Non-empty values, other lines, comments and their order
-# are kept, so running it again changes nothing.
+# A KEY=VALUE argument always sets KEY to VALUE, overwriting any existing value.
+# A bare KEY gets a random value (`openssl rand -hex 32`) only when its value in
+# FILE is missing or empty, so an existing secret is kept. The last assignment
+# of a KEY (with or without a leading `export`) is the one replaced, since it is
+# the one that takes effect; a value counts as empty after trimming whitespace
+# and surrounding quotes. Other lines, comments and their order are kept, so
+# running it again changes nothing.
 #
 # FILE starts from EXAMPLE when it is missing (or empty when both are missing),
 # is rewritten atomically only when something changes, and always ends with
@@ -53,10 +54,12 @@ for pair in "$@"; do
 	*=*)
 		key=${pair%%=*}
 		value=${pair#*=}
+		force=1
 		;;
 	*)
 		key=$pair
 		value=$(openssl rand -hex 32)
+		force=0
 		;;
 	esac
 	case $key in
@@ -68,9 +71,9 @@ for pair in "$@"; do
 
 	# Values reach awk through ENVIRON, not -v, so backslashes and other
 	# special characters are copied literally. Exit status 3 means the key was
-	# set; 0 means it already had a non-empty value.
+	# set; 0 means it was left alone.
 	status=0
-	DEV_ENV_KEY=$key DEV_ENV_VALUE=$value awk '
+	DEV_ENV_KEY=$key DEV_ENV_VALUE=$value DEV_ENV_FORCE=$force awk '
 		function strip_ws(s) {
 			sub("^[ \t\r\f\v]+", "", s)
 			sub("[ \t\r\f\v]+$", "", s)
@@ -98,6 +101,7 @@ for pair in "$@"; do
 		BEGIN {
 			key = ENVIRON["DEV_ENV_KEY"]
 			value = ENVIRON["DEV_ENV_VALUE"]
+			force = ENVIRON["DEV_ENV_FORCE"]
 			nomatch = "\001nomatch"
 		}
 		{ lines[NR] = $0 }
@@ -110,7 +114,11 @@ for pair in "$@"; do
 			if (last) {
 				current = strip_ws(current)
 				gsub("^[\"\047]+|[\"\047]+$", "", current)
-				if (current != "") {
+				if (force != "1" && current != "") {
+					for (i = 1; i <= NR; i++) print lines[i]
+					exit 0
+				}
+				if (lines[last] == key "=" value) {
 					for (i = 1; i <= NR; i++) print lines[i]
 					exit 0
 				}

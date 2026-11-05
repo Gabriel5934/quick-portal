@@ -13,11 +13,11 @@ dev: dev-env
 	$(COMPOSE) exec -T quick-api python -m app.scripts.create_dev_user
 
 # Create or complete the untracked root env files the dev stack reads, with
-# scripts/dev-env.sh (POSIX sh; see its header for usage). Only keys that are
-# missing or empty are set; non-empty values, other keys and comments are kept,
+# scripts/dev-env.sh (POSIX sh; see its header for usage). Each KEY=VALUE is
+# always set, overwriting its current value; a bare KEY (JWT_SECRET) gets a
+# random hex value only when missing or empty. Other keys and comments are kept,
 # so running it again changes nothing. A missing file starts from its
-# .example, a bare KEY gets a random hex value from openssl, and each file is
-# left with mode 600. Key names are printed, never values.
+# .example, and each file is left with mode 600. Key names are printed, never values.
 # The root .env (Compose settings such as COMPOSE_FILE) is copied from
 # .env.example only when it is missing; an existing .env is never overwritten.
 # The webhook token must be the same on both sides: cielo-mock sends it to
