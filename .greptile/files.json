@@ -1,0 +1,9 @@
+{
+  "files": [
+    {
+      "path": "quick-api/openapi.json",
+      "description": "OpenAPI specification for all public endpoints",
+      "scope": ["quick-api/**"]
+    }
+  ]
+}
