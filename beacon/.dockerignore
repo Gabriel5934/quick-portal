@@ -2,7 +2,7 @@
 .env.*
 .venv/
 data/
-tests/
+# tests/ is kept: the test stage copies it; the runtime stage does not.
 __pycache__/
 *.py[cod]
 .pytest_cache/

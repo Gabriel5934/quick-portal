@@ -1,6 +1,6 @@
 COMPOSE ?= docker compose -f docker-compose.dev.yml
 
-.PHONY: dev dev-env sbs sps
+.PHONY: dev dev-env test-api test-beacon test-portal sbs sps
 
 # Fill the dev env files, start the root dev stack and wait until it is
 # healthy, then seed the admin seller in cielo-mock. The seed overwrites its
@@ -35,6 +35,21 @@ dev-env:
 	  CIELO_CLIENT_SECRET=mock-cielo-secret \
 	  CIELO_AUTH_BASE_URL=http://cielo-mock:3000 \
 	  CIELO_ONBOARDING_BASE_URL=http://cielo-mock:3000
+
+# Lint and test quick-api in a one-off container built from the Dockerfile's
+# test stage; nothing is installed on the host and the container is removed.
+test-api:
+	$(COMPOSE) --profile test run --rm --build quick-api-test sh -c "ruff check . && ruff format --check . && pytest -q"
+
+# Lint and test beacon the same way, from beacon's Dockerfile test stage.
+test-beacon:
+	$(COMPOSE) --profile test run --rm --build beacon-test sh -c "ruff check . && ruff format --check . && pytest -q"
+
+# Typecheck, lint, style-check and unit-test the frontend in the running portal
+# dev container (start the stack with make dev first). The build is left out:
+# it would overwrite the bind-mounted dist/ on the host.
+test-portal:
+	$(COMPOSE) exec -T portal sh -c "npm run check && npm run stylelint && npm run vitest"
 
 sbs: # ssh into beacon sandbox
 	ssh -i lightsail-key.pem ubuntu@56.125.158.204

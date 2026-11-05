@@ -30,3 +30,20 @@ services:
       - ./data:/app/data
       - ./app:/app/app
       - ./alembic:/app/alembic
+
+  # Tests and lint in a container (`make test-api`). Behind the `test`
+  # profile, so `make dev` and a plain `up` never start it. The tests build
+  # their own settings, so no env_file; the database lives in a tmpfs, never
+  # in the ./data volume above.
+  quick-api-test:
+    build:
+      context: .
+      target: test
+    profiles: ["test"]
+    environment:
+      ACCESS_TOKEN_TTL_SECONDS: "300"
+      REFRESH_TOKEN_TTL_SECONDS: "86400"
+      DATABASE_PATH: /tmp/quick-api-test/quick-api.sqlite3
+      API_DOCS_ENABLED: "true"
+    tmpfs:
+      - /tmp

@@ -1,3 +1,25 @@
+# Tests and lint (`make test-api`), built only with `--target test`. The
+# runtime image is the last stage below, which a plain build produces.
+FROM python:3.13.18-slim AS test
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+WORKDIR /app
+
+COPY requirements.txt requirements-dev.txt ./
+RUN pip install -r requirements-dev.txt
+
+COPY pyproject.toml alembic.ini ./
+COPY alembic ./alembic
+COPY app ./app
+COPY tests ./tests
+
+CMD ["sh", "-c", "ruff check . && ruff format --check . && pytest -q"]
+
+# Runtime.
 FROM python:3.13.18-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \

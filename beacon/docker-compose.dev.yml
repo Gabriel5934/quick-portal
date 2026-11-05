@@ -27,3 +27,18 @@ services:
       - ./data:/app/data
       - ./app:/app/app
       - ./alembic:/app/alembic
+
+  # Tests and lint in a container (`make test-beacon`). Behind the `test`
+  # profile, so `make dev` and a plain `up` never start it. The tests build
+  # their own settings (including the webhook token), so no env_file; the
+  # database lives in a tmpfs, never in the ./data volume above.
+  beacon-test:
+    build:
+      context: .
+      target: test
+    profiles: ["test"]
+    environment:
+      DATABASE_PATH: /tmp/beacon-test/beacon.sqlite3
+      MAX_REQUEST_BODY_BYTES: "1048576"
+    tmpfs:
+      - /tmp
