@@ -18,6 +18,7 @@ services:
       DATABASE_PATH: data/beacon.sqlite3
       # 1 MiB, the code default; must match max_size in the Caddyfile.
       MAX_REQUEST_BODY_BYTES: "1048576"
+      API_DOCS_ENABLED: "false"
     # The image's CMD runs migrations, then uvicorn with exactly one worker.
     expose:
       - "8000"

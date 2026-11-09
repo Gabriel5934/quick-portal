@@ -17,6 +17,8 @@ services:
       DATABASE_PATH: data/beacon.sqlite3
       # 1 MiB, the code default.
       MAX_REQUEST_BODY_BYTES: "1048576"
+      # Serves /docs, /redoc and /openapi.json in development only.
+      API_DOCS_ENABLED: "true"
     # Single process; --reload restarts it when ./app or ./alembic change.
     command: >
       sh -c "alembic upgrade head &&
@@ -40,5 +42,6 @@ services:
     environment:
       DATABASE_PATH: /tmp/beacon-test/beacon.sqlite3
       MAX_REQUEST_BODY_BYTES: "1048576"
+      API_DOCS_ENABLED: "true"
     tmpfs:
       - /tmp

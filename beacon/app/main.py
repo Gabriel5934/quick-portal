@@ -29,13 +29,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         yield
         engine.dispose()
 
-    # Only the notification endpoint is exposed; no interactive docs.
+    # Interactive docs and the OpenAPI schema are served only when
+    # API_DOCS_ENABLED is true.
+    docs = settings.api_docs_enabled
     app = FastAPI(
         title="Beacon",
         lifespan=lifespan,
-        docs_url=None,
-        redoc_url=None,
-        openapi_url=None,
+        docs_url="/docs" if docs else None,
+        redoc_url="/redoc" if docs else None,
+        openapi_url="/openapi.json" if docs else None,
     )
     app.state.settings = settings
     app.state.session_factory = sessionmaker(engine, expire_on_commit=False)

@@ -10,6 +10,17 @@ DEFAULT_DATABASE_PATH = "data/beacon.sqlite3"
 DEFAULT_MAX_REQUEST_BODY_BYTES = 1024 * 1024  # 1 MiB
 
 
+def _env_bool(name: str, default: bool) -> bool:
+    value = os.environ.get(name, "").strip().lower()
+    if not value:
+        return default
+    if value in ("1", "true", "yes", "on"):
+        return True
+    if value in ("0", "false", "no", "off"):
+        return False
+    raise ValueError(f"{name} must be true or false, got {value!r}")
+
+
 @dataclass(frozen=True)
 class Settings:
     # Shared secret Cielo sends in the X-Cielo-Webhook-Token header. When it is
@@ -21,6 +32,8 @@ class Settings:
     # Larger request bodies are rejected with 413 and not stored. Caddy's
     # request_body max_size in the Caddyfile must match.
     max_request_body_bytes: int = DEFAULT_MAX_REQUEST_BODY_BYTES
+    # Serves /docs, /redoc and /openapi.json. Off unless explicitly enabled.
+    api_docs_enabled: bool = False
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -33,6 +46,7 @@ class Settings:
                 os.environ.get("MAX_REQUEST_BODY_BYTES")
                 or DEFAULT_MAX_REQUEST_BODY_BYTES
             ),
+            api_docs_enabled=_env_bool("API_DOCS_ENABLED", False),
         )
 
     @property

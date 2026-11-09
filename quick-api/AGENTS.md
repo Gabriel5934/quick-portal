@@ -1,0 +1,1 @@
+- Read ./openapi.json to familiarize with the API

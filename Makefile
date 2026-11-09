@@ -60,3 +60,4 @@ sps: # ssh into portal sandbox
 llms: # update llms.txt
 	$(COMPOSE) exec docs npm run docs:build
 	$(COMPOSE) exec -T quick-api python -c "import urllib.request; print(urllib.request.urlopen('http://localhost:8000/openapi.json').read().decode())" > quick-api/openapi.json
+	$(COMPOSE) exec -T beacon python -c "import urllib.request; print(urllib.request.urlopen('http://localhost:8000/openapi.json').read().decode())" > beacon/openapi.json
