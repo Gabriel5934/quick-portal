@@ -4,7 +4,11 @@
 # functions call Quick API at http://quick-api:8000.
 # Requires the untracked root .env.portal (keys listed in quick-api/.env.example)
 # for JWT_SECRET and the CIELO_* settings; the other settings are set under
-# environment below.
+# environment below. The optional BEACON_PRIVATE_IP and BEACON_PORTAL_TOKEN
+# (Beacon over the Lightsail private network) also come from .env.portal via
+# env_file. They are deliberately not repeated under environment: an
+# environment entry like ${BEACON_PRIVATE_IP:-} is interpolated from the shell
+# only and would override the env_file value with an empty string.
 services:
   quick-api:
     build: .

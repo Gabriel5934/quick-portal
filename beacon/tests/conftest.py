@@ -13,6 +13,7 @@ from app.main import create_app
 
 BEACON_DIR = Path(__file__).resolve().parent.parent
 TOKEN = "test-webhook-token"
+PORTAL_TOKEN = "test-portal-token"
 
 
 def alembic_config(settings: Settings) -> Config:
@@ -29,6 +30,7 @@ def settings(tmp_path: Path) -> Settings:
     return Settings(
         cielo_webhook_token=TOKEN,
         database_path=tmp_path / "data" / "beacon.sqlite3",
+        portal_token=PORTAL_TOKEN,
     )
 
 

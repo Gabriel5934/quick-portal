@@ -8,7 +8,9 @@ expects. Limits mirror Cielo's seller onboarding reference; anything else
 type, are ignored rather than forwarded.
 """
 
+import enum
 import uuid
+from datetime import datetime
 from typing import Any, Literal, Self
 
 from pydantic import (
@@ -192,3 +194,37 @@ class CieloSellerCreated(BaseModel):
             document_number=self.document_number,
             fancy_name=fancy_name,
         )
+
+
+class CieloTransactionChangeType(enum.IntEnum):
+    """ChangeType values of Cielo transaction notifications, as Beacon stores
+    them (beacon's app.cielo.enums)."""
+
+    TRANSACTION_STATUS = 1
+    RECURRENCE_CREATED = 2
+    ANTI_FRAUD_STATUS = 3
+    RECURRING_PAYMENT_STATUS = 4
+    CANCELLING_REFUND_DENIED = 5
+    BOLETO_PAID_LESS = 6
+    CHARGEBACK_LEGACY = 7
+    FRAUD_ALERT = 8
+    PARTIALLY_CANCELLED_OR_REFUNDED = 25
+
+
+class TransactionOut(BaseModel):
+    """A transaction notification as Beacon's GET /transactions returns it."""
+
+    id: int
+    payment_id: uuid.UUID | None
+    change_type: CieloTransactionChangeType | None
+    recurrent_payment_id: uuid.UUID | None
+    received_at: datetime | None
+
+
+class TransactionPage(BaseModel):
+    """A page of Beacon's GET /transactions, returned unchanged."""
+
+    items: list[TransactionOut]
+    total: int
+    limit: int
+    offset: int

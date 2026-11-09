@@ -1,6 +1,8 @@
 """Settings read from environment variables."""
 
+import ipaddress
 import os
+import re
 import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -13,6 +15,9 @@ DEFAULT_ACCESS_TOKEN_TTL_SECONDS = 5 * 60
 DEFAULT_REFRESH_TOKEN_TTL_SECONDS = 24 * 60 * 60
 # PyJWT warns about HS256 keys shorter than the 32-byte SHA-256 output.
 MIN_JWT_SECRET_BYTES = 32
+BEACON_PORT = 8000
+# RFC 1123 hostname: dot-separated labels of letters, digits and inner hyphens.
+_HOSTNAME_LABEL = re.compile(r"(?!-)[A-Za-z0-9-]{1,63}(?<!-)")
 
 
 def _env_bool(name: str, default: bool) -> bool:
@@ -53,6 +58,21 @@ def _is_base_url(value: str) -> bool:
     )
 
 
+def _is_ipv4_or_hostname(value: str) -> bool:
+    """A bare IPv4 address or hostname: no scheme, port, path or brackets."""
+    try:
+        ipaddress.IPv4Address(value)
+    except ValueError:
+        pass
+    else:
+        return True
+    labels = value.split(".")
+    # All-numeric dotted values are malformed IPv4 addresses, not hostnames.
+    if len(value) > 253 or all(label.isdigit() for label in labels):
+        return False
+    return all(_HOSTNAME_LABEL.fullmatch(label) for label in labels)
+
+
 @dataclass(frozen=True)
 class Settings:
     # Signs access tokens (HS256). Required: create_app refuses to start when it
@@ -75,6 +95,13 @@ class Settings:
     refresh_token_ttl_seconds: int = DEFAULT_REFRESH_TOKEN_TTL_SECONDS
     # Serves /docs, /redoc and /openapi.json. Off unless explicitly enabled.
     api_docs_enabled: bool = False
+    # Beacon over the Lightsail private network. Optional: when either is
+    # empty Quick API still starts and app.beacon raises BeaconNotConfigured.
+    # beacon_private_ip is an IPv4 address or hostname only (validated when
+    # set); beacon_base_url adds the scheme and port.
+    beacon_private_ip: str = ""
+    # Sent as X-Portal-Token; must match PORTAL_TOKEN in Beacon's env.
+    beacon_portal_token: str = field(default="", repr=False)
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -94,6 +121,8 @@ class Settings:
                 "REFRESH_TOKEN_TTL_SECONDS", DEFAULT_REFRESH_TOKEN_TTL_SECONDS
             ),
             api_docs_enabled=_env_bool("API_DOCS_ENABLED", False),
+            beacon_private_ip=_env_str("BEACON_PRIVATE_IP"),
+            beacon_portal_token=_env_str("BEACON_PORTAL_TOKEN"),
         )
 
     @property
@@ -108,6 +137,13 @@ class Settings:
     def cielo_onboarding_url(self) -> str:
         return self.cielo_onboarding_base_url.rstrip("/") + "/api/merchants"
 
+    @property
+    def beacon_base_url(self) -> str:
+        """http://{BEACON_PRIVATE_IP}:8000, or empty when the IP is unset."""
+        if not self.beacon_private_ip:
+            return ""
+        return f"http://{self.beacon_private_ip}:{BEACON_PORT}"
+
     def validate(self) -> None:
         """Raises ValueError for settings the app must not start with."""
         if len(self.jwt_secret.encode()) < MIN_JWT_SECRET_BYTES:
@@ -117,6 +153,7 @@ class Settings:
         if self.access_token_ttl_seconds <= 0 or self.refresh_token_ttl_seconds <= 0:
             raise ValueError("token TTLs must be positive")
         self._validate_cielo()
+        self._validate_beacon()
 
     def _validate_cielo(self) -> None:
         required = {
@@ -138,3 +175,10 @@ class Settings:
             uuid.UUID(self.cielo_merchant_id)
         except ValueError:
             raise ValueError("CIELO_MERCHANT_ID must be a UUID") from None
+
+    def _validate_beacon(self) -> None:
+        if self.beacon_private_ip and not _is_ipv4_or_hostname(self.beacon_private_ip):
+            raise ValueError(
+                "BEACON_PRIVATE_IP must be an IPv4 address or hostname without a "
+                "scheme, port or path, e.g. 172.26.0.10"
+            )

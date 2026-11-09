@@ -28,15 +28,22 @@ Ubuntu 24.04 LTS
 
 The SQLite file lives on the instance’s disk in `./data` and it is bind mounted to the API container.
 
-## Networking
+## How to reach Beacon
 
-A free domain was provisioned for the sandbox environment using DuckDNS, it is routed to a static ipv4 address attached to the Lightsail instance.
+**Public hostname:** Caddy proxies only `POST /cielo/notifications` from the public hostname to uvicorn, making every other route only accesible trough the instance private IP.
+The hostname is configured at the production compose file.
 
 ```
 quick-beacon-sandbox.duckdns.org
 ```
 
-A Caddy service acts as a reverse proxy routing all traffic from the DuckDNS domain to uvicorn. The hostname is sourced by Caddyfile from an env var API_HOST
+**Private IP:** Docker exposes port `8000` to the Lightsail instace private IP skipping Caddy and making all endpoints available trough it. This is used to allow communication between instances in the same region such as the `quick-portal` instance. And extra layer of security is in place for this method trough a fixed header token `X-Portal-Token`.
+
+| Var                 | Env File |
+| ------------------- | -------- |
+| BEACON_PORTAL_TOKEN | Beacon   |
+| BEACON_PRIVATE_IP   | Portal   |
+| PORTAL_TOKEN        | Portal   |
 
 ## Features
 

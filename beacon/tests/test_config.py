@@ -28,11 +28,13 @@ def test_settings_from_env_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
         "DATABASE_PATH",
         "MAX_REQUEST_BODY_BYTES",
         "API_DOCS_ENABLED",
+        "PORTAL_TOKEN",
     ):
         monkeypatch.delenv(name, raising=False)
     settings = Settings.from_env()
     assert settings.database_path == Path("data/beacon.sqlite3")
     assert settings.api_docs_enabled is False
+    assert settings.portal_token == ""
 
 
 @pytest.mark.parametrize(
