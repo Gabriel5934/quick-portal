@@ -27,7 +27,8 @@ dev-env:
 	@[ -f .env ] || { cp .env.example .env && chmod 600 .env && echo "created .env"; }
 	@sh scripts/dev-env.sh .env.beacon .env.beacon.example \
 	  CIELO_WEBHOOK_TOKEN=cielo-webhook-token \
-	  PORTAL_TOKEN=beacon-portal-token
+	  PORTAL_TOKEN=beacon-portal-token \
+	  BEACON_PRIVATE_IP=beacon
 	@sh scripts/dev-env.sh .env.cielo-mock .env.cielo-mock.example \
 	  MOCK_CIELO_NOTIFICATION_TOKEN=cielo-webhook-token
 	@sh scripts/dev-env.sh .env.portal .env.portal.example \
