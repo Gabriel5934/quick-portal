@@ -20,26 +20,35 @@ Payment Split divides the value of a transaction between multiple parties. After
 ## Example Request
 
 ```json
-{
-  "SplitPayments": {
+[
+  {
     "SubordinateMerchantId": "f2d6eb34-2c6b-4948-8fff-51facdd2a28f",
     "Amount": 6000,
     "Fares": {
       "Mdr": 5,
       "Fee": 30
     }
+  },
+  {
+    "SubordinateMerchantId": "58a75624-c254-45fb-8272-28a344ae32aa",
+    "Amount": 6000,
+    "Fares": {
+      "Mdr": 5,
+      "Fee": 30
+    }
   }
-}
+]
 ```
 
-| Key                                 | Type   | Description                               |
-| ----------------------------------- | ------ | ----------------------------------------- |
-| SplitPayments                       | Node   | Root node                                 |
-| SplitPayments.SubordinateMerchantId | GUID   | MID from the seller that made the sale    |
-| SplitPayments.Amount                | Number | Transaction value AFTER discounting fares |
-| SplitPayments.Fares                 | Node   | Fares node                                |
-| SplitPayments.Fares.Mdr             | Number | Percentage fee                            |
-| SplitPayments.Fares.Fee             | Number | Fixed value fee                           |
+| Key                       | Type   | Description                            |
+| ------------------------- | ------ | -------------------------------------- |
+| [n].SubordinateMerchantId | GUID   | MID from the seller that made the sale |
+| [n].Amount                | Number | Check Below                            |
+| [n].Fares                 | Node   | Fares node                             |
+| [n].Fares.Mdr             | Number | Percentage fee                         |
+| [n].Fares.Fee             | Number | Fixed value fee                        |
+
+**Amount:** Amount is the value that belongs to the subordinate merchant before any master fees or MDR is discounted. For that reason the sum of all "Amount" keys in the split payments array should be equal to the transaction value
 
 ## Headers
 
