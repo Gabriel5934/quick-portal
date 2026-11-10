@@ -1,7 +1,7 @@
 """Settings read from environment variables."""
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from sqlalchemy import URL
@@ -34,6 +34,10 @@ class Settings:
     max_request_body_bytes: int = DEFAULT_MAX_REQUEST_BODY_BYTES
     # Serves /docs, /redoc and /openapi.json. Off unless explicitly enabled.
     api_docs_enabled: bool = False
+    # Shared secret Quick API sends in the X-Portal-Token header to read data
+    # over the private network (GET /transactions). When it is empty every
+    # such request is rejected.
+    portal_token: str = field(default="", repr=False)
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -47,6 +51,7 @@ class Settings:
                 or DEFAULT_MAX_REQUEST_BODY_BYTES
             ),
             api_docs_enabled=_env_bool("API_DOCS_ENABLED", False),
+            portal_token=os.environ.get("PORTAL_TOKEN", ""),
         )
 
     @property

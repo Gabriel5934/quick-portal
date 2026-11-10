@@ -26,7 +26,9 @@ dev: dev-env
 dev-env:
 	@[ -f .env ] || { cp .env.example .env && chmod 600 .env && echo "created .env"; }
 	@sh scripts/dev-env.sh .env.beacon .env.beacon.example \
-	  CIELO_WEBHOOK_TOKEN=cielo-webhook-token
+	  CIELO_WEBHOOK_TOKEN=cielo-webhook-token \
+	  PORTAL_TOKEN=beacon-portal-token \
+	  BEACON_PRIVATE_IP=beacon
 	@sh scripts/dev-env.sh .env.cielo-mock .env.cielo-mock.example \
 	  MOCK_CIELO_NOTIFICATION_TOKEN=cielo-webhook-token
 	@sh scripts/dev-env.sh .env.portal .env.portal.example \
@@ -34,7 +36,9 @@ dev-env:
 	  CIELO_MERCHANT_ID=00000000-0000-0000-0000-000000000000 \
 	  CIELO_CLIENT_SECRET=mock-cielo-secret \
 	  CIELO_AUTH_BASE_URL=http://cielo-mock:3000 \
-	  CIELO_ONBOARDING_BASE_URL=http://cielo-mock:3000
+	  CIELO_ONBOARDING_BASE_URL=http://cielo-mock:3000 \
+	  BEACON_PRIVATE_IP=beacon \
+	  BEACON_PORTAL_TOKEN=beacon-portal-token
 
 # Lint and test quick-api in a one-off container built from the Dockerfile's
 # test stage; nothing is installed on the host and the container is removed.

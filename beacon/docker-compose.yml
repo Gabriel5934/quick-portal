@@ -1,7 +1,9 @@
 # Build environments (sandbox and production): Beacon behind Caddy, which
 # serves API_HOST over HTTPS on port 443 and redirects HTTP to HTTPS.
-# Settings are hard-coded below; only CIELO_WEBHOOK_TOKEN comes from the
-# repository root .env.beacon (see .env.beacon.example), which is required.
+# Settings are hard-coded below; only CIELO_WEBHOOK_TOKEN and PORTAL_TOKEN come
+# from the repository root .env.beacon (see .env.beacon.example), which is
+# required.
+
 services:
   beacon:
     build: .
@@ -10,7 +12,8 @@ services:
       # Required: compose (including `docker compose config`) fails when the
       # file is missing. The path is relative to this file. Beacon starts with
       # an empty CIELO_WEBHOOK_TOKEN but logs a warning and rejects every
-      # notification with 401.
+      # notification with 401. Likewise, with an empty PORTAL_TOKEN every
+      # GET /transactions request is rejected with 401.
       - path: ../.env.beacon
         required: true
     environment:
@@ -20,8 +23,10 @@ services:
       MAX_REQUEST_BODY_BYTES: "1048576"
       API_DOCS_ENABLED: "false"
     # The image's CMD runs migrations, then uvicorn with exactly one worker.
-    expose:
-      - "8000"
+    # Private IP only, never 0.0.0.0: the public entry point is Caddy below,
+    # which reaches beacon:8000 over the compose network.
+    ports:
+      - "${BEACON_PRIVATE_IP:?BEACON_PRIVATE_IP must be set}:8000:8000"
     volumes:
       - ./data:/app/data
 

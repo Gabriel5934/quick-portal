@@ -10,6 +10,7 @@ from sqlalchemy.orm import sessionmaker
 from app.cielo.routes import cielo_router
 from app.config import Settings
 from app.db import create_db_engine
+from app.portal.routes import portal_router
 
 logger = logging.getLogger(__name__)
 
@@ -19,6 +20,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     if not settings.cielo_webhook_token:
         logger.warning(
             "CIELO_WEBHOOK_TOKEN is not set: every Cielo notification will be "
+            "rejected with 401."
+        )
+    if not settings.portal_token:
+        logger.warning(
+            "PORTAL_TOKEN is not set: every /transactions request will be "
             "rejected with 401."
         )
 
@@ -42,4 +48,5 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.settings = settings
     app.state.session_factory = sessionmaker(engine, expire_on_commit=False)
     app.include_router(cielo_router)
+    app.include_router(portal_router)
     return app

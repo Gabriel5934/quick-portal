@@ -65,6 +65,7 @@ All Cielo code lives in the `app/cielo` directory, all models, and URLs are pref
 
 Quick API is a WIP. Below is described whats already planned ahead:
 
+- Business Relationships, Ownership of transactions and which users can read transactions
 - LGPD compliance: Encryption at rest or field-level encryption is required before go-live. Cielo seller onboarding payloads include sensitive information data.
 - Database backups: Will happen through a daily cronjobs and S3 bucket uploads in the future.
 - The purge of expired refresh tokens runs only at startup, so a long-running instance never purges.

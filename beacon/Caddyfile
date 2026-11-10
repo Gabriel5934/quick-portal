@@ -6,5 +6,15 @@
 	request_body {
 		max_size 1MiB
 	}
-	reverse_proxy beacon:8000
+			# Only Cielo's notification webhook is public. Every other route (for
+		# example GET /transactions, which Quick API reads over the private
+		# network) returns 404 here, so new routes stay private by default.
+		@cielo_notifications {
+			method POST
+			path /cielo/notifications
+		}
+		handle @cielo_notifications {
+			reverse_proxy beacon:8000
+		}
+		respond 404
 }

@@ -1,4 +1,4 @@
-"""/cielo endpoints: seller onboarding and listing.
+"""/cielo endpoints: seller onboarding and listing, and Beacon transactions.
 
 Handlers are sync so the Cielo requests and SQLite calls run in FastAPI's
 threadpool.
@@ -6,18 +6,24 @@ threadpool.
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Request, status
+from fastapi import APIRouter, Depends, Query, Request, status
 from fastapi.responses import JSONResponse, Response
+from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
-from app.auth.deps import get_current_user, get_session
+from app.auth.deps import get_current_user, get_session, get_settings
 from app.auth.models import User
+from app.beacon import client as beacon
 from app.cielo import service
 from app.cielo.client import CieloClient
 from app.cielo.errors import CieloError
-from app.cielo.schemas import OnboardIn, OnboardOut
+from app.cielo.schemas import OnboardIn, OnboardOut, TransactionPage
+from app.config import Settings
 
 SELLER_NOT_SAVED = "Seller was onboarded at Cielo but could not be saved"
+# Same paging limits as Beacon's GET /transactions.
+DEFAULT_TRANSACTIONS_LIMIT = 50
+MAX_TRANSACTIONS_LIMIT = 100
 
 cielo_router = APIRouter(prefix="/cielo", tags=["cielo"])
 
@@ -92,3 +98,45 @@ def get_sellers(
     """
     sellers = service.list_sellers(session, user.id)
     return [OnboardOut.from_seller(seller) for seller in sellers]
+
+
+@cielo_router.get(
+    "/transactions",
+    response_model=TransactionPage,
+    dependencies=[Depends(get_current_user)],
+    responses={
+        401: {"description": "Missing or invalid access token"},
+        502: {"description": "Beacon failed or sent an invalid page", **_MESSAGE},
+        503: {"description": "Beacon is not configured", **_MESSAGE},
+        504: {"description": "Beacon timed out", **_MESSAGE},
+    },
+)
+def list_transactions(
+    session: SessionDep,
+    settings: Annotated[Settings, Depends(get_settings)],
+    limit: Annotated[
+        int, Query(ge=1, le=MAX_TRANSACTIONS_LIMIT)
+    ] = DEFAULT_TRANSACTIONS_LIMIT,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> Response:
+    """A page of Cielo transaction notifications stored by Beacon, oldest first.
+
+    Beacon failures return ``{"message": ...}``; Beacon's own response body is
+    never relayed.
+    """
+    # Only authentication needs the database; release it before waiting on
+    # Beacon.
+    session.close()
+    try:
+        page = TransactionPage.model_validate(
+            beacon.list_transactions(settings, limit, offset)
+        )
+    except ValidationError:
+        error: beacon.BeaconError = beacon.BeaconInvalidResponse()
+    except beacon.BeaconError as exc:
+        error = exc
+    else:
+        return JSONResponse(content=page.model_dump(mode="json"))
+    return JSONResponse(
+        status_code=error.status_code, content={"message": error.message}
+    )
