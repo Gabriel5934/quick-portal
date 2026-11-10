@@ -24,7 +24,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         )
     if not settings.portal_token:
         logger.warning(
-            "PORTAL_TOKEN is not set: every /portal/* request will be "
+            "PORTAL_TOKEN is not set: every /transactions request will be "
             "rejected with 401."
         )
 

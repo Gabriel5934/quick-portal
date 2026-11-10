@@ -8,7 +8,7 @@ The IP address must be set a an environment variable called `BEACON_PRIVATE_IP`.
 
 Beaco also requires a matching `X-Portal-Token` header that should be set as an environment variable called `BEACON_PORTAL_TOKEN`.
 
-All endpoints are available trough the private IP because that route skips Caddy. Caddy blocks any requests that aren't directed at the `/transactions` endpoint.
+All endpoints are available trough the private IP because that route skips Caddy. Caddy blocks any requests that aren't POST /cielo/notifications.
 
 | Route               | Auth   | Method |
 | ------------------- | ------ | ------ |

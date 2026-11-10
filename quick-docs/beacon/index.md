@@ -39,11 +39,11 @@ quick-beacon-sandbox.duckdns.org
 
 **Private IP:** Docker exposes port `8000` to the Lightsail instace private IP skipping Caddy and making all endpoints available trough it. This is used to allow communication between instances in the same region such as the `quick-portal` instance. And extra layer of security is in place for this method trough a fixed header token `X-Portal-Token`.
 
-| Var                 | Env File |
-| ------------------- | -------- |
-| BEACON_PORTAL_TOKEN | Beacon   |
-| BEACON_PRIVATE_IP   | Portal   |
-| PORTAL_TOKEN        | Portal   |
+| Var                 | Env File       |
+| ------------------- | -------------- |
+| BEACON_PORTAL_TOKEN | Portal         |
+| BEACON_PRIVATE_IP   | Portal, Beacon |
+| PORTAL_TOKEN        | Beacon         |
 
 ## Features
 
