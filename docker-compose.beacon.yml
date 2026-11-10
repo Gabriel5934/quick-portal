@@ -1,0 +1,7 @@
+# Runs Beacon's build-environment compose file with the root .env.beacon passed
+# as env_file, so values interpolated into beacon/docker-compose.yml (such as
+# BEACON_PRIVATE_IP) are read from it. Usage, from the repository root:
+#   docker compose -f docker-compose.beacon.yml up --build --detach
+include:
+  - path: beacon/docker-compose.yml
+    env_file: .env.beacon

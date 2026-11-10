@@ -1,6 +1,6 @@
 COMPOSE ?= docker compose -f docker-compose.dev.yml
 
-.PHONY: dev dev-env test-api test-beacon beacon-up beacon-dev-up test-portal sbs sps
+.PHONY: dev dev-env test-api test-beacon test-portal sbs sps
 
 # Fill the dev env files, start the root dev stack and wait until it is
 # healthy, then seed the admin seller in cielo-mock. The seed overwrites its
@@ -47,12 +47,6 @@ test-api:
 # Lint and test beacon the same way, from beacon's Dockerfile test stage.
 test-beacon:
 	$(COMPOSE) --profile test run --rm --build beacon-test sh -c "ruff check . && ruff format --check . && pytest -q"
-
-beacon-up:
-	docker compose -f beacon/docker-compose.yml --env-file .env.beacon up --build --detach
-
-beacon-dev-up:
-	docker compose -f beacon/docker-compose.dev.yml --env-file .env.beacon up --build --detach
 
 # Typecheck, lint, style-check and unit-test the frontend in the running portal
 # dev container (start the stack with make dev first). The build is left out:
