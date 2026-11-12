@@ -42,3 +42,20 @@ Every refresh token has a revoked reason field. If a token that was revoked by t
 ## CSRF
 
 // todo
+
+## Registration
+
+User registrations is pretty straightforward requring only for an email and password to be informed. Most of password policy is client-only, server checks only length which should be between 15 and 64 characters long satisfying NIST recommendations.
+
+Following OWASP recoomendations the following security features are set in place:
+
+- NOT requiring a specific format such as a special character requirements
+- Any character, including unicode and whitespaces are accepted
+- Password size between 15 and 64 characters
+- Provide a password strength estimation
+- Do not stop the user from registering based on the strength estimation
+- Checking haveibeenpwned API if the that password was leaked before
+- Prevent the user from registering with a pwned password
+- Perform external pwned checking only on submit as to prevent the password from leaking incrementally over the network
+- English and PT-BR dictionaries included in the strength guessing
+- Custom dictionaries with common words such as "Quick" and user specific words such as the user email are also included in the strength guessing
