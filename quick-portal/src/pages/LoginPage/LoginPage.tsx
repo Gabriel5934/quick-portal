@@ -1,9 +1,10 @@
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useNavigate } from '@tanstack/react-router';
+import { Link, useNavigate } from '@tanstack/react-router';
 import { Controller, useForm } from 'react-hook-form';
 import { z } from 'zod';
 import {
   Alert,
+  Anchor,
   Button,
   Group,
   Paper,
@@ -96,6 +97,12 @@ export function LoginPage() {
             <Button type="submit" fullWidth loading={login.isPending}>
               Entrar
             </Button>
+            <Text size="sm" ta="center">
+              Não tem conta?{' '}
+              <Anchor component={Link} to="/cadastro">
+                Criar conta
+              </Anchor>
+            </Text>
           </Stack>
         </form>
       </Paper>

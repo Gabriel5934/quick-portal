@@ -3,7 +3,15 @@
  * exports and call signatures, resolved with fixtures.
  */
 
-import type { CieloSeller, LoginInput, Me, OnboardPayload, Session } from '../../src/api/types';
+import type {
+  CieloSeller,
+  LoginInput,
+  Me,
+  OnboardPayload,
+  RegisteredUser,
+  RegisterInput,
+  Session,
+} from '../../src/api/types';
 import type { ApiResult } from '../../src/lib/api-error';
 import { mockMe, mockSellers, mockSession } from '../fixtures';
 
@@ -14,6 +22,9 @@ const delay = <T>(value: T, ms = 400) =>
 
 export const loginFn = (_options: { data: LoginInput }): Promise<ApiResult<Session>> =>
   delay({ ok: true, data: mockSession() });
+
+export const registerFn = ({ data }: { data: RegisterInput }): Promise<ApiResult<RegisteredUser>> =>
+  delay({ ok: true, data: { id: '3b6f1e2a-7c4d-4e8f-9a1b-2c3d4e5f6a7b', email: data.email } });
 
 export const refreshSessionFn = (): Promise<ApiResult<Session | null>> =>
   delay({ ok: true, data: mockSession() });
