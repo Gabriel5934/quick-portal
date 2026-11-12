@@ -3,18 +3,24 @@ import { evaluateLocally, type PasswordEvaluation } from '@/lib/password/strengt
 
 const DEBOUNCE_MS = 200;
 
+interface StrengthState {
+  password: string;
+  evaluation: PasswordEvaluation | null;
+}
+
 /**
  * Debounced local zxcvbn evaluation of a password (no breach lookup; that
- * runs on submit). Results from outdated
- * inputs are dropped, and an empty password yields no result.
+ * runs on submit). Results from outdated inputs are dropped, a result is only
+ * returned while it matches the current password, and an empty password
+ * yields no result.
  */
 export function usePasswordStrength(password: string, email?: string | null) {
-  const [result, setResult] = useState<PasswordEvaluation | null>(null);
+  const [state, setState] = useState<StrengthState | null>(null);
   const [isChecking, setIsChecking] = useState(false);
 
   useEffect(() => {
     if (!password) {
-      setResult(null);
+      setState(null);
       setIsChecking(false);
       return;
     }
@@ -24,12 +30,12 @@ export function usePasswordStrength(password: string, email?: string | null) {
       evaluateLocally(password, email)
         .then((evaluation) => {
           if (active) {
-            setResult(evaluation);
+            setState({ password, evaluation });
           }
         })
         .catch(() => {
           if (active) {
-            setResult(null);
+            setState(null);
           }
         })
         .finally(() => {
@@ -43,6 +49,8 @@ export function usePasswordStrength(password: string, email?: string | null) {
       clearTimeout(timer);
     };
   }, [password, email]);
+
+  const result = state?.password === password ? state.evaluation : null;
 
   return { result, isChecking };
 }
