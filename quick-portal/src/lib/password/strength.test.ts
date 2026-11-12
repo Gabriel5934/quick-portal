@@ -103,6 +103,40 @@ describe('evaluatePassword', () => {
     await expect(evaluatePassword(BREACHED)).resolves.toMatchObject({ pwned: false });
   });
 
+  it('keeps the local score when the lookup times out', async () => {
+    vi.useFakeTimers();
+    // AbortSignal.timeout runs on internal timers that fake timers cannot drive,
+    // so route it through the faked setTimeout.
+    const timeoutSpy = vi.spyOn(AbortSignal, 'timeout').mockImplementation((ms) => {
+      const controller = new AbortController();
+      setTimeout(() => controller.abort(new DOMException('timed out', 'TimeoutError')), ms);
+      return controller.signal;
+    });
+    try {
+      // A request that only ends when its signal aborts, like a stalled network.
+      let markRequested!: () => void;
+      const requested = new Promise<void>((resolve) => {
+        markRequested = resolve;
+      });
+      fetchMock.mockImplementationOnce((_input, init) => {
+        markRequested();
+        return new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () => reject(init.signal?.reason));
+        });
+      });
+      const pending = evaluatePassword(BREACHED);
+      await requested;
+      expect(timeoutSpy).toHaveBeenCalledWith(5000);
+      await vi.advanceTimersByTimeAsync(5000);
+      const result = await pending;
+      expect(result).not.toBeNull();
+      expect(result).toMatchObject({ pwned: false });
+    } finally {
+      timeoutSpy.mockRestore();
+      vi.useRealTimers();
+    }
+  });
+
   it('treats an HTTP error as not pwned', async () => {
     fetchMock.mockResolvedValueOnce(new Response('', { status: 503 }));
     await expect(evaluatePassword(BREACHED)).resolves.toMatchObject({ pwned: false });

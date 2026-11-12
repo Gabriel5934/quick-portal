@@ -22,6 +22,20 @@ type Checkers = {
 
 let checkers: Promise<Checkers> | null = null;
 
+/**
+ * Upper bound for the Have I Been Pwned lookup, headers and body included. On
+ * timeout the lookup fails and the password is scored locally (fail open).
+ */
+const PWNED_TIMEOUT_MS = 5000;
+
+/**
+ * `fetch` with a timeout signal. The signal also aborts the body read
+ * (`response.text()`), so a stalled response cannot hang the lookup.
+ * Resolves `fetch` per call so it is never invoked unbound and can be stubbed in tests.
+ */
+const fetchWithTimeout: typeof fetch = (input, init) =>
+  fetch(input, { ...init, signal: init?.signal ?? AbortSignal.timeout(PWNED_TIMEOUT_MS) });
+
 async function createCheckers(): Promise<Checkers> {
   const [core, common, en, ptBr, pwned] = await Promise.all([
     import('@zxcvbn-ts/core'),
@@ -40,11 +54,9 @@ async function createCheckers(): Promise<Checkers> {
       userInputs: STATIC_USER_INPUTS,
     },
   };
-  // Resolve `fetch` per call so it is never invoked unbound and can be stubbed in tests.
-  const universalFetch: typeof fetch = (input, init) => fetch(input, init);
   return {
     online: new core.ZxcvbnFactory(options, {
-      pwned: pwned.matcherPwnedFactory(universalFetch),
+      pwned: pwned.matcherPwnedFactory(fetchWithTimeout),
     }),
     offline: new core.ZxcvbnFactory(options),
     pwnedWarning: ptBr.translations.warnings.pwned,
