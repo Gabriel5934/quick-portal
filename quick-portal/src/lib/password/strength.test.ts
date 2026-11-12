@@ -107,6 +107,21 @@ describe('evaluatePassword', () => {
     fetchMock.mockResolvedValueOnce(new Response('', { status: 503 }));
     await expect(evaluatePassword(BREACHED)).resolves.toMatchObject({ pwned: false });
   });
+
+  it('returns no evaluation when the checkers fail to load', async () => {
+    vi.resetModules();
+    vi.doMock('@zxcvbn-ts/language-pt-br', () => {
+      throw new Error('chunk failed to load');
+    });
+    try {
+      const fresh = await import('./strength');
+      await expect(fresh.evaluatePassword(BREACHED)).resolves.toBeNull();
+      expect(fetchMock).not.toHaveBeenCalled();
+    } finally {
+      vi.doUnmock('@zxcvbn-ts/language-pt-br');
+      vi.resetModules();
+    }
+  });
 });
 
 describe('withPwnedCheck', () => {

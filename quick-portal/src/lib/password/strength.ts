@@ -88,8 +88,9 @@ function toEvaluation(result: ZxcvbnResult, pwnedWarning: string | null): Passwo
 
 /**
  * Scores a password with zxcvbn and checks it against Have I Been Pwned.
- * Returns null for an empty password. A failed pwned lookup never throws: the
- * password is treated as not pwned and the local score is kept.
+ * Returns null for an empty password, or when the checkers fail to load. A
+ * failed pwned lookup never throws: the password is treated as not pwned and
+ * the local score is kept.
  */
 export async function evaluatePassword(
   password: string,
@@ -98,7 +99,14 @@ export async function evaluatePassword(
   if (!password) {
     return null;
   }
-  const { online, offline, pwnedWarning } = await getCheckers();
+  let loaded: Checkers;
+  try {
+    loaded = await getCheckers();
+  } catch {
+    // Fail open: without checkers there is no evaluation, so nothing is blocked.
+    return null;
+  }
+  const { online, offline, pwnedWarning } = loaded;
   const userInputs = emailUserInputs(email);
   try {
     return toEvaluation(await online.checkAsync(password, userInputs), pwnedWarning);
