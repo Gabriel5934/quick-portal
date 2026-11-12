@@ -12,7 +12,7 @@ export type Session = {
 export type LoginInput = { email: string; password: string };
 
 /** `POST /auth/register` body. */
-export type RegisterInput = { email: string; password: string };
+export type RegisterInput = { email: string; password: string; turnstile_token: string };
 
 /** `POST /auth/register` 201 body. Registering does not sign the user in. */
 export type RegisteredUser = { id: string; email: string };

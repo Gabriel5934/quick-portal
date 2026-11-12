@@ -21,7 +21,8 @@ features:
 
 # About
 
-To start your local enviroment run `make dev`
+To start your local enviroment run `make dev`.
+All env variables will be set with the exception of `TURNSTILE_SECRET`. Without it user registration fails.
 
 ## Repository boundaries
 

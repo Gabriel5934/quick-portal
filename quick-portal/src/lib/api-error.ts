@@ -43,6 +43,8 @@ const QUICK_API_MESSAGES: Record<string, string> = {
 const QUICK_API_DETAILS: Record<string, string> = {
   'Invalid email or password.': 'E-mail ou senha inválidos.',
   'Email address already exists.': 'Já existe uma conta com este e-mail.',
+  'Captcha verification failed.':
+    'Não foi possível confirmar que você não é um robô. Tente novamente.',
   'Not authenticated': 'Sua sessão expirou. Entre novamente.',
 };
 

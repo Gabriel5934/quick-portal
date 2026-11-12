@@ -8,6 +8,8 @@ from pydantic import BaseModel, ConfigDict, EmailStr, Field
 # Lengths count code points. Any character is allowed and nothing is stripped.
 MIN_PASSWORD_LENGTH = 15
 MAX_PASSWORD_LENGTH = 64
+# Cloudflare documents tokens of up to 2048 characters.
+MAX_TURNSTILE_TOKEN_LENGTH = 2048
 
 
 class RegisterIn(BaseModel):
@@ -15,6 +17,8 @@ class RegisterIn(BaseModel):
     password: str = Field(
         min_length=MIN_PASSWORD_LENGTH, max_length=MAX_PASSWORD_LENGTH
     )
+    # Verified with Cloudflare before the user is created (app.auth.turnstile).
+    turnstile_token: str = Field(max_length=MAX_TURNSTILE_TOKEN_LENGTH)
 
 
 class LoginIn(BaseModel):

@@ -8,6 +8,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
+from app.auth import turnstile
 from app.config import Settings
 from app.main import create_app
 
@@ -22,6 +23,8 @@ CIELO_MERCHANT_ID = "11111111-1111-4111-8111-111111111111"
 CIELO_CLIENT_SECRET = "test-cielo-client-secret"
 CIELO_AUTH_BASE_URL = "https://cielo-auth.test"
 CIELO_ONBOARDING_BASE_URL = "https://cielo-onboarding.test"
+# Any non-empty string: the turnstile_passes fixture skips the Cloudflare call.
+TURNSTILE_TOKEN = "test-turnstile-token"
 
 
 def alembic_config(settings: Settings) -> Config:
@@ -43,6 +46,12 @@ def settings(tmp_path: Path) -> Settings:
         cielo_auth_base_url=CIELO_AUTH_BASE_URL,
         cielo_onboarding_base_url=CIELO_ONBOARDING_BASE_URL,
     )
+
+
+@pytest.fixture(autouse=True)
+def turnstile_passes(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Every registration passes Turnstile; test_turnstile.py overrides this."""
+    monkeypatch.setattr(turnstile, "verify", lambda *args, **kwargs: True)
 
 
 @pytest.fixture
@@ -81,7 +90,8 @@ def new_client(app: FastAPI) -> Iterator[Callable[[], TestClient]]:
 
 def register(client: TestClient, email: str, password: str = PASSWORD) -> dict:
     response = client.post(
-        "/auth/register", json={"email": email, "password": password}
+        "/auth/register",
+        json={"email": email, "password": password, "turnstile_token": TURNSTILE_TOKEN},
     )
     assert response.status_code == 201, response.text
     return response.json()
