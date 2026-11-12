@@ -14,7 +14,7 @@ Quick API authenticate users by email and password. A login returns a short-live
 
 ## User Model
 
-Emails are stripped and lowercased. Passwords have a 10 character minimum.
+Emails are stripped and lowercased. Passwords must be 15 to 64 characters (counted as Unicode code points) with no character-class requirements. Any character is allowed, including spaces and Unicode, and passwords are not trimmed.
 
 If user is not found `PasswordHash.verify` is executed anyways with a dummy hash so requests that do not found a user do not take less time then the ones that do. Thus avoiding timing-attacks.
 

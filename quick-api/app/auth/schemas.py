@@ -5,9 +5,9 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
-MIN_PASSWORD_LENGTH = 10
-# Argon2 hashes any length, but cap the input to bound the work per request.
-MAX_PASSWORD_LENGTH = 1024
+# Lengths count code points. Any character is allowed and nothing is stripped.
+MIN_PASSWORD_LENGTH = 15
+MAX_PASSWORD_LENGTH = 64
 
 
 class RegisterIn(BaseModel):
@@ -18,6 +18,8 @@ class RegisterIn(BaseModel):
 
 
 class LoginIn(BaseModel):
+    """Only the maximum applies: it bounds the hashing work per request."""
+
     email: EmailStr
     password: str = Field(max_length=MAX_PASSWORD_LENGTH)
 

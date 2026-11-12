@@ -16,7 +16,7 @@
 import { createServerFn } from '@tanstack/react-start';
 import { deleteCookie, getCookie, setCookie } from '@tanstack/react-start/server';
 import { z } from 'zod';
-import type { CieloSeller, Me, OnboardPayload, Session } from '@/api/types';
+import type { CieloSeller, Me, OnboardPayload, RegisteredUser, Session } from '@/api/types';
 import { describeApiError, type ApiResult } from '@/lib/api-error';
 
 const REFRESH_COOKIE = 'quick_portal_refresh';
@@ -125,6 +125,7 @@ function toSession(body: unknown): Session {
 }
 
 const loginSchema = z.object({ email: z.string(), password: z.string() });
+const registerSchema = z.object({ email: z.string(), password: z.string() });
 const tokenSchema = z.object({ accessToken: z.string().min(1) });
 
 /** `POST /auth/login`. */
@@ -141,6 +142,21 @@ export const loginFn = createServerFn({ method: 'POST' })
     }
     storeRefreshCookie(raw.response);
     return { ok: true, data: toSession(raw.body) };
+  });
+
+/** `POST /auth/register`. Creates the account without signing in (no cookie is stored). */
+export const registerFn = createServerFn({ method: 'POST' })
+  .validator(registerSchema)
+  .handler(async ({ data }): Promise<ApiResult<RegisteredUser>> => {
+    const raw = await request('/auth/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!raw || raw.status !== 201) {
+      return failure(raw);
+    }
+    return { ok: true, data: raw.body as RegisteredUser };
   });
 
 /**

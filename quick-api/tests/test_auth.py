@@ -101,11 +101,52 @@ def test_email_is_normalized(client: TestClient) -> None:
     login(client, "BRUNO@example.com ")
 
 
-def test_short_password_is_rejected(client: TestClient) -> None:
+@pytest.mark.parametrize("length", [14, 65])
+def test_password_length_out_of_range_is_rejected(
+    client: TestClient, length: int
+) -> None:
     response = client.post(
-        "/auth/register", json={"email": EMAIL, "password": "123456789"}
+        "/auth/register", json={"email": EMAIL, "password": "a" * length}
     )
     assert response.status_code == 422
+
+
+def test_login_password_over_max_length_is_rejected(client: TestClient) -> None:
+    response = client.post("/auth/login", json={"email": EMAIL, "password": "a" * 65})
+    assert response.status_code == 422
+
+
+@pytest.mark.parametrize("length", [15, 64])
+def test_password_length_bounds_are_accepted(client: TestClient, length: int) -> None:
+    register(client, EMAIL, "a" * length)
+    login(client, EMAIL, "a" * length)
+
+
+def test_password_length_counts_code_points(client: TestClient) -> None:
+    # 64 code points, but far more than 64 bytes in UTF-8.
+    password = "🔐" * 64
+    register(client, EMAIL, password)
+    login(client, EMAIL, password)
+    response = client.post(
+        "/auth/register", json={"email": "bruno@example.com", "password": "🔐" * 65}
+    )
+    assert response.status_code == 422
+
+
+def test_unicode_and_whitespace_passwords_are_accepted(client: TestClient) -> None:
+    password = "correct horse ünïcode 🔐\tpadding"
+    register(client, EMAIL, password)
+    login(client, EMAIL, password)
+
+
+def test_password_whitespace_is_preserved(client: TestClient) -> None:
+    password = "  correct horse battery  "
+    register(client, EMAIL, password)
+    login(client, EMAIL, password)
+    response = client.post(
+        "/auth/login", json={"email": EMAIL, "password": password.strip()}
+    )
+    assert response.status_code == 401
 
 
 def test_password_is_hashed(app: FastAPI, client: TestClient) -> None:
