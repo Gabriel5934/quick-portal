@@ -125,7 +125,12 @@ function toSession(body: unknown): Session {
 }
 
 const loginSchema = z.object({ email: z.string(), password: z.string() });
-const registerSchema = z.object({ email: z.string(), password: z.string() });
+const registerSchema = z.object({
+  email: z.string(),
+  password: z.string(),
+  // RegisterIn.turnstile_token in quick-api/app/auth/schemas.py.
+  turnstile_token: z.string().min(1).max(2048),
+});
 const tokenSchema = z.object({ accessToken: z.string().min(1) });
 
 /** `POST /auth/login`. */

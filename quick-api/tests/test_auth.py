@@ -26,6 +26,7 @@ from tests.conftest import (
     CSRF,
     JWT_SECRET,
     PASSWORD,
+    TURNSTILE_TOKEN,
     bearer,
     login,
     refresh,
@@ -90,7 +91,12 @@ def test_refresh_cookie_flags(client: TestClient, settings: Settings) -> None:
 def test_duplicate_email_is_rejected(client: TestClient) -> None:
     register(client, EMAIL)
     response = client.post(
-        "/auth/register", json={"email": " Ana@Example.COM ", "password": PASSWORD}
+        "/auth/register",
+        json={
+            "email": " Ana@Example.COM ",
+            "password": PASSWORD,
+            "turnstile_token": TURNSTILE_TOKEN,
+        },
     )
     assert response.status_code == 409
 
@@ -106,7 +112,12 @@ def test_password_length_out_of_range_is_rejected(
     client: TestClient, length: int
 ) -> None:
     response = client.post(
-        "/auth/register", json={"email": EMAIL, "password": "a" * length}
+        "/auth/register",
+        json={
+            "email": EMAIL,
+            "password": "a" * length,
+            "turnstile_token": TURNSTILE_TOKEN,
+        },
     )
     assert response.status_code == 422
 
@@ -128,7 +139,12 @@ def test_password_length_counts_code_points(client: TestClient) -> None:
     register(client, EMAIL, password)
     login(client, EMAIL, password)
     response = client.post(
-        "/auth/register", json={"email": "bruno@example.com", "password": "🔐" * 65}
+        "/auth/register",
+        json={
+            "email": "bruno@example.com",
+            "password": "🔐" * 65,
+            "turnstile_token": TURNSTILE_TOKEN,
+        },
     )
     assert response.status_code == 422
 

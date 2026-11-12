@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Link, useNavigate } from '@tanstack/react-router';
 import { Controller, useForm } from 'react-hook-form';
@@ -5,6 +6,7 @@ import { Alert, Anchor, Button, Group, Paper, Stack, Text, TextInput, Title } fr
 import { notifications } from '@mantine/notifications';
 import logoUrl from '@/assets/quick-digital-icon.svg?url';
 import { PasswordStrengthInput } from '@/components/PasswordStrengthMeter/PasswordStrengthInput';
+import { Turnstile, type TurnstileHandle } from '@/components/Turnstile/Turnstile';
 import { useRegister } from '@/hooks/auth/useRegister';
 import { createRegisterSchema, type RegisterValues } from './register-schema';
 import classes from './RegisterPage.module.css';
@@ -14,9 +16,10 @@ const registerSchema = createRegisterSchema();
 export function RegisterPage() {
   const navigate = useNavigate();
   const register = useRegister();
-  const { control, handleSubmit, watch, formState } = useForm<RegisterValues>({
+  const turnstileRef = useRef<TurnstileHandle>(null);
+  const { control, handleSubmit, watch, setValue, formState } = useForm<RegisterValues>({
     resolver: zodResolver(registerSchema),
-    defaultValues: { email: '', password: '' },
+    defaultValues: { email: '', password: '', turnstile_token: '' },
   });
   const email = watch('email');
 
@@ -29,6 +32,11 @@ export function RegisterPage() {
           message: 'Conta criada. Entre para continuar.',
         });
         void navigate({ to: '/' });
+      },
+      onError: () => {
+        // Turnstile tokens are single-use: get a new one before the retry.
+        setValue('turnstile_token', '');
+        turnstileRef.current?.reset();
       },
     })
   );
@@ -86,6 +94,18 @@ export function RegisterPage() {
                   email={email}
                   label="Senha"
                   withAsterisk
+                  error={fieldState.error?.message}
+                />
+              )}
+            />
+            <Controller
+              control={control}
+              name="turnstile_token"
+              render={({ field, fieldState }) => (
+                <Turnstile
+                  ref={turnstileRef}
+                  action="register"
+                  onToken={field.onChange}
                   error={fieldState.error?.message}
                 />
               )}

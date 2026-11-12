@@ -38,6 +38,7 @@ dev-env:
 	  CIELO_AUTH_BASE_URL=http://cielo-mock:3000 \
 	  CIELO_ONBOARDING_BASE_URL=http://cielo-mock:3000 \
 	  BEACON_PRIVATE_IP=beacon \
+	  TURNSTILE_HOSTNAMES=localhost,127.0.0.1 \
 	  BEACON_PORTAL_TOKEN=beacon-portal-token
 
 # Lint and test quick-api in a one-off container built from the Dockerfile's

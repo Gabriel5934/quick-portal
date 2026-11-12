@@ -9,7 +9,7 @@ from fastapi import APIRouter, Cookie, Depends, HTTPException, Response, status
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
-from app.auth import service
+from app.auth import service, turnstile
 from app.auth.deps import (
     get_current_user,
     get_session,
@@ -68,7 +68,13 @@ def _refresh_rejected(detail: str) -> JSONResponse:
 @auth_router.post(
     "/register", status_code=status.HTTP_201_CREATED, response_model=UserOut
 )
-def register(body: RegisterIn, session: SessionDep) -> User:
+def register(body: RegisterIn, session: SessionDep, settings: SettingsDep) -> User:
+    # Quick API only sees the portal server, not the browser, so no remoteip.
+    if not turnstile.verify(settings, body.turnstile_token):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Captcha verification failed.",
+        )
     try:
         return service.register(session, body.email, body.password)
     except service.EmailTaken:

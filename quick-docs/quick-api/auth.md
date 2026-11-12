@@ -4,13 +4,13 @@ Quick API authenticate users by email and password. A login returns a short-live
 
 ## Endpoints
 
-| Route          | Auth         | Method | Behaviour                                   |
-| -------------- | ------------ | ------ | ------------------------------------------- |
-| /auth/register | -            | POST   | 409 for existing email, 422 invalid payload |
-| /auth/login    | -            | POST   |                                             |
-| /auth/refresh  | Cookie, CSRF | POST   | 401 clears the cookie                       |
-| /auth/logout   | Cookie, CSRF | POST   |                                             |
-| /auth/me       | Bearer       | GET    |                                             |
+| Route          | Auth         | Method | Behaviour                                                       |
+| -------------- | ------------ | ------ | --------------------------------------------------------------- |
+| /auth/register | Turnstile    | POST   | 400 failed captcha, 409 for existing email, 422 invalid payload |
+| /auth/login    | -            | POST   |                                                                 |
+| /auth/refresh  | Cookie, CSRF | POST   | 401 clears the cookie                                           |
+| /auth/logout   | Cookie, CSRF | POST   |                                                                 |
+| /auth/me       | Bearer       | GET    |                                                                 |
 
 ## User Model
 
@@ -59,3 +59,14 @@ Following OWASP recoomendations the following security features are set in place
 - Perform external pwned checking only on submit as to prevent the password from leaking incrementally over the network
 - English and PT-BR dictionaries included in the strength guessing
 - Custom dictionaries with common words such as "Quick" and user specific words such as the user email are also included in the strength guessing
+
+### Cloudflare Turnstile
+
+The registration page renders a Turnstile widget (action `register`) and sends its token as `turnstile_token` (required, at most 2048 characters). Before the user is created, Quick API posts the token to Cloudflare's `siteverify` endpoint (10s timeout, `app/auth/turnstile.py`) and only accepts it when `success` is true, `action` is `register` and `hostname` is in the allowlist. Anything else, including network errors, non-2xx or non-JSON responses, answers 400 `Captcha verification failed.` Tokens are single-use, so the portal resets the widget after a failed submit.
+
+Registration fails closed: when either variable below is empty every registration is rejected. Both come from `.env.portal`.
+
+| Var                   | Value                                                                                           |
+| --------------------- | ----------------------------------------------------------------------------------------------- |
+| `TURNSTILE_SECRET`    | The widget's secret key                                                                         |
+| `TURNSTILE_HOSTNAMES` | Comma-separated hostnames the widget may be solved on, e.g. `localhost,127.0.0.1,example.com`   |

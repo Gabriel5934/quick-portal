@@ -39,6 +39,12 @@ def _env_str(name: str) -> str:
     return os.environ.get(name, "").strip()
 
 
+def _env_list(name: str) -> tuple[str, ...]:
+    """Comma-separated values, trimmed, with empty entries dropped."""
+    parts = (part.strip() for part in _env_str(name).split(","))
+    return tuple(part for part in parts if part)
+
+
 def _env_base_url(name: str) -> str:
     """Base URLs are joined with an absolute path, so trailing slashes go."""
     return _env_str(name).rstrip("/")
@@ -102,6 +108,11 @@ class Settings:
     beacon_private_ip: str = ""
     # Sent as X-Portal-Token; must match PORTAL_TOKEN in Beacon's env.
     beacon_portal_token: str = field(default="", repr=False)
+    # Cloudflare Turnstile on /auth/register. Not checked at startup, but
+    # registration fails closed: with either empty every registration is
+    # rejected. Hostnames are the ones the widget may be solved on.
+    turnstile_secret: str = field(default="", repr=False)
+    turnstile_hostnames: tuple[str, ...] = ()
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -123,6 +134,8 @@ class Settings:
             api_docs_enabled=_env_bool("API_DOCS_ENABLED", False),
             beacon_private_ip=_env_str("BEACON_PRIVATE_IP"),
             beacon_portal_token=_env_str("BEACON_PORTAL_TOKEN"),
+            turnstile_secret=_env_str("TURNSTILE_SECRET"),
+            turnstile_hostnames=_env_list("TURNSTILE_HOSTNAMES"),
         )
 
     @property
