@@ -14,7 +14,7 @@ const registerSchema = createRegisterSchema();
 export function RegisterPage() {
   const navigate = useNavigate();
   const register = useRegister();
-  const { control, handleSubmit, watch } = useForm<RegisterValues>({
+  const { control, handleSubmit, watch, formState } = useForm<RegisterValues>({
     resolver: zodResolver(registerSchema),
     defaultValues: { email: '', password: '' },
   });
@@ -90,7 +90,7 @@ export function RegisterPage() {
                 />
               )}
             />
-            <Button type="submit" fullWidth loading={register.isPending}>
+            <Button type="submit" fullWidth loading={register.isPending || formState.isSubmitting}>
               Criar conta
             </Button>
             <Text size="sm" ta="center">
