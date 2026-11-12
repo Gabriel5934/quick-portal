@@ -1,5 +1,5 @@
-import { useEffect, useImperativeHandle, useRef } from 'react';
-import { Input } from '@mantine/core';
+import { useEffect, useImperativeHandle, useRef, useState } from 'react';
+import { Button, Input, Stack, Text } from '@mantine/core';
 
 /** Public site key of the Quick Portal Turnstile widget. */
 export const TURNSTILE_SITE_KEY = '0x4AAAAAAF-WQCiazLcZBTR0';
@@ -74,6 +74,8 @@ export function Turnstile({ action, onToken, error, ref }: TurnstileProps) {
   const widgetIdRef = useRef<string | null>(null);
   const onTokenRef = useRef(onToken);
   onTokenRef.current = onToken;
+  const [loadError, setLoadError] = useState(false);
+  const [retryKey, setRetryKey] = useState(0);
 
   useImperativeHandle(ref, () => ({
     reset: () => {
@@ -90,6 +92,7 @@ export function Turnstile({ action, onToken, error, ref }: TurnstileProps) {
         if (!active || !containerRef.current) {
           return;
         }
+        // A throw here is caught below like a load failure.
         widgetIdRef.current =
           turnstile.render(containerRef.current, {
             sitekey: TURNSTILE_SITE_KEY,
@@ -100,7 +103,10 @@ export function Turnstile({ action, onToken, error, ref }: TurnstileProps) {
           }) ?? null;
       })
       .catch(() => {
-        // The missing token blocks the submit with a validation message.
+        // Offer a retry; the missing token still blocks the submit.
+        if (active) {
+          setLoadError(true);
+        }
       });
     return () => {
       active = false;
@@ -109,11 +115,25 @@ export function Turnstile({ action, onToken, error, ref }: TurnstileProps) {
         widgetIdRef.current = null;
       }
     };
-  }, [action]);
+  }, [action, retryKey]);
+
+  const retry = () => {
+    setLoadError(false);
+    setRetryKey((key) => key + 1);
+  };
 
   return (
     <Input.Wrapper error={error}>
-      <div ref={containerRef} data-testid="turnstile" />
+      {loadError ? (
+        <Stack gap="xs" align="flex-start">
+          <Text size="sm">Não foi possível carregar a verificação.</Text>
+          <Button variant="light" size="xs" onClick={retry}>
+            Tentar novamente
+          </Button>
+        </Stack>
+      ) : (
+        <div ref={containerRef} data-testid="turnstile" />
+      )}
     </Input.Wrapper>
   );
 }
