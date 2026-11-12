@@ -3,7 +3,7 @@ import { vi } from 'vite-plus/test';
 import { z } from 'zod';
 import { passwordSchema } from './policy';
 import { PWNED_PASSWORD_MESSAGE, withPwnedCheck } from './pwned-check';
-import { emailUserInputs, evaluatePassword } from './strength';
+import { emailUserInputs, evaluateLocally, evaluatePassword } from './strength';
 
 const BREACHED = 'correct horse battery staple';
 const STRONG = 'vento-lento:cadeira-azul/1987#xq';
@@ -47,6 +47,23 @@ describe('emailUserInputs', () => {
     expect(emailUserInputs(undefined)).toEqual([]);
     expect(emailUserInputs('')).toEqual([]);
     expect(emailUserInputs('@x.com')).toEqual([]);
+  });
+});
+
+describe('evaluateLocally', () => {
+  it('does not evaluate an empty password', async () => {
+    expect(await evaluateLocally('')).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('scores a weak password without the breach lookup', async () => {
+    const result = await evaluateLocally(BREACHED);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(result?.pwned).toBe(false);
+    expect(typeof result?.score).toBe('number');
+    expect(result?.warning).not.toBe(
+      'Esta senha já foi exposta por uma violação de dados na Internet.'
+    );
   });
 });
 

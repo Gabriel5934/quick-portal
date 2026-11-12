@@ -99,6 +99,28 @@ function toEvaluation(result: ZxcvbnResult, pwnedWarning: string | null): Passwo
 }
 
 /**
+ * Scores a password with zxcvbn locally, without the Have I Been Pwned lookup,
+ * so it never touches the network. Meant for live feedback while typing; the
+ * breach check runs on submit through `evaluatePassword`. Returns null for an
+ * empty password, or when the checkers fail to load.
+ */
+export async function evaluateLocally(
+  password: string,
+  email?: string | null
+): Promise<PasswordEvaluation | null> {
+  if (!password) {
+    return null;
+  }
+  let loaded: Checkers;
+  try {
+    loaded = await getCheckers();
+  } catch {
+    return null;
+  }
+  return toEvaluation(loaded.offline.check(password, emailUserInputs(email)), null);
+}
+
+/**
  * Scores a password with zxcvbn and checks it against Have I Been Pwned.
  * Returns null for an empty password, or when the checkers fail to load. A
  * failed pwned lookup never throws: the password is treated as not pwned and

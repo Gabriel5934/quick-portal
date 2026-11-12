@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
-import { evaluatePassword, type PasswordEvaluation } from '@/lib/password/strength';
+import { evaluateLocally, type PasswordEvaluation } from '@/lib/password/strength';
 
 const DEBOUNCE_MS = 200;
 
 /**
- * Debounced zxcvbn + pwned evaluation of a password. Results from outdated
+ * Debounced local zxcvbn evaluation of a password (no breach lookup; that
+ * runs on submit). Results from outdated
  * inputs are dropped, and an empty password yields no result.
  */
 export function usePasswordStrength(password: string, email?: string | null) {
@@ -20,7 +21,7 @@ export function usePasswordStrength(password: string, email?: string | null) {
     let active = true;
     setIsChecking(true);
     const timer = setTimeout(() => {
-      evaluatePassword(password, email)
+      evaluateLocally(password, email)
         .then((evaluation) => {
           if (active) {
             setResult(evaluation);
