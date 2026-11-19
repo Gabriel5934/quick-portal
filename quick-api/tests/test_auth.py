@@ -346,6 +346,7 @@ def access_payload(user_id: str, **overrides) -> dict:
         "iat": now,
         "exp": now + timedelta(minutes=5),
         "typ": "access",
+        "aud": "user",
         "tv": 0,
     }
     payload.update(overrides)
@@ -402,6 +403,18 @@ def test_valid_hand_built_token_is_accepted(client: TestClient) -> None:
                 access_payload(uid, tv=None), JWT_SECRET, algorithm=ALGORITHM
             ),
             id="missing-tv",
+        ),
+        pytest.param(
+            lambda uid: jwt.encode(
+                access_payload(uid, aud=None), JWT_SECRET, algorithm=ALGORITHM
+            ),
+            id="missing-aud",
+        ),
+        pytest.param(
+            lambda uid: jwt.encode(
+                access_payload(uid, aud="integration"), JWT_SECRET, algorithm=ALGORITHM
+            ),
+            id="integration-aud",
         ),
         pytest.param(
             lambda uid: jwt.encode(

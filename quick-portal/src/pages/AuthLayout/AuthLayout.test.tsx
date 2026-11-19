@@ -32,7 +32,7 @@ vi.mock('@tanstack/react-router', () => ({
   useNavigate: () => vi.fn(() => Promise.resolve()),
 }));
 
-const BUSINESSES: Business[] = [{ id: '1', cnpj: '61805098000149' }];
+const BUSINESSES: Business[] = [{ id: '1', cnpj: '61805098000149', client_id: null }];
 
 function layout(queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })) {
   queryClient.setQueryData(sessionQueryKey, {
@@ -64,6 +64,13 @@ describe('AuthLayout', () => {
     );
     expect(html).toMatch(/<main[^>]*><\/main>/);
     expect(html).not.toContain('conteudo');
+  });
+
+  it('links to the integration page from the menu', async () => {
+    render(layout());
+    await userEvent.click(screen.getByRole('button', { name: 'Abrir menu' }));
+    expect(await screen.findByRole('menuitem', { name: 'Integração' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Cadastrar Cielo' })).toBeInTheDocument();
   });
 
   it('asks for a business when none is selected', async () => {

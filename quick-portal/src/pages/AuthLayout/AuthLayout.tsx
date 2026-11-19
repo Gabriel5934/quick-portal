@@ -59,6 +59,7 @@ export function AuthLayout({ children }: { children: React.ReactNode }) {
                 <Menu.Item onClick={() => navigate({ to: '/cadastro-cielo' })}>
                   Cadastrar Cielo
                 </Menu.Item>
+                <Menu.Item onClick={() => navigate({ to: '/integracao' })}>Integração</Menu.Item>
               </Menu.Dropdown>
             </Menu>
           </Group>

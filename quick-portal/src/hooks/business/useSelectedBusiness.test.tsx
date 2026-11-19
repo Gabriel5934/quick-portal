@@ -12,8 +12,8 @@ const { getBusinessesFn } = vi.hoisted(() => ({ getBusinessesFn: vi.fn() }));
 vi.mock('@/server/quick-api', () => ({ getBusinessesFn, refreshSessionFn: vi.fn() }));
 
 const BUSINESSES: Business[] = [
-  { id: '1', cnpj: '61805098000149' },
-  { id: '2', cnpj: '12abc34501de35' },
+  { id: '1', cnpj: '61805098000149', client_id: null },
+  { id: '2', cnpj: '12abc34501de35', client_id: null },
 ];
 
 function createWrapper() {

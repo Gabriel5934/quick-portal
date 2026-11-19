@@ -20,8 +20,26 @@ export type RegisteredUser = { id: string; email: string };
 /** `GET /auth/me`. */
 export type Me = { id: string; email: string };
 
-/** `GET /businesses` items: the businesses the signed-in user belongs to. */
-export type Business = { id: string; cnpj: string };
+/**
+ * `GET /businesses` items: the businesses the signed-in user belongs to.
+ * `client_id` is the integration client id, `null` until credentials are
+ * generated; the client secret is never part of this body.
+ */
+export type Business = { id: string; cnpj: string; client_id: string | null };
+
+/**
+ * `POST /oauth/generate` 201 and `POST /oauth/rotate` 200 body. The
+ * plaintext secret is returned only once: never cache or store it.
+ */
+export type ClientCredentials = { client_id: string; client_secret: string };
+
+/**
+ * `POST /oauth/generate` outcome: new credentials (201), or the existing
+ * `client_id` without a secret (409).
+ */
+export type GenerateCredentialsResult =
+  | { status: 'created'; credentials: ClientCredentials }
+  | { status: 'exists'; clientId: string };
 
 /** `GET /cielo/get-sellers` items and the `POST /cielo/onboard` 201 body. */
 export type CieloSeller = {
