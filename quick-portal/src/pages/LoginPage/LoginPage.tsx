@@ -46,7 +46,8 @@ export function LoginPage() {
         radius="md"
         p={{ base: 'lg', sm: 'xl' }}
       >
-        <form onSubmit={onSubmit} noValidate>
+        {/* POST so a submit before hydration never puts credentials in the URL. */}
+        <form method="post" action="/" onSubmit={onSubmit} noValidate>
           <Stack gap="md">
             <Group gap="sm">
               <img src={logoUrl} alt="" className={classes.logo} />
