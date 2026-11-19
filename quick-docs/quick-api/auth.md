@@ -1,4 +1,10 @@
+---
+description: Describes how user authentication
+---
+
 # Auth
+
+Auth is splitted into user authentication and integration authentication. This document describes user authentication.
 
 Quick API authenticate users by email and password. A login returns a short-lived access token in the response body and sets a refresh token in an HttpOnly cookie. Refresh tokens are rotated on every use, and replaying an old one is considered theft and logs the user out everywhere.
 
@@ -25,6 +31,9 @@ Passwords are hashed using the recomended algorithm from pwdlib, which at the ti
 ## Access Token
 
 Valid for `ACCESS_TOKEN_TTL_SECONDS`, defaults to 5 minutes.
+
+Rejects any JWT without aud=user.
+
 // TODO talk about token version
 
 ## Refresh token
@@ -66,7 +75,7 @@ The registration page renders a Turnstile widget (action `register`) and sends i
 
 Registration fails closed: when either variable below is empty every registration is rejected. Both come from `.env.portal`.
 
-| Var                   | Value                                                                                           |
-| --------------------- | ----------------------------------------------------------------------------------------------- |
-| `TURNSTILE_SECRET`    | The widget's secret key                                                                         |
-| `TURNSTILE_HOSTNAMES` | Comma-separated hostnames the widget may be solved on, e.g. `localhost,127.0.0.1,example.com`   |
+| Var                   | Value                                                                                         |
+| --------------------- | --------------------------------------------------------------------------------------------- |
+| `TURNSTILE_SECRET`    | The widget's secret key                                                                       |
+| `TURNSTILE_HOSTNAMES` | Comma-separated hostnames the widget may be solved on, e.g. `localhost,127.0.0.1,example.com` |
