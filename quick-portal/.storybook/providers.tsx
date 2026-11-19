@@ -8,12 +8,13 @@ import {
   createRouter,
   RouterProvider,
 } from '@tanstack/react-router';
-import type { CieloSeller, Me, Session } from '../src/api/types';
+import type { Business, CieloSeller, Me, Session } from '../src/api/types';
 import { sessionQueryKey } from '../src/hooks/auth/session';
+import { businessesQueryKey } from '../src/hooks/business/useBusinesses';
 import { sellersQueryKey } from '../src/hooks/cielo/useSellers';
 import { AuthLayout } from '../src/pages/AuthLayout/AuthLayout';
 import type { RouterContext } from '../src/router';
-import { mockMe, mockSellers, mockSession } from './fixtures';
+import { mockBusinesses, mockMe, mockSellers, mockSession } from './fixtures';
 
 const StoryContent = createContext<React.ReactNode>(null);
 
@@ -25,6 +26,7 @@ type ProviderOptions = {
   session?: Session | null;
   me?: Me;
   sellers?: CieloSeller[];
+  businesses?: Business[];
 };
 
 function StoryProviders({
@@ -44,6 +46,7 @@ function StoryProviders({
     );
     client.setQueryData(['auth', 'me'], options.me ?? mockMe);
     client.setQueryData(sellersQueryKey, options.sellers ?? mockSellers);
+    client.setQueryData(businessesQueryKey, options.businesses ?? mockBusinesses);
     return client;
   });
   // A memory router so Link and useNavigate work inside stories. Its routes

@@ -4,6 +4,7 @@
  */
 
 import type {
+  Business,
   CieloSeller,
   LoginInput,
   Me,
@@ -13,7 +14,7 @@ import type {
   Session,
 } from '../../src/api/types';
 import type { ApiResult } from '../../src/lib/api-error';
-import { mockMe, mockSellers, mockSession } from '../fixtures';
+import { mockBusinesses, mockMe, mockSellers, mockSession } from '../fixtures';
 
 const delay = <T>(value: T, ms = 400) =>
   new Promise<T>((resolve) => {
@@ -33,6 +34,10 @@ export const logoutFn = (): Promise<ApiResult<null>> => delay({ ok: true, data: 
 
 export const getMeFn = (_options: { data: { accessToken: string } }): Promise<ApiResult<Me>> =>
   delay({ ok: true, data: mockMe });
+
+export const getBusinessesFn = (_options: {
+  data: { accessToken: string };
+}): Promise<ApiResult<Business[]>> => delay({ ok: true, data: mockBusinesses });
 
 export const getSellersFn = (_options: {
   data: { accessToken: string };

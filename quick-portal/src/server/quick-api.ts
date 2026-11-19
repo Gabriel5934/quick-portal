@@ -16,7 +16,14 @@
 import { createServerFn } from '@tanstack/react-start';
 import { deleteCookie, getCookie, setCookie } from '@tanstack/react-start/server';
 import { z } from 'zod';
-import type { CieloSeller, Me, OnboardPayload, RegisteredUser, Session } from '@/api/types';
+import type {
+  Business,
+  CieloSeller,
+  Me,
+  OnboardPayload,
+  RegisteredUser,
+  Session,
+} from '@/api/types';
 import { describeApiError, type ApiResult } from '@/lib/api-error';
 
 const REFRESH_COOKIE = 'quick_portal_refresh';
@@ -225,6 +232,19 @@ export const getMeFn = createServerFn({ method: 'POST' })
       return failure(raw);
     }
     return { ok: true, data: raw.body as Me };
+  });
+
+// Business-scoped server functions will take `businessCnpj` and send it as the
+// `X-Business-Cnpj` header.
+/** `GET /businesses`. */
+export const getBusinessesFn = createServerFn({ method: 'POST' })
+  .validator(tokenSchema)
+  .handler(async ({ data }): Promise<ApiResult<Business[]>> => {
+    const raw = await request('/businesses', { headers: bearer(data.accessToken) });
+    if (!raw || raw.status !== 200) {
+      return failure(raw);
+    }
+    return { ok: true, data: raw.body as Business[] };
   });
 
 /** `GET /cielo/get-sellers`. */

@@ -1,4 +1,5 @@
 import { queryOptions, type QueryClient } from '@tanstack/react-query';
+import { resetSelectedBusiness } from '@/hooks/business/selection-store';
 import { ApiError, unwrap, type ApiResult } from '@/lib/api-error';
 import { refreshSessionFn } from '@/server/quick-api';
 
@@ -61,4 +62,7 @@ export async function withAccessToken<T>(
 export function clearUserData(queryClient: QueryClient): void {
   queryClient.removeQueries({ queryKey: ['auth', 'me'] });
   queryClient.removeQueries({ queryKey: ['cielo'] });
+  queryClient.removeQueries({ queryKey: ['business'] });
+  // Also removes the stored selection (sessionStorage, errors ignored).
+  resetSelectedBusiness();
 }

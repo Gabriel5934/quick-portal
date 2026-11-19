@@ -12,6 +12,7 @@ from starlette.concurrency import run_in_threadpool
 from app.auth.deps import CSRF_HEADER
 from app.auth.routes import auth_router
 from app.auth.service import purge_expired
+from app.business.routes import business_router
 from app.cielo.client import CieloClient
 from app.cielo.routes import cielo_router
 from app.config import Settings
@@ -67,5 +68,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return {"status": "ok"}
 
     app.include_router(auth_router)
+    app.include_router(business_router)
     app.include_router(cielo_router)
     return app
