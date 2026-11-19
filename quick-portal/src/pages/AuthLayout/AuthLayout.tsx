@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from '@tanstack/react-router';
-import { Avatar, Burger, Container, Group, Menu } from '@mantine/core';
+import { Avatar, Burger, Button, Container, Group, Menu } from '@mantine/core';
 import type { Business } from '@/api/types';
 import logoUrl from '@/assets/quick-digital-icon.svg?url';
 import { EmptyState } from '@/components/EmptyState/EmptyState';
@@ -20,7 +20,11 @@ export function AuthLayout({ children }: { children: React.ReactNode }) {
   const session = useSession();
   const { data: me } = useMe();
   const logout = useLogout();
-  const { data: businesses } = useBusinesses();
+  const {
+    data: businesses,
+    isError: businessesError,
+    refetch: refetchBusinesses,
+  } = useBusinesses();
   const selection = useSelectedBusiness();
   const [menuOpened, setMenuOpened] = useState(false);
 
@@ -83,7 +87,12 @@ export function AuthLayout({ children }: { children: React.ReactNode }) {
         </div>
       </header>
       <main className={classes.main}>
-        <BusinessGate status={selection.status} businesses={businesses}>
+        <BusinessGate
+          status={selection.status}
+          businesses={businesses}
+          error={businessesError}
+          onRetry={() => void refetchBusinesses()}
+        >
           {children}
         </BusinessGate>
       </main>
@@ -94,17 +103,34 @@ export function AuthLayout({ children }: { children: React.ReactNode }) {
 /**
  * Every page under the layout is scoped to a business: its content renders
  * only once one is selected. Nothing renders until the selection is read
- * (after mount) and the business list is loaded.
+ * (after mount) and the business list is loaded; a failed list shows an
+ * error with a retry instead.
  */
 function BusinessGate({
   status,
   businesses,
+  error,
+  onRetry,
   children,
 }: {
   status: SelectedBusiness['status'];
   businesses: Business[] | undefined;
+  error: boolean;
+  onRetry: () => void;
   children: React.ReactNode;
 }) {
+  // The selection cannot be checked against a list that failed to load.
+  if (error) {
+    return (
+      <Container size="lg" px={0}>
+        <EmptyState
+          error
+          message="Não foi possível carregar as empresas."
+          action={<Button onClick={onRetry}>Tentar novamente</Button>}
+        />
+      </Container>
+    );
+  }
   if (status === 'unknown' || !businesses) {
     return null;
   }

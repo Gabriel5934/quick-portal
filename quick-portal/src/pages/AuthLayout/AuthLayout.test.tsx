@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen } from '@test-utils';
+import { render, screen, userEvent, waitFor } from '@test-utils';
 import { renderToString } from 'react-dom/server';
 import { vi } from 'vite-plus/test';
 import { MantineProvider } from '@mantine/core';
@@ -89,5 +89,21 @@ describe('AuthLayout', () => {
     expect(
       screen.queryByText('Selecione uma empresa para visualizar as informações.')
     ).not.toBeInTheDocument();
+  });
+
+  it('shows an error instead of the content when the businesses fail to load', async () => {
+    getBusinessesFn.mockResolvedValue({ ok: false, status: 500, message: 'Erro' });
+    window.sessionStorage.setItem(SELECTED_BUSINESS_STORAGE_KEY, '61805098000149');
+    render(layout());
+    expect(await screen.findByText('Não foi possível carregar as empresas.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Tentar novamente' })).toBeInTheDocument();
+    expect(screen.queryByText('conteudo')).not.toBeInTheDocument();
+  });
+
+  it('fetches the businesses again on retry', async () => {
+    getBusinessesFn.mockResolvedValue({ ok: false, status: 500, message: 'Erro' });
+    render(layout());
+    await userEvent.click(await screen.findByRole('button', { name: 'Tentar novamente' }));
+    await waitFor(() => expect(getBusinessesFn).toHaveBeenCalledTimes(2));
   });
 });

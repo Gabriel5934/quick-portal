@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
+import { Button } from '@mantine/core';
 import { EmptyState } from './EmptyState';
 
 const meta = {
@@ -15,4 +16,12 @@ export const NoSelection: Story = {
 
 export const NoBusinesses: Story = {
   args: { message: 'Nenhum negócio disponível.' },
+};
+
+export const Error: Story = {
+  args: {
+    error: true,
+    message: 'Não foi possível carregar as empresas.',
+    action: <Button>Tentar novamente</Button>,
+  },
 };
