@@ -1,12 +1,16 @@
 import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from '@tanstack/react-router';
-import { Avatar, Burger, Group, Menu } from '@mantine/core';
+import { Avatar, Burger, Container, Group, Menu } from '@mantine/core';
+import type { Business } from '@/api/types';
 import logoUrl from '@/assets/quick-digital-icon.svg?url';
+import { EmptyState } from '@/components/EmptyState/EmptyState';
 import { clearUserData } from '@/hooks/auth/session';
 import { useLogout } from '@/hooks/auth/useLogout';
 import { useMe } from '@/hooks/auth/useMe';
 import { useSession } from '@/hooks/auth/useSession';
+import { useBusinesses } from '@/hooks/business/useBusinesses';
+import { useSelectedBusiness, type SelectedBusiness } from '@/hooks/business/useSelectedBusiness';
 import { BusinessAutocomplete } from './BusinessAutocomplete';
 import classes from './AuthLayout.module.css';
 
@@ -16,6 +20,8 @@ export function AuthLayout({ children }: { children: React.ReactNode }) {
   const session = useSession();
   const { data: me } = useMe();
   const logout = useLogout();
+  const { data: businesses } = useBusinesses();
+  const selection = useSelectedBusiness();
   const [menuOpened, setMenuOpened] = useState(false);
 
   const initials = me.email.slice(0, 2).toUpperCase();
@@ -76,7 +82,44 @@ export function AuthLayout({ children }: { children: React.ReactNode }) {
           </Menu>
         </div>
       </header>
-      <main className={classes.main}>{children}</main>
+      <main className={classes.main}>
+        <BusinessGate status={selection.status} businesses={businesses}>
+          {children}
+        </BusinessGate>
+      </main>
     </>
+  );
+}
+
+/**
+ * Every page under the layout is scoped to a business: its content renders
+ * only once one is selected. Nothing renders until the selection is read
+ * (after mount) and the business list is loaded.
+ */
+function BusinessGate({
+  status,
+  businesses,
+  children,
+}: {
+  status: SelectedBusiness['status'];
+  businesses: Business[] | undefined;
+  children: React.ReactNode;
+}) {
+  if (status === 'unknown' || !businesses) {
+    return null;
+  }
+  if (status === 'selected') {
+    return children;
+  }
+  return (
+    <Container size="lg" px={0}>
+      <EmptyState
+        message={
+          businesses.length === 0
+            ? 'Você não tem acesso a nenhuma empresa'
+            : 'Selecione um empresa para visualizar as informações.'
+        }
+      />
+    </Container>
   );
 }

@@ -1,11 +1,10 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { clearSelectedBusiness, selectBusiness } from '@/hooks/business/selection-store';
+import { clearSelectedBusiness } from '@/hooks/business/selection-store';
 import { atBreakpoint } from '../../../.storybook/breakpoints';
-import { mockBusinesses } from '../../../.storybook/fixtures';
 import { withAppProviders, withAuthLayout } from '../../../.storybook/providers';
 import { HomePage } from './HomePage';
 
-/** Route `/inicio`. Stories start without a selected business. */
+/** Route `/inicio`. Stories start without a selected business, so the layout shows its empty state. */
 const meta = {
   title: 'Routes/Home',
   component: HomePage,
@@ -27,15 +26,3 @@ export const Mobile: Story = atBreakpoint('mobile');
 export const TabletPortrait: Story = atBreakpoint('tabletPortrait');
 export const TabletLandscape: Story = atBreakpoint('tabletLandscape');
 export const Desktop: Story = atBreakpoint('desktop');
-
-export const Selected: Story = {
-  ...atBreakpoint('desktop'),
-  beforeEach: () => {
-    selectBusiness(mockBusinesses[0].cnpj);
-  },
-};
-
-export const NoBusinesses: Story = {
-  ...atBreakpoint('desktop'),
-  parameters: { providers: { businesses: [] } },
-};
