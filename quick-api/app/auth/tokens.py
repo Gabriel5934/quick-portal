@@ -13,7 +13,10 @@ from app.config import Settings
 
 ALGORITHM = "HS256"
 ACCESS_TOKEN_TYPE = "access"  # noqa: S105 (token type claim, not a secret)
-REQUIRED_CLAIMS = ["sub", "iat", "exp", "typ", "tv"]
+# Separates user tokens from integration tokens (app.oauth.tokens): each
+# decoder only accepts its own audience.
+USER_AUDIENCE = "user"
+REQUIRED_CLAIMS = ["sub", "iat", "exp", "typ", "tv", "aud"]
 
 
 class InvalidAccessToken(Exception):
@@ -32,6 +35,7 @@ def create_access_token(user: User, settings: Settings, now: datetime) -> str:
         "iat": now,
         "exp": now + timedelta(seconds=settings.access_token_ttl_seconds),
         "typ": ACCESS_TOKEN_TYPE,
+        "aud": USER_AUDIENCE,
         "tv": user.token_version,
     }
     return jwt.encode(payload, settings.jwt_secret, algorithm=ALGORITHM)
@@ -45,6 +49,7 @@ def decode_access_token(token: str, settings: Settings) -> AccessTokenClaims:
             settings.jwt_secret,
             # Pinned, so alg=none or another algorithm is rejected.
             algorithms=[ALGORITHM],
+            audience=USER_AUDIENCE,
             options={"require": REQUIRED_CLAIMS},
         )
         if payload["typ"] != ACCESS_TOKEN_TYPE:

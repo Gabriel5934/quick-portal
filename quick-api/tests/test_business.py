@@ -16,6 +16,7 @@ from app.business.cnpj import InvalidCnpj, normalize_cnpj
 from app.business.deps import get_current_business
 from app.business.models import Business, BusinessMembership
 from app.config import Settings
+from app.oauth.service import generate_credentials
 from app.scripts import create_business, link_user_business
 from tests.conftest import alembic_config, bearer, login, register
 
@@ -111,9 +112,33 @@ def test_list_businesses_returns_only_the_callers(
     assert response.status_code == 200
     # Ordered by CNPJ, not by creation.
     assert response.json() == [
-        {"id": str(a.id), "cnpj": CNPJ_A},
-        {"id": str(b.id), "cnpj": CNPJ_B},
+        {"id": str(a.id), "cnpj": CNPJ_A, "client_id": None},
+        {"id": str(b.id), "cnpj": CNPJ_B, "client_id": None},
     ]
+
+
+def test_list_businesses_exposes_client_id_but_not_the_secret(
+    client: TestClient, session: Session
+) -> None:
+    register(client, EMAIL)
+    with_credentials = add_business(session, CNPJ_A, EMAIL)
+    without_credentials = add_business(session, CNPJ_B, EMAIL)
+    credentials = generate_credentials(session, with_credentials.id)
+
+    response = client.get("/businesses", headers=bearer(login(client, EMAIL)))
+    assert response.status_code == 200
+    assert response.json() == [
+        {
+            "id": str(with_credentials.id),
+            "cnpj": CNPJ_A,
+            "client_id": credentials.client_id,
+        },
+        {"id": str(without_credentials.id), "cnpj": CNPJ_B, "client_id": None},
+    ]
+    assert "client_secret" not in response.text
+    assert credentials.client_secret not in response.text
+    session.refresh(with_credentials)
+    assert with_credentials.client_secret_hash not in response.text
 
 
 def test_list_businesses_is_empty_without_memberships(client: TestClient) -> None:
