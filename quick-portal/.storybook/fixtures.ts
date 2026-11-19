@@ -1,4 +1,4 @@
-import type { CieloSeller, Me, Session } from '../src/api/types';
+import type { Business, CieloSeller, Me, Session } from '../src/api/types';
 
 export const mockSession = (): Session => ({
   accessToken: 'storybook-access-token',
@@ -29,4 +29,9 @@ export const mockSellers: CieloSeller[] = [
     document_number: '12ABC34501DE35',
     fancy_name: 'Mercadinho Bom Preço',
   },
+];
+
+export const mockBusinesses: Business[] = [
+  { id: '7a1d3c5e-2b4f-4a6c-8e0d-1f3b5d7f9a2c', cnpj: '61805098000149' },
+  { id: '8b2e4d6f-3c5a-4b7d-9f1e-2a4c6e8a0b3d', cnpj: '12ABC34501DE35' },
 ];

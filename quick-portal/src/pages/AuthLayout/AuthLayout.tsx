@@ -7,6 +7,7 @@ import { clearUserData } from '@/hooks/auth/session';
 import { useLogout } from '@/hooks/auth/useLogout';
 import { useMe } from '@/hooks/auth/useMe';
 import { useSession } from '@/hooks/auth/useSession';
+import { BusinessAutocomplete } from './BusinessAutocomplete';
 import classes from './AuthLayout.module.css';
 
 export function AuthLayout({ children }: { children: React.ReactNode }) {
@@ -30,8 +31,8 @@ export function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
     <>
       <header className={classes.header}>
-        <Group justify="space-between" wrap="nowrap">
-          <Group gap="sm" wrap="nowrap">
+        <div className={classes.bar}>
+          <Group gap="sm" wrap="nowrap" className={classes.start}>
             <Link to="/inicio" aria-label="Início">
               <img src={logoUrl} alt="Quick Digital" className={classes.logo} />
             </Link>
@@ -51,12 +52,14 @@ export function AuthLayout({ children }: { children: React.ReactNode }) {
             </Menu>
           </Group>
 
+          <BusinessAutocomplete className={classes.business} />
+
           <Menu position="bottom-end" shadow="md">
             <Menu.Target>
               <Avatar
                 component="button"
                 type="button"
-                className={classes.avatarButton}
+                className={`${classes.avatarButton} ${classes.end}`}
                 name={initials}
                 color="initials"
                 aria-label={`Conta de ${me.email}`}
@@ -71,7 +74,7 @@ export function AuthLayout({ children }: { children: React.ReactNode }) {
               </Menu.Item>
             </Menu.Dropdown>
           </Menu>
-        </Group>
+        </div>
       </header>
       <main className={classes.main}>{children}</main>
     </>

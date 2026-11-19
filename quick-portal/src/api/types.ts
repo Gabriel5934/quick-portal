@@ -20,6 +20,9 @@ export type RegisteredUser = { id: string; email: string };
 /** `GET /auth/me`. */
 export type Me = { id: string; email: string };
 
+/** `GET /businesses` items: the businesses the signed-in user belongs to. */
+export type Business = { id: string; cnpj: string };
+
 /** `GET /cielo/get-sellers` items and the `POST /cielo/onboard` 201 body. */
 export type CieloSeller = {
   id: string;
