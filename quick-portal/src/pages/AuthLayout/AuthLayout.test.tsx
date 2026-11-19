@@ -69,7 +69,7 @@ describe('AuthLayout', () => {
   it('asks for a business when none is selected', async () => {
     render(layout());
     expect(
-      await screen.findByText('Selecione um empresa para visualizar as informações.')
+      await screen.findByText('Selecione uma empresa para visualizar as informações.')
     ).toBeInTheDocument();
     expect(screen.queryByText('conteudo')).not.toBeInTheDocument();
   });
@@ -87,7 +87,7 @@ describe('AuthLayout', () => {
     expect(await screen.findByText('conteudo')).toBeInTheDocument();
     expect(screen.queryByText('Você não tem acesso a nenhuma empresa')).not.toBeInTheDocument();
     expect(
-      screen.queryByText('Selecione um empresa para visualizar as informações.')
+      screen.queryByText('Selecione uma empresa para visualizar as informações.')
     ).not.toBeInTheDocument();
   });
 });

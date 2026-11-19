@@ -117,7 +117,7 @@ function BusinessGate({
         message={
           businesses.length === 0
             ? 'Você não tem acesso a nenhuma empresa'
-            : 'Selecione um empresa para visualizar as informações.'
+            : 'Selecione uma empresa para visualizar as informações.'
         }
       />
     </Container>
