@@ -5,6 +5,7 @@ from sqlalchemy import create_engine, pool
 
 # Imported for their side effect: registering the tables on Base.metadata.
 import app.auth.models  # noqa: F401
+import app.business.models  # noqa: F401
 import app.cielo.models  # noqa: F401
 from app.config import Settings
 from app.db import Base, IntEnumType, UTCDateTime
