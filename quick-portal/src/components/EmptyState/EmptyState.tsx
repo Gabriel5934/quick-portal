@@ -10,7 +10,7 @@ export function EmptyState({
   action?: React.ReactNode;
 }) {
   return (
-    <Paper withBorder radius="md">
+    <Paper withBorder radius="md" role={error ? 'alert' : undefined}>
       <Text c={error ? 'red' : 'dimmed'} ta="center" p="xl">
         {message}
       </Text>

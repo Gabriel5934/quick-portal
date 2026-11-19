@@ -14,6 +14,7 @@ describe('EmptyState', () => {
       '--mantine-color-dimmed'
     );
     expect(screen.queryByRole('button')).not.toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
   it('renders the message in red when it is an error', () => {
@@ -21,6 +22,11 @@ describe('EmptyState', () => {
     expect(screen.getByText('Não foi possível carregar.').getAttribute('style')).toContain(
       '--mantine-color-red'
     );
+  });
+
+  it('announces the message as an alert when it is an error', () => {
+    render(<EmptyState error message="Não foi possível carregar." />);
+    expect(screen.getByRole('alert')).toHaveTextContent('Não foi possível carregar.');
   });
 
   it('renders the action below the message', () => {

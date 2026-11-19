@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from '@tanstack/react-router';
-import { Avatar, Burger, Button, Container, Group, Menu } from '@mantine/core';
+import { Avatar, Burger, Button, Center, Container, Group, Loader, Menu } from '@mantine/core';
 import type { Business } from '@/api/types';
 import logoUrl from '@/assets/quick-digital-icon.svg?url';
 import { EmptyState } from '@/components/EmptyState/EmptyState';
@@ -11,6 +11,7 @@ import { useMe } from '@/hooks/auth/useMe';
 import { useSession } from '@/hooks/auth/useSession';
 import { useBusinesses } from '@/hooks/business/useBusinesses';
 import { useSelectedBusiness, type SelectedBusiness } from '@/hooks/business/useSelectedBusiness';
+import { normalizeCnpj } from '@/lib/cnpj';
 import { BusinessAutocomplete } from './BusinessAutocomplete';
 import classes from './AuthLayout.module.css';
 
@@ -89,6 +90,7 @@ export function AuthLayout({ children }: { children: React.ReactNode }) {
       <main className={classes.main}>
         <BusinessGate
           status={selection.status}
+          cnpj={selection.cnpj}
           businesses={businesses}
           error={businessesError}
           onRetry={() => void refetchBusinesses()}
@@ -102,25 +104,29 @@ export function AuthLayout({ children }: { children: React.ReactNode }) {
 
 /**
  * Every page under the layout is scoped to a business: its content renders
- * only once one is selected. Nothing renders until the selection is read
- * (after mount) and the business list is loaded; a failed list shows an
- * error with a retry instead.
+ * only once a business from the loaded list is selected. Nothing renders
+ * until the selection is read (after mount), and a loader shows while the
+ * list loads. A list that failed to load shows an error with a retry, unless
+ * an earlier list is cached: a failed background refetch keeps the page
+ * mounted.
  */
 function BusinessGate({
   status,
+  cnpj,
   businesses,
   error,
   onRetry,
   children,
 }: {
   status: SelectedBusiness['status'];
+  cnpj: string | null;
   businesses: Business[] | undefined;
   error: boolean;
   onRetry: () => void;
   children: React.ReactNode;
 }) {
   // The selection cannot be checked against a list that failed to load.
-  if (error) {
+  if (error && !businesses) {
     return (
       <Container size="lg" px={0}>
         <EmptyState
@@ -131,10 +137,23 @@ function BusinessGate({
       </Container>
     );
   }
-  if (status === 'unknown' || !businesses) {
+  if (status === 'unknown') {
     return null;
   }
-  if (status === 'selected') {
+  if (!businesses) {
+    return (
+      <Container size="lg" px={0}>
+        <Center p="xl">
+          <Loader aria-label="Carregando empresas" />
+        </Center>
+      </Container>
+    );
+  }
+  // The hook clears a selection missing from the list only after rendering.
+  if (
+    status === 'selected' &&
+    businesses.some((business) => normalizeCnpj(business.cnpj) === cnpj)
+  ) {
     return children;
   }
   return (

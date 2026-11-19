@@ -9,6 +9,7 @@ import {
   resetSelectedBusiness,
   SELECTED_BUSINESS_STORAGE_KEY,
 } from '@/hooks/business/selection-store';
+import { businessesQueryKey } from '@/hooks/business/useBusinesses';
 import { theme } from '@/theme';
 import { AuthLayout } from './AuthLayout';
 
@@ -33,8 +34,7 @@ vi.mock('@tanstack/react-router', () => ({
 
 const BUSINESSES: Business[] = [{ id: '1', cnpj: '61805098000149' }];
 
-function layout() {
-  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+function layout(queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })) {
   queryClient.setQueryData(sessionQueryKey, {
     accessToken: 'token',
     expiresAt: Date.now() + 60 * 60 * 1000,
@@ -100,10 +100,29 @@ describe('AuthLayout', () => {
     expect(screen.queryByText('conteudo')).not.toBeInTheDocument();
   });
 
-  it('fetches the businesses again on retry', async () => {
-    getBusinessesFn.mockResolvedValue({ ok: false, status: 500, message: 'Erro' });
+  it('renders the content once a retry loads the businesses', async () => {
+    getBusinessesFn
+      .mockResolvedValueOnce({ ok: false, status: 500, message: 'Erro' })
+      .mockResolvedValue({ ok: true, data: BUSINESSES });
+    window.sessionStorage.setItem(SELECTED_BUSINESS_STORAGE_KEY, '61805098000149');
     render(layout());
     await userEvent.click(await screen.findByRole('button', { name: 'Tentar novamente' }));
-    await waitFor(() => expect(getBusinessesFn).toHaveBeenCalledTimes(2));
+    expect(await screen.findByText('conteudo')).toBeInTheDocument();
+    expect(screen.queryByText('Não foi possível carregar as empresas.')).not.toBeInTheDocument();
+    expect(getBusinessesFn).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps the content when a refetch fails after the businesses loaded', async () => {
+    window.sessionStorage.setItem(SELECTED_BUSINESS_STORAGE_KEY, '61805098000149');
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(layout(queryClient));
+    expect(await screen.findByText('conteudo')).toBeInTheDocument();
+    getBusinessesFn.mockResolvedValue({ ok: false, status: 500, message: 'Erro' });
+    await queryClient.refetchQueries({ queryKey: businessesQueryKey });
+    await waitFor(() =>
+      expect(queryClient.getQueryState(businessesQueryKey)?.status).toBe('error')
+    );
+    expect(screen.getByText('conteudo')).toBeInTheDocument();
+    expect(screen.queryByText('Não foi possível carregar as empresas.')).not.toBeInTheDocument();
   });
 });
