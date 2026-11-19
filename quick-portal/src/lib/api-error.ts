@@ -46,6 +46,13 @@ const QUICK_API_DETAILS: Record<string, string> = {
   'Captcha verification failed.':
     'Não foi possível confirmar que você não é um robô. Tente novamente.',
   'Not authenticated': 'Sua sessão expirou. Entre novamente.',
+  // app/business/deps.py
+  'Missing X-Business-Cnpj header.': 'Selecione uma empresa.',
+  'Invalid X-Business-Cnpj header.': 'A empresa selecionada é inválida.',
+  'Not a member of this business.': 'Você não tem acesso a esta empresa.',
+  // app/oauth/routes.py
+  'No client credentials to rotate, or they just changed.':
+    'As credenciais não existem ou acabaram de ser alteradas.',
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {

@@ -14,11 +14,18 @@
  */
 
 import { createServerFn } from '@tanstack/react-start';
-import { deleteCookie, getCookie, setCookie } from '@tanstack/react-start/server';
+import {
+  deleteCookie,
+  getCookie,
+  setCookie,
+  setResponseHeader,
+} from '@tanstack/react-start/server';
 import { z } from 'zod';
 import type {
   Business,
   CieloSeller,
+  ClientCredentials,
+  GenerateCredentialsResult,
   Me,
   OnboardPayload,
   RegisteredUser,
@@ -234,8 +241,88 @@ export const getMeFn = createServerFn({ method: 'POST' })
     return { ok: true, data: raw.body as Me };
   });
 
-// Business-scoped server functions will take `businessCnpj` and send it as the
+// Business-scoped server functions take `businessCnpj` and send it as the
 // `X-Business-Cnpj` header.
+const businessScopedSchema = z.object({
+  accessToken: z.string().min(1),
+  businessCnpj: z.string().min(1),
+});
+
+function businessHeaders(accessToken: string, businessCnpj: string): Record<string, string> {
+  return { ...bearer(accessToken), 'X-Business-Cnpj': businessCnpj };
+}
+
+/**
+ * Marks this server function's response as uncacheable. `cache: 'no-store'` on
+ * the outbound fetch only covers the call to Quick API; these headers cover the
+ * response the browser receives, which may carry a plaintext secret.
+ */
+function preventResponseCaching(): void {
+  setResponseHeader('Cache-Control', 'no-store');
+  setResponseHeader('Pragma', 'no-cache');
+}
+
+function isClientCredentials(body: unknown): body is ClientCredentials {
+  return (
+    typeof body === 'object' &&
+    body !== null &&
+    typeof (body as ClientCredentials).client_id === 'string' &&
+    typeof (body as ClientCredentials).client_secret === 'string'
+  );
+}
+
+/**
+ * `POST /oauth/generate`. A 409 means the business already has
+ * credentials: Quick API returns its `client_id` and no secret. The response
+ * carries a plaintext secret, so it is never cached.
+ */
+export const generateCredentialsFn = createServerFn({ method: 'POST' })
+  .validator(businessScopedSchema)
+  .handler(async ({ data }): Promise<ApiResult<GenerateCredentialsResult>> => {
+    preventResponseCaching();
+    const raw = await request('/oauth/generate', {
+      method: 'POST',
+      headers: businessHeaders(data.accessToken, data.businessCnpj),
+      cache: 'no-store',
+    });
+    if (raw?.status === 201 && isClientCredentials(raw.body)) {
+      return {
+        ok: true,
+        data: {
+          status: 'created',
+          credentials: { client_id: raw.body.client_id, client_secret: raw.body.client_secret },
+        },
+      };
+    }
+    const conflict = raw?.body as { client_id?: unknown } | null | undefined;
+    if (raw?.status === 409 && typeof conflict?.client_id === 'string' && conflict.client_id) {
+      return { ok: true, data: { status: 'exists', clientId: conflict.client_id } };
+    }
+    return failure(raw);
+  });
+
+/**
+ * `POST /oauth/rotate`. Invalidates the current secret immediately. 409
+ * when there are no credentials or a concurrent rotation won. Never cached.
+ */
+export const rotateCredentialsFn = createServerFn({ method: 'POST' })
+  .validator(businessScopedSchema)
+  .handler(async ({ data }): Promise<ApiResult<ClientCredentials>> => {
+    preventResponseCaching();
+    const raw = await request('/oauth/rotate', {
+      method: 'POST',
+      headers: businessHeaders(data.accessToken, data.businessCnpj),
+      cache: 'no-store',
+    });
+    if (raw?.status === 200 && isClientCredentials(raw.body)) {
+      return {
+        ok: true,
+        data: { client_id: raw.body.client_id, client_secret: raw.body.client_secret },
+      };
+    }
+    return failure(raw);
+  });
+
 /** `GET /businesses`. */
 export const getBusinessesFn = createServerFn({ method: 'POST' })
   .validator(tokenSchema)

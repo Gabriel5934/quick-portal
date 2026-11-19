@@ -1,0 +1,10 @@
+/* Long credentials wrap instead of widening their container on narrow screens. */
+.credential {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* Alert bodies are flex items: without this they grow to their content's width. */
+.alertBody {
+  min-width: 0;
+}
