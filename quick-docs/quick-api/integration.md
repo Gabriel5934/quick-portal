@@ -6,7 +6,7 @@ description: Describes how authentication with client secrets work
 
 Users can integrate their own systems with quick-api. To do so they need to authenticate using client credentials.
 
-The api expects those credentials to be passes as a basic authenticaded header, converted to base 64 and concatenated by a colon.
+The api expects those credentials to be passes as a basic authenticaded header, concatenated by a colon and converted to base 64.
 
 The api also requires a form url-enconded body with the key-valuepair "grant_type: client_credentials".
 
