@@ -38,6 +38,7 @@ def upgrade() -> None:
     )
     with op.batch_alter_table('integration_refresh_tokens', schema=None) as batch_op:
         batch_op.create_index(batch_op.f('ix_integration_refresh_tokens_business_id'), ['business_id'], unique=False)
+        batch_op.create_index(batch_op.f('ix_integration_refresh_tokens_replaced_by_id'), ['replaced_by_id'], unique=False)
 
     with op.batch_alter_table('businesses', schema=None) as batch_op:
         batch_op.add_column(sa.Column('is_active', sa.Boolean(), server_default=sa.text('1'), nullable=False))
@@ -60,6 +61,7 @@ def downgrade() -> None:
         batch_op.drop_column('is_active')
 
     with op.batch_alter_table('integration_refresh_tokens', schema=None) as batch_op:
+        batch_op.drop_index(batch_op.f('ix_integration_refresh_tokens_replaced_by_id'))
         batch_op.drop_index(batch_op.f('ix_integration_refresh_tokens_business_id'))
 
     op.drop_table('integration_refresh_tokens')

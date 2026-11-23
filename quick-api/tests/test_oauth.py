@@ -10,7 +10,7 @@ import pytest
 from alembic import command
 from fastapi import APIRouter, FastAPI, Security
 from fastapi.testclient import TestClient
-from sqlalchemy import inspect, select, update
+from sqlalchemy import event, inspect, select, update
 from sqlalchemy.orm import Session
 
 from app.auth.tokens import ALGORITHM
@@ -694,6 +694,52 @@ def test_refresh_reuse_revokes_all_business_sessions(
         ).status_code == 401
     # The credentials still work for a fresh login.
     assert oauth_login(client, credentials).status_code == 200
+
+
+def test_refresh_reuse_spares_a_generation_committed_meanwhile(
+    app: FastAPI,
+    integration_client: TestClient,
+    credentials: dict[str, str],
+    settings: Settings,
+) -> None:
+    client = integration_client
+    first = oauth_login(client, credentials).json()
+    oauth_refresh(client, first["refresh_token"])  # rotates `first` out
+    business_id = business_row(app, CNPJ_A).id
+    version = business_row(app, CNPJ_A).token_version
+    newer: list[service.IssuedIntegrationSession] = []
+    fired: list[bool] = []
+
+    def concurrent_rotation(conn, cursor, statement, *args) -> None:
+        # Before the replay's first write: a secret rotation and a login with
+        # the new secret commit in another session, after the replay's reads.
+        if fired or not statement.lstrip().upper().startswith("UPDATE"):
+            return
+        fired.append(True)  # once; the statements below also reach this hook
+        with app.state.session_factory() as other:
+            rotated = service.rotate_secret(other, business_id)
+            business = service.authenticate(
+                other, rotated.client_id, rotated.client_secret
+            )
+            newer.append(service.issue_session(other, business, settings))
+
+    engine = app.state.session_factory.kw["bind"]
+    event.listen(engine, "before_cursor_execute", concurrent_rotation)
+    try:
+        response = oauth_refresh(client, first["refresh_token"])
+    finally:
+        event.remove(engine, "before_cursor_execute", concurrent_rotation)
+
+    # The replayed token's generation died with the rotation: a plain 401
+    # that leaves the newer session alone.
+    assert newer
+    assert response.status_code == 401
+    assert response.json() == {"detail": "Refresh token is invalid or expired."}
+    assert business_row(app, CNPJ_A).token_version == version + 1
+    assert (
+        client.get("/test-integration", headers=bearer(newer[0].access_token))
+    ).status_code == 200
+    assert oauth_refresh(client, newer[0].refresh_token).status_code == 200
 
 
 def test_refresh_reuse_leaves_other_businesses_alone(

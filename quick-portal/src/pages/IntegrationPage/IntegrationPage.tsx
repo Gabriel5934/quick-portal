@@ -99,14 +99,17 @@ function ClientCredentialsPanel({
     setError(null);
     setNotice(null);
     clipboard.reset();
-    setSecret(null);
+    // Any secret on screen stays until the outcome is known: a failure other
+    // than 409 may mean the rotation never committed, so it may still work.
     try {
       const credentials = await rotate.mutateAsync(businessCnpj);
       setFreshClientId(credentials.client_id);
       setSecret(credentials.client_secret);
     } catch (caught) {
       if (caught instanceof ApiError && caught.status === 409) {
+        // The credentials changed elsewhere, so the secret shown is stale.
         // Keeps the known client_id on screen and refetches the list.
+        setSecret(null);
         setNotice(ROTATE_CONFLICT_MESSAGE);
         refreshBusinesses();
       } else {

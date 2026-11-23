@@ -209,6 +209,40 @@ describe('IntegrationPage', () => {
     await waitFor(() => expect(getBusinessesFn).toHaveBeenCalledTimes(1));
   });
 
+  it('keeps the shown secret when rotating fails and replaces it once rotating succeeds', async () => {
+    rotateCredentialsFn.mockResolvedValueOnce({ ok: false, status: 500, message: 'Falhou' });
+    renderPage();
+    await userEvent.click(await screen.findByRole('button', { name: 'Gerar credenciais' }));
+    expect(await screen.findByTestId('client-secret')).toHaveTextContent(SECRET);
+
+    await userEvent.click(screen.getByRole('button', { name: 'Rotacionar client secret' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Confirmar rotação' }));
+    expect(await screen.findByText('Falhou')).toBeInTheDocument();
+    expect(screen.getByTestId('client-secret')).toHaveTextContent(SECRET);
+
+    await userEvent.click(screen.getByRole('button', { name: 'Rotacionar client secret' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Confirmar rotação' }));
+    await waitFor(() =>
+      expect(screen.getByTestId('client-secret')).toHaveTextContent(ROTATED_SECRET)
+    );
+    expect(screen.queryByText(SECRET)).not.toBeInTheDocument();
+    expect(screen.queryByText('Falhou')).not.toBeInTheDocument();
+    expect(rotateCredentialsFn).toHaveBeenCalledTimes(2);
+  });
+
+  it('clears the shown secret on a rotation conflict', async () => {
+    rotateCredentialsFn.mockResolvedValue({ ok: false, status: 409, message: 'Conflito' });
+    renderPage();
+    await userEvent.click(await screen.findByRole('button', { name: 'Gerar credenciais' }));
+    expect(await screen.findByTestId('client-secret')).toHaveTextContent(SECRET);
+
+    await userEvent.click(screen.getByRole('button', { name: 'Rotacionar client secret' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Confirmar rotação' }));
+    expect(await screen.findByText(ROTATE_CONFLICT_MESSAGE)).toBeInTheDocument();
+    expect(screen.queryByTestId('client-secret')).not.toBeInTheDocument();
+    expect(screen.getByTestId('client-id')).toHaveTextContent(CLIENT_ID);
+  });
+
   it('shows the error message when generating fails', async () => {
     generateCredentialsFn.mockResolvedValue({ ok: false, status: 403, message: 'Sem acesso' });
     renderPage();

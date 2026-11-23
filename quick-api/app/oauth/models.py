@@ -40,5 +40,8 @@ class IntegrationRefreshToken(Base):
         )
     )
     replaced_by_id: Mapped[int | None] = mapped_column(
-        ForeignKey("integration_refresh_tokens.id", ondelete="SET NULL")
+        # Indexed so deleting a row (purge_expired) can find the rows whose
+        # replaced_by_id it must set to NULL without a full table scan.
+        ForeignKey("integration_refresh_tokens.id", ondelete="SET NULL"),
+        index=True,
     )

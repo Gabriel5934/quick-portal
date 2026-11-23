@@ -229,11 +229,24 @@ def _usable_business(session: Session, row: IntegrationRefreshToken) -> Business
 
 
 def revoke_all_for_business(
-    session: Session, business_id: uuid.UUID, now: datetime
-) -> None:
+    session: Session, business_id: uuid.UUID, token_version: int, now: datetime
+) -> bool:
     """Revokes every unrevoked integration refresh token and invalidates the
-    business's integration access tokens. Runs inside the caller's
-    transaction."""
+    business's integration access tokens, only if the business is still on
+    ``token_version``. Runs inside the caller's transaction.
+
+    The version check and the bump are one conditional UPDATE, which takes
+    SQLite's write lock before any token is revoked, so a rotation or reuse
+    detection that committed after the caller's reads is never undone.
+    Returns False, revoking nothing, when the version moved on.
+    """
+    result = session.execute(
+        update(Business)
+        .where(Business.id == business_id, Business.token_version == token_version)
+        .values(token_version=Business.token_version + 1)
+    )
+    if result.rowcount == 0:
+        return False
     session.execute(
         update(IntegrationRefreshToken)
         .where(
@@ -242,11 +255,7 @@ def revoke_all_for_business(
         )
         .values(revoked_at=now, revoked_reason=RevokedReason.REUSE_DETECTED)
     )
-    session.execute(
-        update(Business)
-        .where(Business.id == business_id)
-        .values(token_version=Business.token_version + 1)
-    )
+    return True
 
 
 def rotate_refresh(
@@ -294,15 +303,14 @@ def rotate_refresh(
         if issued is None:
             if reason is not RevokedReason.ROTATED:
                 raise InvalidRefreshToken
-            current_version = session.scalar(
-                select(Business.token_version).where(Business.id == row.business_id)
-            )
             # A token from before a secret rotation or an earlier reuse
             # detection is already dead with its whole generation; replaying
-            # it must not revoke the sessions issued since.
-            if current_version != row.token_version:
+            # it must not revoke the sessions issued since. The generation is
+            # checked by the conditional UPDATE itself, not by an earlier read.
+            if not revoke_all_for_business(
+                session, row.business_id, row.token_version, now
+            ):
                 raise InvalidRefreshToken
-            revoke_all_for_business(session, row.business_id, now)
             reuse_detected = True
 
     # Raised only after the block above committed; raising inside it would
