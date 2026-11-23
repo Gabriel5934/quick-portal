@@ -13,6 +13,11 @@ export const ROTATE_CONFLICT_MESSAGE =
   'Não foi possível rotacionar o client secret: as credenciais acabaram de ser alteradas. ' +
   'Os dados da empresa foram atualizados; tente novamente.';
 
+export const ROTATE_UNKNOWN_MESSAGE =
+  'Não foi possível confirmar se o client secret foi rotacionado. O client secret exibido foi ' +
+  'removido, pois pode não funcionar mais; rotacione novamente se a integração precisar de um ' +
+  'client secret visível.';
+
 export const COPY_FAILED_MESSAGE =
   'Não foi possível copiar. Selecione o texto e copie manualmente.';
 
@@ -99,8 +104,8 @@ function ClientCredentialsPanel({
     setError(null);
     setNotice(null);
     clipboard.reset();
-    // Any secret on screen stays until the outcome is known: a failure other
-    // than 409 may mean the rotation never committed, so it may still work.
+    // Any secret on screen stays until the outcome is known. It survives only
+    // a definite rejection (a 4xx other than 409), where nothing rotated.
     try {
       const credentials = await rotate.mutateAsync(businessCnpj);
       setFreshClientId(credentials.client_id);
@@ -112,8 +117,14 @@ function ClientCredentialsPanel({
         setSecret(null);
         setNotice(ROTATE_CONFLICT_MESSAGE);
         refreshBusinesses();
-      } else {
+      } else if (caught instanceof ApiError && caught.status >= 400 && caught.status < 500) {
         setError(errorMessage(caught));
+      } else {
+        // Network failure, timeout (status 0), 5xx, an unreadable 200 or a
+        // failed server call: the rotation may have committed, so the secret
+        // shown may no longer work.
+        setSecret(null);
+        setError(ROTATE_UNKNOWN_MESSAGE);
       }
     } finally {
       rotate.reset();

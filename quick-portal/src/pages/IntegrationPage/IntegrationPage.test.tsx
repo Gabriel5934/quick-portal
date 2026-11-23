@@ -8,7 +8,12 @@ import {
   SELECTED_BUSINESS_STORAGE_KEY,
 } from '@/hooks/business/selection-store';
 import { businessesQueryKey } from '@/hooks/business/useBusinesses';
-import { COPY_FAILED_MESSAGE, IntegrationPage, ROTATE_CONFLICT_MESSAGE } from './IntegrationPage';
+import {
+  COPY_FAILED_MESSAGE,
+  IntegrationPage,
+  ROTATE_CONFLICT_MESSAGE,
+  ROTATE_UNKNOWN_MESSAGE,
+} from './IntegrationPage';
 
 const { generateCredentialsFn, rotateCredentialsFn, getBusinessesFn } = vi.hoisted(() => ({
   generateCredentialsFn: vi.fn(),
@@ -209,8 +214,8 @@ describe('IntegrationPage', () => {
     await waitFor(() => expect(getBusinessesFn).toHaveBeenCalledTimes(1));
   });
 
-  it('keeps the shown secret when rotating fails and replaces it once rotating succeeds', async () => {
-    rotateCredentialsFn.mockResolvedValueOnce({ ok: false, status: 500, message: 'Falhou' });
+  it('keeps the shown secret when rotating is refused and replaces it once rotating succeeds', async () => {
+    rotateCredentialsFn.mockResolvedValueOnce({ ok: false, status: 403, message: 'Falhou' });
     renderPage();
     await userEvent.click(await screen.findByRole('button', { name: 'Gerar credenciais' }));
     expect(await screen.findByTestId('client-secret')).toHaveTextContent(SECRET);
@@ -228,6 +233,40 @@ describe('IntegrationPage', () => {
     expect(screen.queryByText(SECRET)).not.toBeInTheDocument();
     expect(screen.queryByText('Falhou')).not.toBeInTheDocument();
     expect(rotateCredentialsFn).toHaveBeenCalledTimes(2);
+  });
+
+  it.each([
+    [
+      'a server error',
+      () =>
+        rotateCredentialsFn.mockResolvedValueOnce({ ok: false, status: 500, message: 'Falhou' }),
+    ],
+    [
+      'a network failure or timeout',
+      () =>
+        rotateCredentialsFn.mockResolvedValueOnce({
+          ok: false,
+          status: 0,
+          message: 'Não foi possível conectar à Quick API.',
+        }),
+    ],
+    [
+      'a failed server call',
+      () => rotateCredentialsFn.mockRejectedValueOnce(new TypeError('Failed to fetch')),
+    ],
+  ])('clears the shown secret when the rotation outcome is unknown (%s)', async (_, fail) => {
+    fail();
+    renderPage();
+    await userEvent.click(await screen.findByRole('button', { name: 'Gerar credenciais' }));
+    expect(await screen.findByTestId('client-secret')).toHaveTextContent(SECRET);
+
+    await userEvent.click(screen.getByRole('button', { name: 'Rotacionar client secret' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Confirmar rotação' }));
+    expect(await screen.findByText(ROTATE_UNKNOWN_MESSAGE)).toBeInTheDocument();
+    expect(screen.queryByTestId('client-secret')).not.toBeInTheDocument();
+    expect(screen.queryByText(SECRET)).not.toBeInTheDocument();
+    expect(screen.getByTestId('client-id')).toHaveTextContent(CLIENT_ID);
+    expect(screen.getByRole('button', { name: 'Rotacionar client secret' })).toBeInTheDocument();
   });
 
   it('clears the shown secret on a rotation conflict', async () => {
