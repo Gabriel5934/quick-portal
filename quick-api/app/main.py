@@ -5,6 +5,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import sessionmaker
 from starlette.concurrency import run_in_threadpool
@@ -17,6 +18,13 @@ from app.cielo.client import CieloClient
 from app.cielo.routes import cielo_router
 from app.config import Settings
 from app.db import create_db_engine
+from app.oauth import service as oauth_service
+from app.oauth.errors import (
+    OAuthLoginError,
+    oauth_login_error_handler,
+    validation_exception_handler,
+)
+from app.oauth.routes import oauth_router
 
 logger = logging.getLogger(__name__)
 
@@ -32,8 +40,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     def purge() -> None:
         with session_factory() as session:
             deleted = purge_expired(session)
+            deleted_integration = oauth_service.purge_expired(session)
         if deleted:
             logger.info("Purged %d expired refresh tokens", deleted)
+        if deleted_integration:
+            logger.info(
+                "Purged %d expired integration refresh tokens", deleted_integration
+            )
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -55,6 +68,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.session_factory = session_factory
     # Shared by every request, so all of them use one Cielo token cache.
     app.state.cielo = CieloClient(settings)
+    # Keeps /oauth validation errors from echoing secrets and tokens.
+    app.add_exception_handler(RequestValidationError, validation_exception_handler)
+    app.add_exception_handler(OAuthLoginError, oauth_login_error_handler)
     app.add_middleware(
         CORSMiddleware,
         # Lets the browser send and store the refresh cookie cross-origin.
@@ -68,6 +84,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return {"status": "ok"}
 
     app.include_router(auth_router)
+    app.include_router(oauth_router)
     app.include_router(business_router)
     app.include_router(cielo_router)
     return app

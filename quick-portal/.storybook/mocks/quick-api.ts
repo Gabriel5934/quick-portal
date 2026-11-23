@@ -6,6 +6,8 @@
 import type {
   Business,
   CieloSeller,
+  ClientCredentials,
+  GenerateCredentialsResult,
   LoginInput,
   Me,
   OnboardPayload,
@@ -56,4 +58,25 @@ export const onboardSellerFn = ({
       document_number: data.payload.document_number,
       fancy_name: data.payload.fancy_name,
     },
+  });
+
+const mockClientId = 'qp_storybook_client_id';
+
+export const generateCredentialsFn = (_options: {
+  data: { accessToken: string; businessCnpj: string };
+}): Promise<ApiResult<GenerateCredentialsResult>> =>
+  delay({
+    ok: true,
+    data: {
+      status: 'created',
+      credentials: { client_id: mockClientId, client_secret: 'storybook-fake-client-secret' },
+    },
+  });
+
+export const rotateCredentialsFn = (_options: {
+  data: { accessToken: string; businessCnpj: string };
+}): Promise<ApiResult<ClientCredentials>> =>
+  delay({
+    ok: true,
+    data: { client_id: mockClientId, client_secret: 'storybook-fake-rotated-client-secret' },
   });

@@ -7,6 +7,7 @@ from sqlalchemy import create_engine, pool
 import app.auth.models  # noqa: F401
 import app.business.models  # noqa: F401
 import app.cielo.models  # noqa: F401
+import app.oauth.models  # noqa: F401
 from app.config import Settings
 from app.db import Base, IntEnumType, UTCDateTime
 

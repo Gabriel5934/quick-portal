@@ -14,6 +14,7 @@ import { Route as AuthRouteImport } from './routes/_auth'
 import { Route as CadastroRouteImport } from './routes/cadastro'
 import { Route as AuthCadastroCieloRouteImport } from './routes/_auth/cadastro-cielo'
 import { Route as AuthInicioRouteImport } from './routes/_auth/inicio'
+import { Route as AuthIntegracaoRouteImport } from './routes/_auth/integracao'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -39,18 +40,25 @@ const AuthInicioRoute = AuthInicioRouteImport.update({
   path: '/inicio',
   getParentRoute: () => AuthRoute,
 } as any)
+const AuthIntegracaoRoute = AuthIntegracaoRouteImport.update({
+  id: '/integracao',
+  path: '/integracao',
+  getParentRoute: () => AuthRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/cadastro': typeof CadastroRoute
   '/cadastro-cielo': typeof AuthCadastroCieloRoute
   '/inicio': typeof AuthInicioRoute
+  '/integracao': typeof AuthIntegracaoRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/cadastro': typeof CadastroRoute
   '/cadastro-cielo': typeof AuthCadastroCieloRoute
   '/inicio': typeof AuthInicioRoute
+  '/integracao': typeof AuthIntegracaoRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -59,12 +67,13 @@ export interface FileRoutesById {
   '/cadastro': typeof CadastroRoute
   '/_auth/cadastro-cielo': typeof AuthCadastroCieloRoute
   '/_auth/inicio': typeof AuthInicioRoute
+  '/_auth/integracao': typeof AuthIntegracaoRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/cadastro' | '/cadastro-cielo' | '/inicio'
+  fullPaths: '/' | '/cadastro' | '/cadastro-cielo' | '/inicio' | '/integracao'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/cadastro' | '/cadastro-cielo' | '/inicio'
+  to: '/' | '/cadastro' | '/cadastro-cielo' | '/inicio' | '/integracao'
   id:
     | '__root__'
     | '/'
@@ -72,6 +81,7 @@ export interface FileRouteTypes {
     | '/cadastro'
     | '/_auth/cadastro-cielo'
     | '/_auth/inicio'
+    | '/_auth/integracao'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -117,17 +127,26 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthInicioRouteImport
       parentRoute: typeof AuthRoute
     }
+    '/_auth/integracao': {
+      id: '/_auth/integracao'
+      path: '/integracao'
+      fullPath: '/integracao'
+      preLoaderRoute: typeof AuthIntegracaoRouteImport
+      parentRoute: typeof AuthRoute
+    }
   }
 }
 
 interface AuthRouteChildren {
   AuthCadastroCieloRoute: typeof AuthCadastroCieloRoute
   AuthInicioRoute: typeof AuthInicioRoute
+  AuthIntegracaoRoute: typeof AuthIntegracaoRoute
 }
 
 const AuthRouteChildren: AuthRouteChildren = {
   AuthCadastroCieloRoute: AuthCadastroCieloRoute,
   AuthInicioRoute: AuthInicioRoute,
+  AuthIntegracaoRoute: AuthIntegracaoRoute,
 }
 
 const AuthRouteWithChildren = AuthRoute._addFileChildren(AuthRouteChildren)
