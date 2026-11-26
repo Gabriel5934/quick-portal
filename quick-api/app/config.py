@@ -13,6 +13,8 @@ from sqlalchemy import URL
 DEFAULT_DATABASE_PATH = "data/quick-api.sqlite3"
 DEFAULT_ACCESS_TOKEN_TTL_SECONDS = 5 * 60
 DEFAULT_REFRESH_TOKEN_TTL_SECONDS = 24 * 60 * 60
+# Submission port with STARTTLS; dev overrides it with MailHog's 1025.
+DEFAULT_SMTP_PORT = 587
 # PyJWT warns about HS256 keys shorter than the 32-byte SHA-256 output.
 MIN_JWT_SECRET_BYTES = 32
 BEACON_PORT = 8000
@@ -113,6 +115,14 @@ class Settings:
     # rejected. Hostnames are the ones the widget may be solved on.
     turnstile_secret: str = field(default="", repr=False)
     turnstile_hostnames: tuple[str, ...] = ()
+    # Outgoing mail (app.mail). Optional and not checked at startup; empty
+    # values only fail when a message is sent. The SMTP_ prefix is the env
+    # var name as configured. An empty username sends without SMTP login.
+    smtp_username: str = ""
+    smtp_password: str = field(default="", repr=False)
+    smtp_from: str = ""
+    smtp_port: int = DEFAULT_SMTP_PORT
+    smtp_server: str = ""
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -136,6 +146,11 @@ class Settings:
             beacon_portal_token=_env_str("BEACON_PORTAL_TOKEN"),
             turnstile_secret=_env_str("TURNSTILE_SECRET"),
             turnstile_hostnames=_env_list("TURNSTILE_HOSTNAMES"),
+            smtp_username=_env_str("SMTP_USERNAME"),
+            smtp_password=_env_str("SMTP_PASSWORD"),
+            smtp_from=_env_str("SMTP_FROM"),
+            smtp_port=_env_int("SMTP_PORT", DEFAULT_SMTP_PORT),
+            smtp_server=_env_str("SMTP_SERVER"),
         )
 
     @property
