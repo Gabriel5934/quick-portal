@@ -11,7 +11,9 @@ from app.config import Settings
 # Jinja templates for send_message(template_name=...). The container path:
 # docker-compose.dev.yml mounts ./templates here. The production image does
 # not ship it, so ConnectionConfig gets no folder there: plain-text mail
-# still works, and template mail fails at send time.
+# still works, but template rendering is off. fastapi-mail then ignores
+# template_name and sends template_body unrendered, so do not send
+# templated mail from production until the folder ships.
 TEMPLATE_FOLDER = Path("/app/templates")
 
 
