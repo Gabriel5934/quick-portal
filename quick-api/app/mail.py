@@ -9,8 +9,9 @@ from pydantic import SecretStr
 from app.config import Settings
 
 # Jinja templates for send_message(template_name=...). The container path:
-# docker-compose.dev.yml mounts ./templates here. ConnectionConfig requires
-# the directory to exist.
+# docker-compose.dev.yml mounts ./templates here. The production image does
+# not ship it, so ConnectionConfig gets no folder there: plain-text mail
+# still works, and template mail fails at send time.
 TEMPLATE_FOLDER = Path("/app/templates")
 
 
@@ -19,7 +20,7 @@ def get_mailer() -> FastMail:
     """The process-wide FastMail instance, built on first use.
 
     Raises pydantic.ValidationError when the settings are unusable (for
-    example an empty SMTP_FROM or a missing template folder).
+    example an empty SMTP_FROM).
     """
     settings = Settings.from_env()
     config = ConnectionConfig(
@@ -33,7 +34,7 @@ def get_mailer() -> FastMail:
         # MailHog in dev needs no login: an empty username skips it.
         USE_CREDENTIALS=bool(settings.smtp_username),
         VALIDATE_CERTS=True,
-        TEMPLATE_FOLDER=TEMPLATE_FOLDER,
+        TEMPLATE_FOLDER=TEMPLATE_FOLDER if TEMPLATE_FOLDER.is_dir() else None,
     )
     fm = FastMail(config)
     return fm

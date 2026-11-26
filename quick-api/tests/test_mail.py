@@ -77,3 +77,17 @@ def test_get_mailer_uses_settings(
     assert fm.config.MAIL_STARTTLS is False
     assert fm.config.MAIL_SSL_TLS is False
     assert fm.config.USE_CREDENTIALS is True
+
+
+def test_get_mailer_without_template_folder(
+    smtp_env: None,
+    fresh_mailer: None,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    # The production image has no templates folder: the mailer must still build.
+    monkeypatch.setattr(mail, "TEMPLATE_FOLDER", tmp_path / "missing")
+
+    fm = mail.get_mailer()
+
+    assert fm.config.TEMPLATE_FOLDER is None
