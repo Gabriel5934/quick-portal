@@ -147,7 +147,8 @@ class Settings:
             turnstile_secret=_env_str("TURNSTILE_SECRET"),
             turnstile_hostnames=_env_list("TURNSTILE_HOSTNAMES"),
             smtp_username=_env_str("SMTP_USERNAME"),
-            smtp_password=_env_str("SMTP_PASSWORD"),
+            # Not trimmed: a password may legitimately start or end with spaces.
+            smtp_password=os.environ.get("SMTP_PASSWORD", ""),
             smtp_from=_env_str("SMTP_FROM"),
             smtp_port=_env_int("SMTP_PORT", DEFAULT_SMTP_PORT),
             smtp_server=_env_str("SMTP_SERVER"),

@@ -42,6 +42,14 @@ def test_settings_read_smtp_env(smtp_env: None) -> None:
     assert "test-smtp-password" not in repr(settings)
 
 
+def test_smtp_password_keeps_surrounding_spaces(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SMTP_PASSWORD", " secret ")
+
+    assert Settings.from_env().smtp_password == " secret "
+
+
 def test_smtp_settings_default_when_unset(monkeypatch: pytest.MonkeyPatch) -> None:
     for name in SMTP_ENV:
         monkeypatch.delenv(name, raising=False)
