@@ -23,6 +23,7 @@ dev: dev-env
 # The webhook token must be the same on both sides: cielo-mock sends it to
 # beacon. The Cielo settings point Quick API at cielo-mock over the compose
 # network and match the credentials hard-coded in cielo-mock/src/config.ts.
+# The SMTP_* mail settings send Quick API's mail to the mailhog service.
 dev-env:
 	@[ -f .env ] || { cp .env.example .env && chmod 600 .env && echo "created .env"; }
 	@sh scripts/dev-env.sh .env.beacon .env.beacon.example \
@@ -39,7 +40,10 @@ dev-env:
 	  CIELO_ONBOARDING_BASE_URL=http://cielo-mock:3000 \
 	  BEACON_PRIVATE_IP=beacon \
 	  TURNSTILE_HOSTNAMES=localhost,127.0.0.1 \
-	  BEACON_PORTAL_TOKEN=beacon-portal-token
+	  BEACON_PORTAL_TOKEN=beacon-portal-token \
+	  SMTP_FROM=dev@quickapi.com \
+	  SMTP_PORT=1025 \
+	  SMTP_SERVER=mailhog
 
 # Lint and test quick-api in a one-off container built from the Dockerfile's
 # test stage; nothing is installed on the host and the container is removed.

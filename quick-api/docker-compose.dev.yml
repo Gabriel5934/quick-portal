@@ -30,6 +30,8 @@ services:
       - ./data:/app/data
       - ./app:/app/app
       - ./alembic:/app/alembic
+      # Mail templates for app.mail (TEMPLATE_FOLDER is /app/templates).
+      - ./templates:/app/templates
     # Healthy only once uvicorn answers /health, which is after `alembic
     # upgrade head` has finished, so `make dev` (up --wait) does not run
     # create_dev_user against a database without its tables. The slim image
@@ -46,6 +48,17 @@ services:
       interval: 5s
       timeout: 3s
       retries: 5
+
+  # Local SMTP catcher for dev mail. Captured messages are shown at
+  # http://localhost:8025.
+  mailhog:
+    image: mailhog/mailhog:v1.0.1
+    restart: unless-stopped
+    ports:
+      # SMTP, bound to localhost only: the API reaches it over the compose network.
+      - "127.0.0.1:1025:1025"
+      # Web UI at http://localhost:8025, bound to localhost only.
+      - "127.0.0.1:8025:8025"
 
   # Tests and lint in a container (`make test-api`). Behind the `test`
   # profile, so `make dev` and a plain `up` never start it. The tests build
